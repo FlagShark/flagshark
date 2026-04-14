@@ -1,0 +1,33 @@
+name: 'FlagShark'
+description: 'Find stale feature flags in your PRs'
+author: 'FlagShark'
+
+inputs:
+  scan:
+    description: 'Scan mode: "changed" (PR files only) or "full" (entire repo)'
+    required: false
+    default: 'changed'
+  threshold:
+    description: 'Staleness threshold in months'
+    required: false
+    default: '6'
+  fail-threshold:
+    description: 'Health score below which the check fails (0 = never fail)'
+    required: false
+    default: '0'
+
+outputs:
+  health-score:
+    description: 'Flag health score (0-100)'
+  stale-count:
+    description: 'Number of stale flags found'
+  total-count:
+    description: 'Total number of flags detected'
+
+runs:
+  using: 'node20'
+  main: 'dist/action.js'
+
+branding:
+  icon: 'flag'
+  color: 'blue'
