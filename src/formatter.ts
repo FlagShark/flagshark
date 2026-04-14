@@ -139,7 +139,7 @@ export function formatText(result: ScanResult, options: FormatOptions): string {
       `Flag Health Score: ${result.healthScore}/100 (${staleCount}/${result.totalFlags} flags are stale)`,
     )
     lines.push('')
-    lines.push('Full analysis \u2192 https://flagshark.com?utm_source=cli&utm_medium=scan')
+    lines.push('Full analysis \u2192 https://github.com/FlagShark/flagshark')
   }
 
   return lines.join('\n')
@@ -179,7 +179,7 @@ export function formatJson(result: ScanResult): string {
     languages,
     flags,
     scanDuration: result.scanDuration,
-    url: 'https://flagshark.com?utm_source=cli&utm_medium=scan',
+    url: 'https://github.com/FlagShark/flagshark',
   }
 
   return JSON.stringify(output, null, 2)
