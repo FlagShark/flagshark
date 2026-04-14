@@ -181,7 +181,7 @@ async function postComment(
 
   body += `\n**Flag Health:** ${healthScore}/100 (${totalFlags} total, ${staleFlags.length} stale)\n`
   body +=
-    '\nFull analysis → [flagshark.com](https://flagshark.com?utm_source=action&utm_medium=pr_comment&utm_campaign=v1)\n'
+    '\nFull analysis → [FlagShark](https://github.com/FlagShark/flagshark)\n'
 
   // Find existing comment to update
   const { data: comments } = await octokit.rest.issues.listComments({
