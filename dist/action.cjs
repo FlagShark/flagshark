@@ -31574,11 +31574,16 @@ var SKIP_DIRS = /* @__PURE__ */ new Set([
   ".turbo"
 ]);
 var logger = {
-  debug: (...args) => core.debug(args.map(String).join(" ")),
-  info: (...args) => core.info(args.map(String).join(" ")),
-  warn: (...args) => core.warning(args.map(String).join(" ")),
-  error: (...args) => core.error(args.map(String).join(" "))
+  debug: (...args) => core.debug(formatLogArgs(args)),
+  info: (...args) => core.info(formatLogArgs(args)),
+  warn: (...args) => core.warning(formatLogArgs(args)),
+  error: (...args) => core.error(formatLogArgs(args))
 };
+function formatLogArgs(args) {
+  return args.map(
+    (a) => typeof a === "object" && a !== null ? JSON.stringify(a, null, 2) : String(a)
+  ).join(" ");
+}
 async function run() {
   const startTime = Date.now();
   try {
@@ -31609,9 +31614,7 @@ async function run() {
     for (const fp of filePaths) {
       try {
         const stat = (0, import_node_fs.statSync)(fp);
-        if (stat.size > 5 * 1024 * 1024) {
-          continue;
-        }
+        if (stat.size > 5 * 1024 * 1024) continue;
         files.set(fp, (0, import_node_fs.readFileSync)(fp, "utf-8"));
       } catch {
       }
@@ -31619,6 +31622,18 @@ async function run() {
     core.info(`Scanning ${files.size} files...`);
     const result = await analyzer.analyzeFiles(files);
     const totalFlags = result.totalFlags.size;
+    const langStats = {};
+    for (const [lang, count] of result.languages) {
+      langStats[lang] = count;
+    }
+    const allFlags = [];
+    for (const flags of result.totalFlags.values()) {
+      allFlags.push(...flags);
+    }
+    const providers = [...new Set(
+      allFlags.map((f) => f.provider).filter((p) => p !== null && p !== void 0 && p !== "")
+    )];
+    core.info(`Detection complete: ${totalFlags} unique flags across ${Object.keys(langStats).length} languages`);
     const staleFlags = await analyzeStaleness(result.totalFlags, {
       thresholdMonths: threshold,
       repoRoot: process.cwd()
@@ -31626,28 +31641,75 @@ async function run() {
     const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
     const healthScore = totalFlags > 0 ? Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100) : 100;
     const scanDuration = Date.now() - startTime;
+    core.info("");
+    core.info("\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510");
+    core.info("\u2502  \u{1F988} FlagShark Scan Results               \u2502");
+    core.info("\u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524");
+    core.info(`\u2502  Files scanned:    ${String(files.size).padStart(6)}               \u2502`);
+    core.info(`\u2502  Languages:        ${String(Object.keys(langStats).length).padStart(6)}               \u2502`);
+    core.info(`\u2502  Flags detected:   ${String(totalFlags).padStart(6)}               \u2502`);
+    core.info(`\u2502  Stale flags:      ${String(uniqueStaleNames).padStart(6)}               \u2502`);
+    core.info(`\u2502  Health score:   ${String(healthScore).padStart(3)}/100               \u2502`);
+    core.info(`\u2502  Scan time:      ${String(scanDuration).padStart(5)}ms               \u2502`);
+    core.info("\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518");
+    core.info("");
+    if (providers.length > 0) {
+      core.info(`Detected providers: ${providers.slice(0, 8).join(", ")}${providers.length > 8 ? ` (+${providers.length - 8} more)` : ""}`);
+    }
     core.setOutput("health-score", healthScore.toString());
-    core.setOutput("stale-count", staleFlags.length.toString());
+    core.setOutput("stale-count", uniqueStaleNames.toString());
     core.setOutput("total-count", totalFlags.toString());
     if (github.context.payload.pull_request && totalFlags > 0) {
       const token = process.env.GITHUB_TOKEN || core.getInput("token");
       if (token) {
-        await postComment(token, staleFlags, totalFlags, healthScore, scanMode);
+        await postComment(token, staleFlags, totalFlags, healthScore, scanMode, langStats, providers, scanDuration);
       }
     }
     if (failThreshold > 0 && healthScore < failThreshold) {
       core.setFailed(
-        `Flag health score ${healthScore}/100 is below threshold ${failThreshold}/100. ${staleFlags.length} stale flags found.`
+        `Flag health score ${healthScore}/100 is below threshold ${failThreshold}/100. ${uniqueStaleNames} stale flags found.`
       );
-    } else {
-      core.info(`Flag Health Score: ${healthScore}/100 (${staleFlags.length}/${totalFlags} stale)`);
     }
-    core.summary.addHeading("FlagShark Results", 2).addRaw(`**Health Score:** ${healthScore}/100
+    const healthEmoji = healthScore >= 90 ? "\u{1F7E2}" : healthScore >= 70 ? "\u{1F7E1}" : healthScore >= 40 ? "\u{1F7E0}" : "\u{1F534}";
+    core.summary.addHeading("\u{1F988} FlagShark Scan Results", 2);
+    core.summary.addRaw(`
+${healthEmoji} **Health Score: ${healthScore}/100**
 
-`).addRaw(`**Flags:** ${totalFlags} total, ${staleFlags.length} stale
-
-`).addRaw(`**Scan time:** ${scanDuration}ms
 `);
+    core.summary.addTable([
+      [{ data: "Metric", header: true }, { data: "Value", header: true }],
+      ["Files scanned", files.size.toString()],
+      ["Languages", Object.keys(langStats).join(", ") || "none"],
+      ["Total flags", totalFlags.toString()],
+      ["Stale flags", uniqueStaleNames.toString()],
+      ["Scan mode", scanMode],
+      ["Scan time", `${scanDuration}ms`]
+    ]);
+    if (providers.length > 0) {
+      core.summary.addRaw(`
+**Detected providers:** ${providers.join(", ")}
+`);
+    }
+    if (uniqueStaleNames > 0) {
+      core.summary.addRaw("\n### Top stale flags\n\n");
+      core.summary.addTable([
+        [{ data: "Flag", header: true }, { data: "File", header: true }, { data: "Age", header: true }, { data: "Signal", header: true }],
+        ...staleFlags.slice(0, 15).map((f) => [
+          `\`${f.name}\``,
+          `${f.filePath}:${f.lineNumber}`,
+          f.age || "unknown",
+          f.signals.map((s) => s.description).join(", ")
+        ])
+      ]);
+      if (staleFlags.length > 15) {
+        core.summary.addRaw(`
+*... and ${staleFlags.length - 15} more stale flags*
+`);
+      }
+    }
+    core.summary.addRaw("\n---\n");
+    core.summary.addRaw("*Powered by [FlagShark](https://github.com/FlagShark/flagshark) \u2014 find stale feature flags before they cause incidents*\n");
+    core.summary.addRaw("\n[Install FlagShark](https://github.com/FlagShark/flagshark) \xB7 [Report an issue](https://github.com/FlagShark/flagshark/issues)\n");
     await core.summary.write();
   } catch (error2) {
     if (error2 instanceof Error) {
@@ -31657,46 +31719,73 @@ async function run() {
     }
   }
 }
-async function postComment(token, staleFlags, totalFlags, healthScore, scanMode) {
+async function postComment(token, staleFlags, totalFlags, healthScore, scanMode, langStats, providers, scanDuration) {
   const octokit = github.getOctokit(token);
   const { owner, repo } = github.context.repo;
   const prNumber = github.context.payload.pull_request.number;
   const uniqueStaleCount = new Set(staleFlags.map((f) => f.name)).size;
-  const modeLabel = scanMode === "full" ? "(full repo scan)" : "(changed files only)";
+  const modeLabel = scanMode === "full" ? "Full repo scan" : "Changed files only";
+  const healthEmoji = healthScore >= 90 ? "\u{1F7E2}" : healthScore >= 70 ? "\u{1F7E1}" : healthScore >= 40 ? "\u{1F7E0}" : "\u{1F534}";
+  const langList = Object.entries(langStats).map(([l, c]) => `${l} (${c})`).join(", ");
+  const providerList = providers.length > 0 ? providers.slice(0, 5).join(", ") + (providers.length > 5 ? ` +${providers.length - 5} more` : "") : "none detected";
   let body = `${COMMENT_MARKER}
 `;
   if (uniqueStaleCount === 0) {
-    body += `### \u{1F988} FlagShark ${modeLabel}
+    body += `## \u{1F988} FlagShark \u2014 All flags healthy
 
-`;
-    body += `Scanned ${totalFlags} feature flag${totalFlags !== 1 ? "s" : ""}. All look healthy.
-
-`;
-    body += `**Flag Health:** ${healthScore}/100
 `;
   } else {
-    body += `### \u{1F988} FlagShark found ${uniqueStaleCount} stale flag${uniqueStaleCount !== 1 ? "s" : ""} ${modeLabel}
+    body += `## \u{1F988} FlagShark \u2014 ${uniqueStaleCount} stale flag${uniqueStaleCount !== 1 ? "s" : ""} found
 
 `;
-    body += "| Flag | File | Added | Signal |\n";
-    body += "|------|------|-------|--------|\n";
-    const displayFlags = staleFlags.slice(0, 10);
-    const remaining = staleFlags.length - displayFlags.length;
+  }
+  body += `${healthEmoji} **Health Score: ${healthScore}/100**
+
+`;
+  body += `| Metric | Value |
+`;
+  body += `|--------|-------|
+`;
+  body += `| Flags detected | ${totalFlags} |
+`;
+  body += `| Stale flags | ${uniqueStaleCount} |
+`;
+  body += `| Languages | ${langList} |
+`;
+  body += `| Providers | ${providerList} |
+`;
+  body += `| Scan mode | ${modeLabel} |
+`;
+  body += `| Scan time | ${scanDuration}ms |
+
+`;
+  if (uniqueStaleCount > 0) {
+    body += `<details${uniqueStaleCount <= 5 ? " open" : ""}>
+`;
+    body += `<summary><strong>Stale flags (${uniqueStaleCount})</strong></summary>
+
+`;
+    body += "| Flag | File | Age | Why it looks stale |\n";
+    body += "|------|------|-----|--------------------|\n";
+    const displayFlags = staleFlags.slice(0, 20);
     for (const flag of displayFlags) {
       const signals = flag.signals.map((s) => s.description).join(", ");
-      body += `| \`${flag.name}\` | ${flag.filePath}:${flag.lineNumber} | ${flag.age || "unknown"} | ${signals} |
+      const shortPath = flag.filePath.replace(/^\.\//, "");
+      body += `| \`${flag.name}\` | \`${shortPath}:${flag.lineNumber}\` | ${flag.age || "unknown"} | ${signals} |
 `;
     }
-    if (remaining > 0) {
+    if (staleFlags.length > 20) {
       body += `
-... and ${remaining} more stale flags.
+*... and ${staleFlags.length - 20} more. Run \`npx flagshark scan --verbose\` locally for the full list.*
 `;
     }
-    body += `
-**Flag Health:** ${healthScore}/100 (${totalFlags} total, ${uniqueStaleCount} stale)
-`;
+    body += "\n</details>\n\n";
   }
-  body += "\n---\n*Powered by [FlagShark](https://github.com/FlagShark/flagshark)*\n";
+  body += "---\n";
+  body += `*[FlagShark](https://github.com/FlagShark/flagshark) finds stale feature flags before they cause incidents \xB7 `;
+  body += `[Install CLI](https://www.npmjs.com/package/flagshark) \xB7 `;
+  body += `[flagshark.com](https://flagshark.com)*
+`;
   const { data: comments } = await octokit.rest.issues.listComments({
     owner,
     repo,
@@ -31705,20 +31794,10 @@ async function postComment(token, staleFlags, totalFlags, healthScore, scanMode)
   });
   const existing = comments.find((c) => c.body?.includes(COMMENT_MARKER));
   if (existing) {
-    await octokit.rest.issues.updateComment({
-      owner,
-      repo,
-      comment_id: existing.id,
-      body
-    });
+    await octokit.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
     core.info("Updated existing FlagShark comment");
   } else {
-    await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body
-    });
+    await octokit.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
     core.info("Posted new FlagShark comment");
   }
 }
@@ -31727,12 +31806,7 @@ function walkDir(dir, supportedExts) {
   try {
     const entries = (0, import_node_fs.readdirSync)(dir, { withFileTypes: true });
     for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) {
-        continue;
-      }
-      if (entry.name.startsWith(".")) {
-        continue;
-      }
+      if (SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
       const fullPath = (0, import_node_path.join)(dir, entry.name);
       if (entry.isDirectory()) {
         results.push(...walkDir(fullPath, supportedExts));
