@@ -31629,10 +31629,10 @@ async function run() {
     core.setOutput("health-score", healthScore.toString());
     core.setOutput("stale-count", staleFlags.length.toString());
     core.setOutput("total-count", totalFlags.toString());
-    if (github.context.payload.pull_request && staleFlags.length > 0) {
+    if (github.context.payload.pull_request && totalFlags > 0) {
       const token = process.env.GITHUB_TOKEN || core.getInput("token");
       if (token) {
-        await postComment(token, staleFlags, totalFlags, healthScore);
+        await postComment(token, staleFlags, totalFlags, healthScore, scanMode);
       }
     }
     if (failThreshold > 0 && healthScore < failThreshold) {
@@ -31657,33 +31657,46 @@ async function run() {
     }
   }
 }
-async function postComment(token, staleFlags, totalFlags, healthScore) {
+async function postComment(token, staleFlags, totalFlags, healthScore, scanMode) {
   const octokit = github.getOctokit(token);
   const { owner, repo } = github.context.repo;
   const prNumber = github.context.payload.pull_request.number;
-  const displayFlags = staleFlags.slice(0, 10);
-  const remaining = staleFlags.length - displayFlags.length;
+  const uniqueStaleCount = new Set(staleFlags.map((f) => f.name)).size;
+  const modeLabel = scanMode === "full" ? "(full repo scan)" : "(changed files only)";
   let body = `${COMMENT_MARKER}
 `;
-  body += `### \u{1F988} FlagShark found ${staleFlags.length} stale flag${staleFlags.length !== 1 ? "s" : ""}
+  if (uniqueStaleCount === 0) {
+    body += `### \u{1F988} FlagShark ${modeLabel}
 
 `;
-  body += "| Flag | File | Added | Signal |\n";
-  body += "|------|------|-------|--------|\n";
-  for (const flag of displayFlags) {
-    const signals = flag.signals.map((s) => s.description).join(", ");
-    body += `| \`${flag.name}\` | ${flag.filePath}:${flag.lineNumber} | ${flag.age || "unknown"} | ${signals} |
+    body += `Scanned ${totalFlags} feature flag${totalFlags !== 1 ? "s" : ""}. All look healthy.
+
 `;
-  }
-  if (remaining > 0) {
-    body += `
+    body += `**Flag Health:** ${healthScore}/100
+`;
+  } else {
+    body += `### \u{1F988} FlagShark found ${uniqueStaleCount} stale flag${uniqueStaleCount !== 1 ? "s" : ""} ${modeLabel}
+
+`;
+    body += "| Flag | File | Added | Signal |\n";
+    body += "|------|------|-------|--------|\n";
+    const displayFlags = staleFlags.slice(0, 10);
+    const remaining = staleFlags.length - displayFlags.length;
+    for (const flag of displayFlags) {
+      const signals = flag.signals.map((s) => s.description).join(", ");
+      body += `| \`${flag.name}\` | ${flag.filePath}:${flag.lineNumber} | ${flag.age || "unknown"} | ${signals} |
+`;
+    }
+    if (remaining > 0) {
+      body += `
 ... and ${remaining} more stale flags.
 `;
-  }
-  body += `
-**Flag Health:** ${healthScore}/100 (${totalFlags} total, ${staleFlags.length} stale)
+    }
+    body += `
+**Flag Health:** ${healthScore}/100 (${totalFlags} total, ${uniqueStaleCount} stale)
 `;
-  body += "\nFull analysis \u2192 [FlagShark](https://github.com/FlagShark/flagshark)\n";
+  }
+  body += "\n---\n*Powered by [FlagShark](https://github.com/FlagShark/flagshark)*\n";
   const { data: comments } = await octokit.rest.issues.listComments({
     owner,
     repo,

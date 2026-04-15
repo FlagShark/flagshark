@@ -83,6 +83,8 @@ jobs:
         with:
           fetch-depth: 0  # Required for git blame age detection
       - uses: FlagShark/flagshark@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### Action Inputs
@@ -93,9 +95,23 @@ jobs:
 | `threshold` | `6` | Staleness threshold in months |
 | `fail-threshold` | `0` | Health score below which the check fails (0 = never fail) |
 
+### Scan Modes
+
+**`scan: changed`** (default) scans only files modified in the PR. Fast, focused on what you're changing.
+
+**`scan: full`** scans the entire repository. Shows your full flag health score and finds stale flags everywhere, not just in changed files. Great for seeing the big picture:
+
+```yaml
+      - uses: FlagShark/flagshark@v1
+        with:
+          scan: full
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
 ### What the Action does
 
-On every PR, FlagShark comments with a table of stale flags found in the changed files:
+On every PR, FlagShark comments with a table of stale flags:
 
 > ### 🦈 FlagShark found 3 stale flags
 >
@@ -153,22 +169,6 @@ A flag is marked stale if **any** of these signals fires:
 2. **Single file:** The flag name appears in only one file across the entire repo, suggesting a completed rollout
 
 FlagShark only checks files that actually import a flag SDK. A function called `isEnabled()` in a file that doesn't import LaunchDarkly/Unleash/etc. won't be flagged. This prevents false positives.
-
-## Configuration
-
-### `.flagsharkignore`
-
-Exclude files or specific flags:
-
-```
-# Glob patterns for files
-test/**
-fixtures/**
-
-# Specific flag names (prefix with flag:)
-flag:PERMANENT_ADMIN_OVERRIDE
-flag:MAINTENANCE_MODE
-```
 
 ## License
 
