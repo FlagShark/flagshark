@@ -33,7 +33,7 @@
   "scripts": {
     "build": "npm run build:cli && npm run build:action",
     "build:cli": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.js --external:zod",
-    "build:action": "esbuild action/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/action.js --external:@actions/core --external:@actions/github --external:zod",
+    "build:action": "esbuild action/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/action.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build && npm test"
