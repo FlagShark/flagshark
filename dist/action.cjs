@@ -31709,7 +31709,7 @@ ${healthEmoji} **Health Score: ${healthScore}/100**
     }
     core.summary.addRaw("\n---\n");
     core.summary.addRaw("*Powered by [FlagShark](https://github.com/FlagShark/flagshark) \u2014 find stale feature flags before they cause incidents*\n");
-    core.summary.addRaw("\n[Install FlagShark](https://github.com/FlagShark/flagshark) \xB7 [Report an issue](https://github.com/FlagShark/flagshark/issues)\n");
+    core.summary.addRaw("\n[Automate flag cleanup](https://flagshark.com) \xB7 [Open source CLI](https://github.com/FlagShark/flagshark) \xB7 [Report an issue](https://github.com/FlagShark/flagshark/issues)\n");
     await core.summary.write();
   } catch (error2) {
     if (error2 instanceof Error) {
@@ -31782,9 +31782,12 @@ async function postComment(token, staleFlags, totalFlags, healthScore, scanMode,
     body += "\n</details>\n\n";
   }
   body += "---\n";
-  body += `*[FlagShark](https://github.com/FlagShark/flagshark) finds stale feature flags before they cause incidents \xB7 `;
+  body += `*[FlagShark](https://github.com/FlagShark/flagshark) finds stale feature flags before they cause incidents*
+
+`;
+  body += `[Automate flag cleanup](https://flagshark.com) \xB7 `;
   body += `[Install CLI](https://www.npmjs.com/package/flagshark) \xB7 `;
-  body += `[flagshark.com](https://flagshark.com)*
+  body += `[Open source](https://github.com/FlagShark/flagshark)
 `;
   const { data: comments } = await octokit.rest.issues.listComments({
     owner,
