@@ -195,7 +195,7 @@ async function run(): Promise<void> {
 
     core.summary.addRaw('\n---\n')
     core.summary.addRaw('*Powered by [FlagShark](https://github.com/FlagShark/flagshark) — find stale feature flags before they cause incidents*\n')
-    core.summary.addRaw('\n[Install FlagShark](https://github.com/FlagShark/flagshark) · [Report an issue](https://github.com/FlagShark/flagshark/issues)\n')
+    core.summary.addRaw('\n[Automate flag cleanup](https://flagshark.com) · [Open source CLI](https://github.com/FlagShark/flagshark) · [Report an issue](https://github.com/FlagShark/flagshark/issues)\n')
 
     await core.summary.write()
 
@@ -275,9 +275,10 @@ async function postComment(
 
   // Footer with links
   body += '---\n'
-  body += `*[FlagShark](https://github.com/FlagShark/flagshark) finds stale feature flags before they cause incidents · `
+  body += `*[FlagShark](https://github.com/FlagShark/flagshark) finds stale feature flags before they cause incidents*\n\n`
+  body += `[Automate flag cleanup](https://flagshark.com) · `
   body += `[Install CLI](https://www.npmjs.com/package/flagshark) · `
-  body += `[flagshark.com](https://flagshark.com)*\n`
+  body += `[Open source](https://github.com/FlagShark/flagshark)\n`
 
   // Find existing comment to update
   const { data: comments } = await octokit.rest.issues.listComments({
