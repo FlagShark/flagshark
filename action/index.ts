@@ -118,11 +118,11 @@ async function run(): Promise<void> {
     core.setOutput('stale-count', staleFlags.length.toString())
     core.setOutput('total-count', totalFlags.toString())
 
-    // Post PR comment (only on PRs)
-    if (github.context.payload.pull_request && staleFlags.length > 0) {
+    // Post PR comment when flags are found (stale or not, to show health score)
+    if (github.context.payload.pull_request && totalFlags > 0) {
       const token = process.env.GITHUB_TOKEN || core.getInput('token')
       if (token) {
-        await postComment(token, staleFlags, totalFlags, healthScore)
+        await postComment(token, staleFlags, totalFlags, healthScore, scanMode)
       }
     }
 
@@ -157,31 +157,42 @@ async function postComment(
   staleFlags: StaleFlag[],
   totalFlags: number,
   healthScore: number,
+  scanMode: string,
 ): Promise<void> {
   const octokit = github.getOctokit(token)
   const { owner, repo } = github.context.repo
   const prNumber = github.context.payload.pull_request!.number
 
-  const displayFlags = staleFlags.slice(0, 10)
-  const remaining = staleFlags.length - displayFlags.length
+  const uniqueStaleCount = new Set(staleFlags.map((f) => f.name)).size
+  const modeLabel = scanMode === 'full' ? '(full repo scan)' : '(changed files only)'
 
   let body = `${COMMENT_MARKER}\n`
-  body += `### 🦈 FlagShark found ${staleFlags.length} stale flag${staleFlags.length !== 1 ? 's' : ''}\n\n`
-  body += '| Flag | File | Added | Signal |\n'
-  body += '|------|------|-------|--------|\n'
 
-  for (const flag of displayFlags) {
-    const signals = flag.signals.map((s) => s.description).join(', ')
-    body += `| \`${flag.name}\` | ${flag.filePath}:${flag.lineNumber} | ${flag.age || 'unknown'} | ${signals} |\n`
+  if (uniqueStaleCount === 0) {
+    body += `### 🦈 FlagShark ${modeLabel}\n\n`
+    body += `Scanned ${totalFlags} feature flag${totalFlags !== 1 ? 's' : ''}. All look healthy.\n\n`
+    body += `**Flag Health:** ${healthScore}/100\n`
+  } else {
+    body += `### 🦈 FlagShark found ${uniqueStaleCount} stale flag${uniqueStaleCount !== 1 ? 's' : ''} ${modeLabel}\n\n`
+    body += '| Flag | File | Added | Signal |\n'
+    body += '|------|------|-------|--------|\n'
+
+    const displayFlags = staleFlags.slice(0, 10)
+    const remaining = staleFlags.length - displayFlags.length
+
+    for (const flag of displayFlags) {
+      const signals = flag.signals.map((s) => s.description).join(', ')
+      body += `| \`${flag.name}\` | ${flag.filePath}:${flag.lineNumber} | ${flag.age || 'unknown'} | ${signals} |\n`
+    }
+
+    if (remaining > 0) {
+      body += `\n... and ${remaining} more stale flags.\n`
+    }
+
+    body += `\n**Flag Health:** ${healthScore}/100 (${totalFlags} total, ${uniqueStaleCount} stale)\n`
   }
 
-  if (remaining > 0) {
-    body += `\n... and ${remaining} more stale flags.\n`
-  }
-
-  body += `\n**Flag Health:** ${healthScore}/100 (${totalFlags} total, ${staleFlags.length} stale)\n`
-  body +=
-    '\nFull analysis → [FlagShark](https://github.com/FlagShark/flagshark)\n'
+  body += '\n---\n*Powered by [FlagShark](https://github.com/FlagShark/flagshark)*\n'
 
   // Find existing comment to update
   const { data: comments } = await octokit.rest.issues.listComments({
