@@ -23882,8 +23882,6 @@ var require_github = __commonJS({
 });
 
 // src/index.ts
-var import_node_fs = require("node:fs");
-var import_node_path = require("node:path");
 var core = __toESM(require_core(), 1);
 var github = __toESM(require_github(), 1);
 
@@ -31559,10 +31557,9 @@ async function analyzeStaleness(flags, options) {
 }
 
 // ../core/dist/scanner.js
-var MAX_FILE_SIZE2 = 5 * 1024 * 1024;
-
-// src/index.ts
-var COMMENT_MARKER = "<!-- flagshark-action -->";
+var import_node_child_process = require("node:child_process");
+var import_node_fs = require("node:fs");
+var import_node_path = require("node:path");
 var SKIP_DIRS = /* @__PURE__ */ new Set([
   "node_modules",
   "vendor",
@@ -31572,8 +31569,124 @@ var SKIP_DIRS = /* @__PURE__ */ new Set([
   "coverage",
   "__pycache__",
   ".next",
-  ".turbo"
+  ".turbo",
+  ".cache",
+  ".venv",
+  "venv",
+  "env"
 ]);
+var MAX_FILE_SIZE2 = 5 * 1024 * 1024;
+function collectFiles(options) {
+  const { root, supportedExtensions, diffRef } = options;
+  const files = /* @__PURE__ */ new Map();
+  let filePaths;
+  if (diffRef) {
+    filePaths = getDiffFiles(diffRef, supportedExtensions);
+  } else {
+    filePaths = walkDir(root, supportedExtensions);
+  }
+  for (const fp of filePaths) {
+    try {
+      const stat = (0, import_node_fs.statSync)(fp);
+      if (stat.size > MAX_FILE_SIZE2) {
+        continue;
+      }
+      if (stat.size === 0) {
+        continue;
+      }
+      files.set(fp, (0, import_node_fs.readFileSync)(fp, "utf-8"));
+    } catch {
+    }
+  }
+  return files;
+}
+function getDiffFiles(ref, supportedExtensions) {
+  try {
+    const output = (0, import_node_child_process.execFileSync)("git", ["diff", ref, "--name-only", "--diff-filter=ACMR"], {
+      encoding: "utf-8",
+      timeout: 3e4
+    });
+    return output.split("\n").map((line) => line.trim()).filter((line) => line.length > 0).filter((line) => supportedExtensions.has((0, import_node_path.extname)(line)));
+  } catch {
+    throw new Error(`Failed to get diff from ref "${ref}". Is this a git repository?`);
+  }
+}
+function walkDir(dir, supportedExtensions) {
+  const results = [];
+  try {
+    const entries = (0, import_node_fs.readdirSync)(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (SKIP_DIRS.has(entry.name)) {
+        continue;
+      }
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+      const fullPath = (0, import_node_path.join)(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...walkDir(fullPath, supportedExtensions));
+      } else if (entry.isFile()) {
+        const ext = (0, import_node_path.extname)(entry.name);
+        if (supportedExtensions.has(ext)) {
+          results.push(fullPath);
+        }
+      }
+    }
+  } catch {
+  }
+  return results;
+}
+
+// ../core/dist/scan-repo.js
+var NOOP_LOGGER = {
+  debug: () => {
+  },
+  info: () => {
+  },
+  warn: () => {
+  },
+  error: () => {
+  }
+};
+async function scanRepo(opts) {
+  const start = performance.now();
+  const logger2 = opts.logger ?? NOOP_LOGGER;
+  const threshold = opts.threshold ?? 6;
+  const registry = createDefaultRegistry();
+  const supportedExtensions = new Set(registry.getSupportedExtensions());
+  const analyzer = new PolyglotAnalyzer(registry, logger2);
+  logger2.debug("Collecting files...");
+  const files = collectFiles({
+    root: opts.cwd,
+    supportedExtensions,
+    diffRef: opts.diff
+  });
+  logger2.debug(`Detected ${files.size} candidate files`);
+  const analysisResult = await analyzer.analyzeFiles(files, opts.signal);
+  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdMonths: threshold, repoRoot: opts.cwd });
+  const totalFlags = analysisResult.totalFlags.size;
+  const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
+  const healthScore = totalFlags === 0 ? 100 : Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100);
+  const allFlags = [];
+  for (const flags of analysisResult.totalFlags.values()) {
+    allFlags.push(...flags);
+  }
+  const detectedProviders = [
+    ...new Set(allFlags.map((f) => f.provider).filter((p) => p != null && p !== ""))
+  ];
+  return {
+    totalFlags,
+    staleFlags,
+    detectedProviders,
+    // analysisResult.languages is Map<Language, number> — convert to plain object
+    languageBreakdown: Object.fromEntries(analysisResult.languages),
+    healthScore,
+    scanDuration: Math.round(performance.now() - start)
+  };
+}
+
+// src/index.ts
+var COMMENT_MARKER = "<!-- flagshark-action -->";
 var logger = {
   debug: (...args) => core.debug(formatLogArgs(args)),
   info: (...args) => core.info(formatLogArgs(args)),
@@ -31586,67 +31699,30 @@ function formatLogArgs(args) {
   ).join(" ");
 }
 async function run() {
-  const startTime = Date.now();
   try {
     const scanMode = core.getInput("scan") || "changed";
     const threshold = parseInt(core.getInput("threshold") || "6", 10);
     const failThreshold = parseInt(core.getInput("fail-threshold") || "0", 10);
-    const registry = createDefaultRegistry();
-    const supportedExts = new Set(registry.getSupportedExtensions());
-    const analyzer = new PolyglotAnalyzer(registry, logger);
-    let filePaths;
-    if (scanMode === "changed" && github.context.payload.pull_request) {
-      const token = process.env.GITHUB_TOKEN || core.getInput("token");
-      if (!token) {
-        core.setFailed("GITHUB_TOKEN is required for changed-file scanning");
-        return;
-      }
-      const octokit = github.getOctokit(token);
-      const { data: prFiles } = await octokit.rest.pulls.listFiles({
-        ...github.context.repo,
-        pull_number: github.context.payload.pull_request.number,
-        per_page: 100
-      });
-      filePaths = prFiles.filter((f) => f.status !== "removed").map((f) => f.filename).filter((f) => supportedExts.has((0, import_node_path.extname)(f)));
-    } else {
-      filePaths = walkDir(".", supportedExts);
-    }
-    const files = /* @__PURE__ */ new Map();
-    for (const fp of filePaths) {
-      try {
-        const stat = (0, import_node_fs.statSync)(fp);
-        if (stat.size > 5 * 1024 * 1024) continue;
-        files.set(fp, (0, import_node_fs.readFileSync)(fp, "utf-8"));
-      } catch {
-      }
-    }
-    core.info(`Scanning ${files.size} files...`);
-    const result = await analyzer.analyzeFiles(files);
-    const totalFlags = result.totalFlags.size;
-    const langStats = {};
-    for (const [lang, count] of result.languages) {
-      langStats[lang] = count;
-    }
-    const allFlags = [];
-    for (const flags of result.totalFlags.values()) {
-      allFlags.push(...flags);
-    }
-    const providers = [...new Set(
-      allFlags.map((f) => f.provider).filter((p) => p !== null && p !== void 0 && p !== "")
-    )];
-    core.info(`Detection complete: ${totalFlags} unique flags across ${Object.keys(langStats).length} languages`);
-    const staleFlags = await analyzeStaleness(result.totalFlags, {
-      thresholdMonths: threshold,
-      repoRoot: process.cwd()
+    const baseRef = scanMode === "changed" && github.context.payload.pull_request ? `origin/${github.context.payload.pull_request.base.ref}` : void 0;
+    const result = await scanRepo({
+      cwd: process.cwd(),
+      threshold,
+      diff: baseRef,
+      logger
     });
+    const {
+      totalFlags,
+      staleFlags,
+      detectedProviders: providers,
+      languageBreakdown: langStats,
+      healthScore,
+      scanDuration
+    } = result;
     const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
-    const healthScore = totalFlags > 0 ? Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100) : 100;
-    const scanDuration = Date.now() - startTime;
     core.info("");
     core.info("\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510");
     core.info("\u2502  \u{1F988} FlagShark Scan Results               \u2502");
     core.info("\u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524");
-    core.info(`\u2502  Files scanned:    ${String(files.size).padStart(6)}               \u2502`);
     core.info(`\u2502  Languages:        ${String(Object.keys(langStats).length).padStart(6)}               \u2502`);
     core.info(`\u2502  Flags detected:   ${String(totalFlags).padStart(6)}               \u2502`);
     core.info(`\u2502  Stale flags:      ${String(uniqueStaleNames).padStart(6)}               \u2502`);
@@ -31679,7 +31755,6 @@ ${healthEmoji} **Health Score: ${healthScore}/100**
 `);
     core.summary.addTable([
       [{ data: "Metric", header: true }, { data: "Value", header: true }],
-      ["Files scanned", files.size.toString()],
       ["Languages", Object.keys(langStats).join(", ") || "none"],
       ["Total flags", totalFlags.toString()],
       ["Stale flags", uniqueStaleNames.toString()],
@@ -31804,23 +31879,6 @@ async function postComment(token, staleFlags, totalFlags, healthScore, scanMode,
     await octokit.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
     core.info("Posted new FlagShark comment");
   }
-}
-function walkDir(dir, supportedExts) {
-  const results = [];
-  try {
-    const entries = (0, import_node_fs.readdirSync)(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
-      const fullPath = (0, import_node_path.join)(dir, entry.name);
-      if (entry.isDirectory()) {
-        results.push(...walkDir(fullPath, supportedExts));
-      } else if (entry.isFile() && supportedExts.has((0, import_node_path.extname)(entry.name))) {
-        results.push(fullPath);
-      }
-    }
-  } catch {
-  }
-  return results;
 }
 run();
 /*! Bundled license information:

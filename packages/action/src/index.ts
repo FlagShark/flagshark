@@ -5,24 +5,13 @@
  * writes a GitHub Actions job summary, and sets a status check.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, extname } from 'node:path'
-
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
-import {
-  createDefaultRegistry,
-  PolyglotAnalyzer,
-  analyzeStaleness,
-} from '@flagshark/core'
-import type { FeatureFlag, StaleFlag } from '@flagshark/core'
+import { scanRepo } from '@flagshark/core'
+import type { StaleFlag } from '@flagshark/core'
 
 const COMMENT_MARKER = '<!-- flagshark-action -->'
-const SKIP_DIRS = new Set([
-  'node_modules', 'vendor', '.git', 'dist', 'build',
-  'coverage', '__pycache__', '.next', '.turbo',
-])
 
 // Logger that serializes objects properly instead of [object Object]
 const logger = {
@@ -39,92 +28,42 @@ function formatLogArgs(args: unknown[]): string {
 }
 
 async function run(): Promise<void> {
-  const startTime = Date.now()
-
   try {
     const scanMode = core.getInput('scan') || 'changed'
     const threshold = parseInt(core.getInput('threshold') || '6', 10)
     const failThreshold = parseInt(core.getInput('fail-threshold') || '0', 10)
 
-    const registry = createDefaultRegistry()
-    const supportedExts = new Set(registry.getSupportedExtensions())
-    const analyzer = new PolyglotAnalyzer(registry, logger)
+    // Determine diff ref for "changed" mode
+    const baseRef =
+      scanMode === 'changed' && github.context.payload.pull_request
+        ? `origin/${github.context.payload.pull_request.base.ref}`
+        : undefined
 
-    // Determine files to scan
-    let filePaths: string[]
-
-    if (scanMode === 'changed' && github.context.payload.pull_request) {
-      const token = process.env.GITHUB_TOKEN || core.getInput('token')
-      if (!token) {
-        core.setFailed('GITHUB_TOKEN is required for changed-file scanning')
-        return
-      }
-      const octokit = github.getOctokit(token)
-      const { data: prFiles } = await octokit.rest.pulls.listFiles({
-        ...github.context.repo,
-        pull_number: github.context.payload.pull_request.number,
-        per_page: 100,
-      })
-      filePaths = prFiles
-        .filter((f) => f.status !== 'removed')
-        .map((f) => f.filename)
-        .filter((f) => supportedExts.has(extname(f)))
-    } else {
-      filePaths = walkDir('.', supportedExts)
-    }
-
-    // Read file contents
-    const files = new Map<string, string>()
-    for (const fp of filePaths) {
-      try {
-        const stat = statSync(fp)
-        if (stat.size > 5 * 1024 * 1024) continue
-        files.set(fp, readFileSync(fp, 'utf-8'))
-      } catch {
-        // Skip unreadable files
-      }
-    }
-
-    core.info(`Scanning ${files.size} files...`)
-
-    // Run detection
-    const result = await analyzer.analyzeFiles(files)
-    const totalFlags = result.totalFlags.size
-
-    // Collect language stats
-    const langStats: Record<string, number> = {}
-    for (const [lang, count] of result.languages) {
-      langStats[lang] = count
-    }
-
-    // Collect detected providers
-    const allFlags: FeatureFlag[] = []
-    for (const flags of result.totalFlags.values()) {
-      allFlags.push(...(flags as FeatureFlag[]))
-    }
-    const providers = [...new Set(
-      allFlags.map(f => f.provider).filter((p): p is string => p !== null && p !== undefined && p !== '')
-    )]
-
-    core.info(`Detection complete: ${totalFlags} unique flags across ${Object.keys(langStats).length} languages`)
-
-    // Run staleness analysis
-    const staleFlags = await analyzeStaleness(result.totalFlags as Map<string, FeatureFlag[]>, {
-      thresholdMonths: threshold,
-      repoRoot: process.cwd(),
+    // Run the scan
+    const result = await scanRepo({
+      cwd: process.cwd(),
+      threshold,
+      diff: baseRef,
+      logger,
     })
 
+    // Destructure for clarity
+    const {
+      totalFlags,
+      staleFlags,
+      detectedProviders: providers,
+      languageBreakdown: langStats,
+      healthScore,
+      scanDuration,
+    } = result
+
     const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size
-    const healthScore =
-      totalFlags > 0 ? Math.round(((totalFlags - uniqueStaleNames) / totalFlags) * 100) : 100
-    const scanDuration = Date.now() - startTime
 
     // Pretty log output
     core.info('')
     core.info('┌─────────────────────────────────────────┐')
     core.info('│  🦈 FlagShark Scan Results               │')
     core.info('├─────────────────────────────────────────┤')
-    core.info(`│  Files scanned:    ${String(files.size).padStart(6)}               │`)
     core.info(`│  Languages:        ${String(Object.keys(langStats).length).padStart(6)}               │`)
     core.info(`│  Flags detected:   ${String(totalFlags).padStart(6)}               │`)
     core.info(`│  Stale flags:      ${String(uniqueStaleNames).padStart(6)}               │`)
@@ -165,7 +104,6 @@ async function run(): Promise<void> {
     core.summary.addRaw(`\n${healthEmoji} **Health Score: ${healthScore}/100**\n\n`)
     core.summary.addTable([
       [{ data: 'Metric', header: true }, { data: 'Value', header: true }],
-      ['Files scanned', files.size.toString()],
       ['Languages', Object.keys(langStats).join(', ') || 'none'],
       ['Total flags', totalFlags.toString()],
       ['Stale flags', uniqueStaleNames.toString()],
@@ -294,23 +232,6 @@ async function postComment(
     await octokit.rest.issues.createComment({ owner, repo, issue_number: prNumber, body })
     core.info('Posted new FlagShark comment')
   }
-}
-
-function walkDir(dir: string, supportedExts: Set<string>): string[] {
-  const results: string[] = []
-  try {
-    const entries = readdirSync(dir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.')) continue
-      const fullPath = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        results.push(...walkDir(fullPath, supportedExts))
-      } else if (entry.isFile() && supportedExts.has(extname(entry.name))) {
-        results.push(fullPath)
-      }
-    }
-  } catch { /* skip unreadable dirs */ }
-  return results
 }
 
 run()
