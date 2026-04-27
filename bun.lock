@@ -24,7 +24,7 @@
     },
     "packages/cli": {
       "name": "flagshark",
-      "version": "1.1.0-pre.0",
+      "version": "1.1.1",
       "bin": {
         "flagshark": "./bin/flagshark.mjs",
       },
@@ -41,7 +41,7 @@
     },
     "packages/core": {
       "name": "@flagshark/core",
-      "version": "1.0.0-pre.0",
+      "version": "1.0.0",
       "dependencies": {
         "p-limit": "^6.0.0",
         "zod": "^3.23.0",

@@ -22,13 +22,17 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: bun run test
+      # bun publish handles workspace:* rewriting (npm publish does not when
+      # invoked from inside a workspace child without --workspace context).
+      # Add --provenance once trusted publisher is configured for both packages
+      # on npm.com.
       - name: Publish @flagshark/core
-        run: npm publish --access public
+        run: bun publish --access public
         working-directory: packages/core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish flagshark
-        run: npm publish --access public
+        run: bun publish --access public
         working-directory: packages/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
