@@ -31662,6 +31662,7 @@ async function scanRepo(opts) {
     diffRef: opts.diff
   });
   logger2.debug(`Detected ${files.size} candidate files`);
+  const filesScanned = files.size;
   const analysisResult = await analyzer.analyzeFiles(files, opts.signal);
   const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdMonths: threshold, repoRoot: opts.cwd });
   const totalFlags = analysisResult.totalFlags.size;
@@ -31676,6 +31677,7 @@ async function scanRepo(opts) {
   ];
   return {
     totalFlags,
+    filesScanned,
     staleFlags,
     detectedProviders,
     // analysisResult.languages is Map<Language, number> — convert to plain object
@@ -31704,6 +31706,9 @@ async function run() {
     const threshold = parseInt(core.getInput("threshold") || "6", 10);
     const failThreshold = parseInt(core.getInput("fail-threshold") || "0", 10);
     const baseRef = scanMode === "changed" && github.context.payload.pull_request ? `origin/${github.context.payload.pull_request.base.ref}` : void 0;
+    if (scanMode === "changed" && !github.context.payload.pull_request) {
+      core.info("scan: changed requested but no pull_request context \u2014 scanning full tree instead");
+    }
     const result = await scanRepo({
       cwd: process.cwd(),
       threshold,
@@ -31712,6 +31717,7 @@ async function run() {
     });
     const {
       totalFlags,
+      filesScanned,
       staleFlags,
       detectedProviders: providers,
       languageBreakdown: langStats,
@@ -31723,6 +31729,7 @@ async function run() {
     core.info("\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510");
     core.info("\u2502  \u{1F988} FlagShark Scan Results               \u2502");
     core.info("\u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524");
+    core.info(`\u2502  Files scanned:    ${String(filesScanned).padStart(6)}               \u2502`);
     core.info(`\u2502  Languages:        ${String(Object.keys(langStats).length).padStart(6)}               \u2502`);
     core.info(`\u2502  Flags detected:   ${String(totalFlags).padStart(6)}               \u2502`);
     core.info(`\u2502  Stale flags:      ${String(uniqueStaleNames).padStart(6)}               \u2502`);
@@ -31755,6 +31762,7 @@ ${healthEmoji} **Health Score: ${healthScore}/100**
 `);
     core.summary.addTable([
       [{ data: "Metric", header: true }, { data: "Value", header: true }],
+      ["Files scanned", filesScanned.toString()],
       ["Languages", Object.keys(langStats).join(", ") || "none"],
       ["Total flags", totalFlags.toString()],
       ["Stale flags", uniqueStaleNames.toString()],

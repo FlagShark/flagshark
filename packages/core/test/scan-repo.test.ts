@@ -37,6 +37,7 @@ describe('scanRepo', () => {
     const result = await scanRepo({ cwd: dir, threshold: 6 })
 
     expect(result.totalFlags).toBe(1)
+    expect(result.filesScanned).toBe(2)
     expect(result.detectedProviders.length).toBeGreaterThan(0)
     expect(result.healthScore).toBe(100)
     expect(result.staleFlags).toEqual([])

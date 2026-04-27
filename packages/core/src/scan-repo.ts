@@ -55,6 +55,9 @@ export interface ScanRepoResult {
   /** Total count of unique flag names detected across the repository. */
   totalFlags: number
 
+  /** Number of source files actually read and analyzed. */
+  filesScanned: number
+
   /**
    * Flags that tripped at least one staleness signal (age, low-usage, etc.).
    * One entry per stale flag occurrence; a single flag name may appear
@@ -105,6 +108,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   })
 
   logger.debug(`Detected ${files.size} candidate files`)
+  const filesScanned = files.size
   const analysisResult = await analyzer.analyzeFiles(files, opts.signal)
 
   const staleFlags = await analyzeStaleness(
@@ -131,6 +135,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
 
   return {
     totalFlags,
+    filesScanned,
     staleFlags,
     detectedProviders,
     // analysisResult.languages is Map<Language, number> — convert to plain object

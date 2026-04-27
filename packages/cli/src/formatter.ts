@@ -84,8 +84,7 @@ export function formatText(result: ScanResult, options: FormatOptions): string {
 
   // Language summary
   const langCount = Object.keys(result.languageBreakdown).length
-  const fileCount = Object.values(result.languageBreakdown).reduce((sum, n) => sum + n, 0)
-  lines.push(`Scanned ${fileCount} files across ${langCount} language${langCount === 1 ? '' : 's'}`)
+  lines.push(`Scanned ${result.filesScanned} files across ${langCount} language${langCount === 1 ? '' : 's'}`)
 
   // No flags found
   if (result.totalFlags === 0) {

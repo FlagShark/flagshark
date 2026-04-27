@@ -39,6 +39,10 @@ async function run(): Promise<void> {
         ? `origin/${github.context.payload.pull_request.base.ref}`
         : undefined
 
+    if (scanMode === 'changed' && !github.context.payload.pull_request) {
+      core.info('scan: changed requested but no pull_request context — scanning full tree instead')
+    }
+
     // Run the scan
     const result = await scanRepo({
       cwd: process.cwd(),
@@ -50,6 +54,7 @@ async function run(): Promise<void> {
     // Destructure for clarity
     const {
       totalFlags,
+      filesScanned,
       staleFlags,
       detectedProviders: providers,
       languageBreakdown: langStats,
@@ -64,6 +69,7 @@ async function run(): Promise<void> {
     core.info('┌─────────────────────────────────────────┐')
     core.info('│  🦈 FlagShark Scan Results               │')
     core.info('├─────────────────────────────────────────┤')
+    core.info(`│  Files scanned:    ${String(filesScanned).padStart(6)}               │`)
     core.info(`│  Languages:        ${String(Object.keys(langStats).length).padStart(6)}               │`)
     core.info(`│  Flags detected:   ${String(totalFlags).padStart(6)}               │`)
     core.info(`│  Stale flags:      ${String(uniqueStaleNames).padStart(6)}               │`)
@@ -104,6 +110,7 @@ async function run(): Promise<void> {
     core.summary.addRaw(`\n${healthEmoji} **Health Score: ${healthScore}/100**\n\n`)
     core.summary.addTable([
       [{ data: 'Metric', header: true }, { data: 'Value', header: true }],
+      ['Files scanned', filesScanned.toString()],
       ['Languages', Object.keys(langStats).join(', ') || 'none'],
       ['Total flags', totalFlags.toString()],
       ['Stale flags', uniqueStaleNames.toString()],

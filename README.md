@@ -81,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for git blame age detection
+          fetch-depth: 0  # Required for git blame (staleness) and changed-file scanning
       - uses: FlagShark/flagshark@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
