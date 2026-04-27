@@ -9,7 +9,7 @@ function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
     totalFlags: 10,
     staleFlags: [],
     detectedProviders: ['LaunchDarkly'],
-    languageBreakdown: new Map([['typescript', 50]]),
+    languageBreakdown: { typescript: 50 },
     healthScore: 100,
     scanDuration: 500,
     ...overrides,
