@@ -58,7 +58,7 @@ describe('formatJson', () => {
     const result = makeScanResult()
     const output = formatJson(result)
     const parsed = JSON.parse(output)
-    expect(parsed.version).toBe('1.0.0')
+    expect(parsed.version).toBe('1.1.0')
     expect(parsed.totalFlags).toBe(10)
     expect(parsed.healthScore).toBe(100)
   })
