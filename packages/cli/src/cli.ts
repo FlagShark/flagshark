@@ -4,33 +4,12 @@
  * Scans a codebase for feature flags and reports staleness.
  */
 
-import { execFileSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
-
-import { createDefaultRegistry, PolyglotAnalyzer, analyzeStaleness } from '@flagshark/core'
+import { scanRepo } from '@flagshark/core'
 import { formatText, formatJson } from './formatter.js'
-
-import type { FeatureFlag } from '@flagshark/core'
-import type { ScanResult } from './formatter.js'
 
 // ── Constants ─────────────────────────────────────────────────────
 
 const VERSION = '1.0.0'
-
-const SKIP_DIRS = new Set([
-  'node_modules',
-  'vendor',
-  '.git',
-  'dist',
-  'build',
-  'coverage',
-  '__pycache__',
-  '.next',
-  '.turbo',
-])
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 
 const HELP_TEXT = `
 flagshark scan [options]
@@ -124,119 +103,6 @@ function createLogger(verbose: boolean) {
   }
 }
 
-// ── File walking ──────────────────────────────────────────────────
-
-interface FileEntry {
-  path: string
-  content: string
-}
-
-function walkDirectory(
-  dir: string,
-  supportedExtensions: Set<string>,
-  logger: ReturnType<typeof createLogger>,
-): FileEntry[] {
-  const files: FileEntry[] = []
-
-  function walk(currentDir: string) {
-    let entries: fs.Dirent[]
-    try {
-      entries = fs.readdirSync(currentDir, { withFileTypes: true })
-    } catch {
-      logger.warn(`Cannot read directory: ${currentDir}`)
-      return
-    }
-
-    for (const entry of entries) {
-      const fullPath = path.join(currentDir, entry.name)
-
-      if (entry.isDirectory()) {
-        if (SKIP_DIRS.has(entry.name)) {
-          continue
-        }
-        walk(fullPath)
-        continue
-      }
-
-      if (!entry.isFile()) {
-        continue
-      }
-
-      const ext = path.extname(entry.name)
-      if (!supportedExtensions.has(ext)) {
-        continue
-      }
-
-      try {
-        const stat = fs.statSync(fullPath)
-        if (stat.size > MAX_FILE_SIZE) {
-          logger.debug(`Skipping large file: ${fullPath} (${stat.size} bytes)`)
-          continue
-        }
-      } catch {
-        continue
-      }
-
-      try {
-        const content = fs.readFileSync(fullPath, 'utf-8')
-        files.push({ path: fullPath, content })
-      } catch {
-        logger.debug(`Cannot read file: ${fullPath}`)
-      }
-    }
-  }
-
-  walk(dir)
-  return files
-}
-
-function getDiffFiles(
-  ref: string,
-  cwd: string,
-  supportedExtensions: Set<string>,
-  logger: ReturnType<typeof createLogger>,
-): FileEntry[] {
-  let output: string
-  try {
-    output = execFileSync('git', ['diff', ref, '--name-only'], {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim()
-  } catch (err) {
-    throw new Error(
-      `Failed to get diff against "${ref}": ${err instanceof Error ? err.message : String(err)}`,
-    )
-  }
-
-  if (!output) {
-    return []
-  }
-
-  const files: FileEntry[] = []
-  for (const relPath of output.split('\n')) {
-    const ext = path.extname(relPath)
-    if (!supportedExtensions.has(ext)) {
-      continue
-    }
-
-    const fullPath = path.resolve(cwd, relPath)
-    try {
-      const stat = fs.statSync(fullPath)
-      if (stat.size > MAX_FILE_SIZE) {
-        logger.debug(`Skipping large file: ${fullPath}`)
-        continue
-      }
-      const content = fs.readFileSync(fullPath, 'utf-8')
-      files.push({ path: fullPath, content })
-    } catch {
-      logger.debug(`Cannot read changed file: ${fullPath}`)
-    }
-  }
-
-  return files
-}
-
 // ── Main ──────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -252,95 +118,26 @@ async function main(): Promise<void> {
     process.exit(0)
   }
 
-  const verbose = args.verbose
-  const logger = createLogger(verbose)
-  const startTime = performance.now()
-  const cwd = process.cwd()
-
-  // 1. Set up detection
-  logger.debug('Creating language registry...')
-  const registry = createDefaultRegistry()
-  const analyzer = new PolyglotAnalyzer(registry, logger)
-
-  const supportedExtensions = new Set(registry.getSupportedExtensions())
-
-  // 2. Collect files
-  logger.debug('Collecting files...')
-  let fileEntries: FileEntry[]
+  const logger = createLogger(args.verbose)
 
   if (args.diff) {
     logger.info(`Scanning files changed since ${args.diff}...`)
-    fileEntries = getDiffFiles(args.diff, cwd, supportedExtensions, logger)
   } else {
     logger.info('Scanning current directory...')
-    fileEntries = walkDirectory(cwd, supportedExtensions, logger)
   }
 
-  logger.debug(`Found ${fileEntries.length} files to scan`)
+  const result = await scanRepo({
+    cwd: process.cwd(),
+    threshold: args.threshold,
+    diff: args.diff ?? undefined,
+    logger,
+  })
 
-  // 3. Build file map (PolyglotAnalyzer expects Map<filePath, content>)
-  const fileMap = new Map<string, string>()
-  for (const entry of fileEntries) {
-    fileMap.set(entry.path, entry.content)
-  }
-
-  // 4. Detect flags
-  logger.debug('Running detection...')
-  const analysisResult = await analyzer.analyzeFiles(fileMap)
-
-  // 5. Staleness analysis
-  logger.debug('Analyzing staleness...')
-  const staleFlags = await analyzeStaleness(
-    analysisResult.totalFlags as Map<string, FeatureFlag[]>,
-    {
-      thresholdMonths: args.threshold,
-      repoRoot: cwd,
-    },
-  )
-
-  // 6. Compute metadata
-  const totalFlags = analysisResult.totalFlags.size
-  // Count unique stale flag names (not occurrences) for health score
-  const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size
-  const healthScore =
-    totalFlags === 0 ? 100 : Math.round(((totalFlags - uniqueStaleNames) / totalFlags) * 100)
-
-  // Unique providers from all detected flags
-  const allFlags: FeatureFlag[] = []
-  for (const flags of analysisResult.totalFlags.values()) {
-    allFlags.push(...(flags as FeatureFlag[]))
-  }
-  const detectedProviders = [
-    ...new Set(
-      allFlags
-        .map((f) => f.provider)
-        .filter((p): p is string => p !== null && p !== undefined && p !== ''),
-    ),
-  ]
-
-  // Language breakdown (files per language from analysis result)
-  const languageBreakdown = analysisResult.languages
-
-  const scanDuration = Math.round(performance.now() - startTime)
-
-  // 7. Build result
-  const result: ScanResult = {
-    totalFlags,
-    staleFlags,
-    detectedProviders,
-    languageBreakdown,
-    healthScore,
-    scanDuration,
-  }
-
-  // 8. Output + exit
-  // Must wait for stdout to drain before exiting, otherwise large JSON
-  // output gets truncated at the 64KB buffer boundary.
   const output = args.json
     ? formatJson(result) + '\n'
     : formatText(result, { json: false, verbose: args.verbose, maxDisplay: 10 }) + '\n'
 
-  const exitCode = staleFlags.length > 0 ? 1 : 0
+  const exitCode = result.staleFlags.length > 0 ? 1 : 0
 
   if (process.stdout.write(output)) {
     process.exit(exitCode)

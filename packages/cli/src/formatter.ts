@@ -3,7 +3,7 @@
  * Supports human-readable text and JSON output modes.
  */
 
-import type { StaleFlag } from '@flagshark/core'
+import type { ScanRepoResult, StaleFlag } from '@flagshark/core'
 
 export interface FormatOptions {
   json: boolean
@@ -11,14 +11,7 @@ export interface FormatOptions {
   maxDisplay: number // max stale flags to show (default: 10)
 }
 
-export interface ScanResult {
-  totalFlags: number
-  staleFlags: StaleFlag[]
-  detectedProviders: string[]
-  languageBreakdown: Map<string, number>
-  healthScore: number // 0-100
-  scanDuration: number // ms
-}
+export type ScanResult = ScanRepoResult
 
 const VERSION = '1.0.0'
 
@@ -90,8 +83,8 @@ export function formatText(result: ScanResult, options: FormatOptions): string {
   lines.push('')
 
   // Language summary
-  const langCount = result.languageBreakdown.size
-  const fileCount = Array.from(result.languageBreakdown.values()).reduce((sum, n) => sum + n, 0)
+  const langCount = Object.keys(result.languageBreakdown).length
+  const fileCount = Object.values(result.languageBreakdown).reduce((sum, n) => sum + n, 0)
   lines.push(`Scanned ${fileCount} files across ${langCount} language${langCount === 1 ? '' : 's'}`)
 
   // No flags found
@@ -152,10 +145,7 @@ export function formatText(result: ScanResult, options: FormatOptions): string {
  * Format scan results as a JSON string.
  */
 export function formatJson(result: ScanResult): string {
-  const languages: Record<string, number> = {}
-  for (const [lang, count] of result.languageBreakdown) {
-    languages[lang] = count
-  }
+  const languages: Record<string, number> = { ...result.languageBreakdown }
 
   const flags = result.staleFlags.map((sf) => ({
     name: sf.name,
