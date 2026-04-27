@@ -11,12 +11,12 @@ import { join, extname } from 'node:path'
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
-import { createDefaultRegistry } from '../src/detection/index.js'
-import { PolyglotAnalyzer } from '../src/detection/polyglot-analyzer.js'
-import { analyzeStaleness } from '../src/staleness.js'
-
-import type { FeatureFlag } from '../src/detection/feature-flag.js'
-import type { StaleFlag } from '../src/staleness.js'
+import {
+  createDefaultRegistry,
+  PolyglotAnalyzer,
+  analyzeStaleness,
+} from '@flagshark/core'
+import type { FeatureFlag, StaleFlag } from '@flagshark/core'
 
 const COMMENT_MARKER = '<!-- flagshark-action -->'
 const SKIP_DIRS = new Set([
