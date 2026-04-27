@@ -19,19 +19,65 @@ export interface ScanLogger {
 }
 
 export interface ScanRepoOptions {
+  /**
+   * Absolute path to the repository being scanned. Typically `process.cwd()`,
+   * but can be a different directory when scanning a path other than where
+   * the consumer process was started.
+   */
   cwd: string
+
+  /**
+   * Staleness threshold in months. A flag is considered stale if its
+   * git-blame age exceeds this value. Default: 6.
+   */
   threshold?: number
+
+  /**
+   * If set, only scan files changed since this git ref (e.g., `HEAD~1`,
+   * `origin/main`). Otherwise, walk the entire `cwd` tree.
+   */
   diff?: string
+
+  /**
+   * Optional cancellation signal. Aborting cancels file *analysis* (the
+   * detection phase). It does NOT cancel staleness analysis (`git blame`
+   * subprocesses), which always runs to completion once started.
+   */
   signal?: AbortSignal
+
+  /**
+   * Optional logger for debug/info/warn/error messages. Defaults to a no-op.
+   */
   logger?: ScanLogger
 }
 
 export interface ScanRepoResult {
+  /** Total count of unique flag names detected across the repository. */
   totalFlags: number
+
+  /**
+   * Flags that tripped at least one staleness signal (age, low-usage, etc.).
+   * One entry per stale flag occurrence; a single flag name may appear
+   * multiple times if found in multiple locations.
+   */
   staleFlags: StaleFlag[]
+
+  /**
+   * Unique provider identifiers detected (e.g., `launchdarkly-node-server-sdk`,
+   * `posthog-node`). Order is undefined.
+   */
   detectedProviders: string[]
+
+  /** Map of language identifier (e.g. `typescript`, `go`) to file count. */
   languageBreakdown: Record<string, number>
+
+  /**
+   * 0–100. Calculated as `100 - round((unique stale names / totalFlags) * 100)`.
+   * Returns 100 for repos with no flags detected.
+   */
   healthScore: number
+
+  /** Wall-clock duration of the scan in milliseconds. */
   scanDuration: number
 }
 
