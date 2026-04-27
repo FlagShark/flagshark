@@ -22,16 +22,16 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: bun run test
-      # bun publish handles workspace:* rewriting (npm publish does not when
-      # invoked from inside a workspace child without --workspace context).
-      # --provenance requires trusted publisher configured on npm.com for each package.
-      - name: Publish @flagshark/core
-        run: bun publish --access public --provenance
+      # bun pm pack rewrites workspace:* in the tarball; npm publishes the tarball
+      # with OIDC-based provenance (trusted publisher must be configured on npm.com).
+      # bun publish doesn't read NODE_AUTH_TOKEN; npm does.
+      - name: Pack and publish @flagshark/core
+        run: bun pm pack && npm publish *.tgz --access public --provenance
         working-directory: packages/core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Publish flagshark
-        run: bun publish --access public --provenance
+      - name: Pack and publish flagshark
+        run: bun pm pack && npm publish *.tgz --access public --provenance
         working-directory: packages/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
