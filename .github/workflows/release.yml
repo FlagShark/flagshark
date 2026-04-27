@@ -24,15 +24,14 @@ jobs:
       - run: bun run test
       # bun publish handles workspace:* rewriting (npm publish does not when
       # invoked from inside a workspace child without --workspace context).
-      # Add --provenance once trusted publisher is configured for both packages
-      # on npm.com.
+      # --provenance requires trusted publisher configured on npm.com for each package.
       - name: Publish @flagshark/core
-        run: bun publish --access public
+        run: bun publish --access public --provenance
         working-directory: packages/core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish flagshark
-        run: bun publish --access public
+        run: bun publish --access public --provenance
         working-directory: packages/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
