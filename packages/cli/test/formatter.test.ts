@@ -7,9 +7,10 @@ import type { ScanResult } from '../src/formatter.js'
 function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
   return {
     totalFlags: 10,
+    filesScanned: 50,
     staleFlags: [],
     detectedProviders: ['LaunchDarkly'],
-    languageBreakdown: new Map([['typescript', 50]]),
+    languageBreakdown: { typescript: 50 },
     healthScore: 100,
     scanDuration: 500,
     ...overrides,

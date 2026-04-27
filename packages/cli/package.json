@@ -1,0 +1,33 @@
+{
+  "name": "flagshark",
+  "version": "1.1.0-pre.0",
+  "type": "module",
+  "description": "Find stale feature flags in your codebase",
+  "license": "MIT",
+  "homepage": "https://flagshark.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FlagShark/flagshark.git",
+    "directory": "packages/cli"
+  },
+  "keywords": ["feature-flags", "stale-flags", "cleanup", "technical-debt"],
+  "bin": { "flagshark": "./bin/flagshark.mjs" },
+  "main": "./dist/cli.js",
+  "files": ["dist/", "bin/"],
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.js --external:zod --external:@flagshark/core",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flagshark/core": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": { "node": ">=18.0.0" }
+}
