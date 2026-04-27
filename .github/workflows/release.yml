@@ -23,12 +23,12 @@ jobs:
       - run: bun run build
       - run: bun run test
       - name: Publish @flagshark/core
-        run: npm publish --provenance --access public
+        run: npm publish --access public
         working-directory: packages/core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish flagshark
-        run: npm publish --provenance --access public
+        run: npm publish --access public
         working-directory: packages/cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
