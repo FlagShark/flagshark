@@ -8,12 +8,10 @@ import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { createDefaultRegistry } from './detection/index.js'
-import { PolyglotAnalyzer } from './detection/polyglot-analyzer.js'
+import { createDefaultRegistry, PolyglotAnalyzer, analyzeStaleness } from '@flagshark/core'
 import { formatText, formatJson } from './formatter.js'
-import { analyzeStaleness } from './staleness.js'
 
-import type { FeatureFlag } from './detection/feature-flag.js'
+import type { FeatureFlag } from '@flagshark/core'
 import type { ScanResult } from './formatter.js'
 
 // ── Constants ─────────────────────────────────────────────────────

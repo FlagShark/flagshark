@@ -3,7 +3,7 @@
  * Supports human-readable text and JSON output modes.
  */
 
-import type { StaleFlag } from './staleness.js'
+import type { StaleFlag } from '@flagshark/core'
 
 export interface FormatOptions {
   json: boolean
