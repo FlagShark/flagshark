@@ -4,3 +4,4 @@ coverage/
 .turbo/
 .DS_Store
 packages/core/dist/
+packages/cli/dist/
