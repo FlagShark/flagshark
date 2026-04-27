@@ -13,7 +13,7 @@ export interface FormatOptions {
 
 export type ScanResult = ScanRepoResult
 
-const VERSION = '1.1.1'
+const VERSION = '1.1.2'
 
 // ── Text formatting ───────────────────────────────────────────────
 

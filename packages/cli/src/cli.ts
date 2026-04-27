@@ -9,7 +9,7 @@ import { formatText, formatJson } from './formatter.js'
 
 // ── Constants ─────────────────────────────────────────────────────
 
-const VERSION = '1.1.1'
+const VERSION = '1.1.2'
 
 const HELP_TEXT = `
 flagshark scan [options]
