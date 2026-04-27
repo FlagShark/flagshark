@@ -1,28 +1,36 @@
 {
-  "name": "@flagshark/core-temp",
-  "version": "1.0.1",
-  "private": true,
+  "name": "@flagshark/core",
+  "version": "1.0.0-pre.0",
   "type": "module",
-  "description": "Temporary single-package home during M1; split in M2",
-  "main": "./dist/cli.js",
-  "bin": { "flagshark": "./bin/flagshark.mjs" },
-  "files": ["dist/", "bin/", "action/"],
+  "description": "Detection engine for FlagShark — finds feature flag references across 13 languages.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FlagShark/flagshark.git",
+    "directory": "packages/core"
+  },
+  "keywords": ["feature-flags", "polyglot-analysis", "static-analysis"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist/"],
   "scripts": {
-    "build": "bun run build:cli && bun run build:action",
-    "build:cli": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.js --external:zod",
-    "build:action": "esbuild action/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/action.cjs",
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "p-limit": "^6.0.0",
-    "zod": "^3.23.0"
+    "p-limit": "^6.0.0"
   },
   "devDependencies": {
-    "@actions/core": "^1.10.0",
-    "@actions/github": "^6.0.0",
     "@types/node": "^22.0.0",
-    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0",
     "vitest": "^3.0.0"
-  }
+  },
+  "engines": { "node": ">=18.0.0" }
 }
