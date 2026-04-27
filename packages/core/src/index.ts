@@ -8,3 +8,7 @@ export type { StaleFlag, StalenessOptions } from './staleness.js'
 // Re-export scanner (low-level file collection)
 export { collectFiles } from './scanner.js'
 export type { ScanOptions } from './scanner.js'
+
+// Re-export scanRepo orchestrator
+export { scanRepo } from './scan-repo.js'
+export type { ScanRepoOptions, ScanRepoResult, ScanLogger } from './scan-repo.js'
