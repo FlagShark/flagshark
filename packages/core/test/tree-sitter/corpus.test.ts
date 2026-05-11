@@ -13,7 +13,7 @@ const FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../fixtures
 
 const LANGUAGES: { name: Language; providers: () => FeatureFlagProvider[] }[] = [
   { name: 'typescript', providers: defaultTypeScriptProviders },
-  // M5/M6/M7 will register javascript/go/python here
+  { name: 'javascript', providers: defaultTypeScriptProviders },  // JS reuses TS providers
 ]
 
 for (const { name: language, providers } of LANGUAGES) {
