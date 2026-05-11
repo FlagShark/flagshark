@@ -130,4 +130,19 @@ describe('formatMarkdown', () => {
     expect(md).toContain('https://github.com/FlagShark/flagshark')
     expect(md).toContain('https://flagshark.com')
   })
+
+  it('normalizes linkPrefix that does not end with /', () => {
+    const md = formatMarkdown(
+      makeResult({
+        totalFlags: 1,
+        healthScore: 60,
+        staleFlags: [{
+          name: 'X', filePath: 'src/x.ts', lineNumber: 5, language: 'typescript',
+          provider: 'launchdarkly', signals: [{ type: 'age', description: 'old' }], age: '12 months ago',
+        }],
+      }),
+      { scanMode: 'changed', linkPrefix: 'https://github.com/owner/repo/blob/abc123' },  // NO trailing slash
+    )
+    expect(md).toContain('https://github.com/owner/repo/blob/abc123/src/x.ts#L5')
+  })
 })

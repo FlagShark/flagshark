@@ -98,7 +98,11 @@ function formatRow(flag: StaleFlag, linkPrefix?: string): string {
   const signals = flag.signals.map((s) => s.description).join(', ')
   const shortPath = flag.filePath.replace(/^\.\//, '')
   const fileCell = linkPrefix
-    ? `[${shortPath}:${flag.lineNumber}](${linkPrefix}${shortPath}#L${flag.lineNumber})`
+    ? `[${shortPath}:${flag.lineNumber}](${normalizePrefix(linkPrefix)}${shortPath}#L${flag.lineNumber})`
     : `\`${shortPath}:${flag.lineNumber}\``
   return `\`${flag.name}\` | ${fileCell} | ${flag.age || 'unknown'} | ${signals}`
+}
+
+function normalizePrefix(prefix: string): string {
+  return prefix.endsWith('/') ? prefix : prefix + '/'
 }
