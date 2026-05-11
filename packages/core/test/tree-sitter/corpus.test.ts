@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path'
 import { detectFlagsWithTreeSitter } from '../../src/detection/tree-sitter/engine.js'
 import { defaultTypeScriptProviders } from '../../src/detection/detectors/typescript.js'
 import { defaultGoProviders } from '../../src/detection/detectors/go.js'
+import { defaultPythonProviders } from '../../src/detection/detectors/python.js'
 import { detectFlagsWithRegex } from '../../src/detection/helpers.js'
 
 import type { FeatureFlagProvider, Language } from '../../src/detection/interface.js'
@@ -16,6 +17,7 @@ const LANGUAGES: { name: Language; providers: () => FeatureFlagProvider[] }[] = 
   { name: 'typescript', providers: defaultTypeScriptProviders },
   { name: 'javascript', providers: defaultTypeScriptProviders },  // JS reuses TS providers
   { name: 'go', providers: defaultGoProviders },
+  { name: 'python', providers: defaultPythonProviders },
 ]
 
 for (const { name: language, providers } of LANGUAGES) {
