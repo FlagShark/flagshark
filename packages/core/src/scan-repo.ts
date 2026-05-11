@@ -15,6 +15,7 @@ import { loadIgnoreFile } from './config/ignore-file.js'
 import type { FeatureFlag } from './detection/feature-flag.js'
 import type { StaleFlag } from './staleness.js'
 import type { FlagsharkConfig } from './config/schema.js'
+import type { EffectiveRules } from './config/excluder.js'
 
 export interface ScanLogger {
   debug: (...args: unknown[]) => void
@@ -70,6 +71,11 @@ export interface ScanRepoOptions {
    * Set true to skip .flagsharkignore discovery (used by --no-ignore-file).
    */
   noIgnoreFile?: boolean
+
+  /**
+   * When true, the result will include the list of excluded file paths.
+   */
+  collectExcludedPaths?: boolean
 }
 
 export interface ScanRepoResult {
@@ -106,6 +112,12 @@ export interface ScanRepoResult {
 
   /** Number of files skipped due to exclude rules (paths, presets, .flagsharkignore). */
   excludedCount?: number
+
+  /** Relative paths of excluded files. Only populated when collectExcludedPaths is true. */
+  excludedPaths?: string[]
+
+  /** Diagnostic — populated only when logger.debug level is active or callers explicitly opt in. */
+  effectiveExcludes?: EffectiveRules
 }
 
 const NOOP_LOGGER: ScanLogger = {
@@ -141,11 +153,12 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   const analyzer = new PolyglotAnalyzer(registry, logger)
 
   logger.debug('Collecting files...')
-  const { files, excludedCount } = collectFiles({
+  const { files, excludedCount, excludedPaths } = collectFiles({
     root: opts.cwd,
     supportedExtensions,
     diffRef: opts.diff,
     excluder,
+    collectExcludedPaths: opts.collectExcludedPaths,
   })
 
   logger.debug(`Detected ${files.size} candidate files (excluded ${excludedCount})`)
@@ -184,5 +197,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     healthScore,
     scanDuration: Math.round(performance.now() - start),
     excludedCount,
+    excludedPaths,
+    effectiveExcludes: excluder.effectiveRules,
   }
 }

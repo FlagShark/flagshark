@@ -52,6 +52,36 @@ describe('collectFiles with excluder', () => {
     expect(excludedCount).toBe(0)
   })
 
+  it('collects excluded paths when collectExcludedPaths is set', () => {
+    const cfg = buildDefaultConfig()
+    cfg.excludes.paths = ['examples/**']
+    const excluder = buildExcluder({ config: cfg, ignoreFilePatterns: [] })
+
+    const { files, excludedCount, excludedPaths } = collectFiles({
+      root: workDir,
+      supportedExtensions: new Set(['.ts']),
+      excluder,
+      collectExcludedPaths: true,
+    })
+
+    expect(excludedCount).toBe(1)
+    expect(excludedPaths).toEqual(['examples/demo.ts'])
+  })
+
+  it('does not collect excluded paths by default', () => {
+    const cfg = buildDefaultConfig()
+    cfg.excludes.paths = ['examples/**']
+    const excluder = buildExcluder({ config: cfg, ignoreFilePatterns: [] })
+
+    const { excludedPaths } = collectFiles({
+      root: workDir,
+      supportedExtensions: new Set(['.ts']),
+      excluder,
+    })
+
+    expect(excludedPaths).toBeUndefined()
+  })
+
   it('honors excluder in --diff mode (regression: repo-relative paths)', () => {
     // Commit initial files, then modify both to appear in git diff HEAD
     execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: workDir })

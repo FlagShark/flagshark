@@ -36,11 +36,13 @@ export interface ScanOptions {
   supportedExtensions: Set<string>
   diffRef?: string // if set, only scan files changed since this ref
   excluder?: Excluder
+  collectExcludedPaths?: boolean
 }
 
 export interface CollectFilesResult {
   files: Map<string, string>
   excludedCount: number
+  excludedPaths?: string[]
 }
 
 /**
@@ -48,9 +50,10 @@ export interface CollectFilesResult {
  * along with the count of files excluded by the optional excluder.
  */
 export function collectFiles(options: ScanOptions): CollectFilesResult {
-  const { root, supportedExtensions, diffRef, excluder } = options
+  const { root, supportedExtensions, diffRef, excluder, collectExcludedPaths } = options
   const files = new Map<string, string>()
   let excludedCount = 0
+  const excludedPaths: string[] | undefined = collectExcludedPaths ? [] : undefined
 
   let filePaths: string[]
 
@@ -65,6 +68,9 @@ export function collectFiles(options: ScanOptions): CollectFilesResult {
       const relativePath = relative(root, fp)
       if (excluder.shouldExclude(relativePath)) {
         excludedCount++
+        if (excludedPaths) {
+          excludedPaths.push(relativePath)
+        }
         continue
       }
     }
@@ -82,7 +88,7 @@ export function collectFiles(options: ScanOptions): CollectFilesResult {
     }
   }
 
-  return { files, excludedCount }
+  return { files, excludedCount, excludedPaths }
 }
 
 /**

@@ -15,12 +15,13 @@
   "main": "./dist/cli.js",
   "files": ["dist/", "bin/"],
   "scripts": {
-    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.js --external:zod --external:@flagshark/core",
+    "build": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.js --external:zod --external:@flagshark/core --external:yaml",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@flagshark/core": "workspace:*",
+    "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

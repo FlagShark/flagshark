@@ -31,6 +31,12 @@ describe('formatText', () => {
     expect(output).toContain('No feature flags detected')
   })
 
+  it('shows excluded count when excludedCount > 0', () => {
+    const result = makeScanResult({ totalFlags: 0, staleFlags: [], excludedCount: 47 })
+    const output = formatText(result, { json: false, verbose: false, maxDisplay: 10 })
+    expect(output).toContain('47 excluded')
+  })
+
   it('shows stale flag table when stale flags exist', () => {
     const result = makeScanResult({
       totalFlags: 5,
