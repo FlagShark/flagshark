@@ -100,3 +100,6 @@ export interface DetectionResult {
   language: Language
   metadata?: Record<string, unknown>
 }
+
+/** Which detection engine to use for tier-1 language detectors. */
+export type DetectorEngine = 'regex' | 'tree-sitter'

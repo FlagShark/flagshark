@@ -109,7 +109,7 @@ export function createDefaultRegistry(): LanguageRegistry {
   return registry
 }
 
-import type { DetectorEngine } from './detectors/typescript.js'
+import type { DetectorEngine } from './interface.js'
 
 /**
  * Build a registry where every tier-1 detector uses the given engine.

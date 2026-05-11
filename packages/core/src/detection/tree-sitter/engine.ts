@@ -1,4 +1,4 @@
-import { deduplicateFlags } from '../helpers.js'
+import { deduplicateFlags, isValidFlagKey } from '../helpers.js'
 import { getImportPattern } from '../interface.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
@@ -7,17 +7,6 @@ import type { FeatureFlagProvider, Language, MethodConfig } from '../interface.j
 import { getParser } from './parser-cache.js'
 import { getQuery, iterateCalls, getArgument, extractStringLiteral } from './query-runner.js'
 import { resolveConstStringTS } from './const-resolver.js'
-
-const FLAG_KEY_MAX_LENGTH = 256
-const INVALID_PREFIXES = ['http://', 'https://', 'file://', '/']
-
-function isValidFlagKey(key: string): boolean {
-  if (key.length === 0 || key.length > FLAG_KEY_MAX_LENGTH) return false
-  for (const prefix of INVALID_PREFIXES) {
-    if (key.startsWith(prefix)) return false
-  }
-  return true
-}
 
 /**
  * Detect feature flags via tree-sitter. Mirrors detectFlagsWithRegex's contract.

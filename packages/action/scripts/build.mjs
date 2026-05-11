@@ -18,7 +18,6 @@ mkdirSync(queriesDir, { recursive: true })
 // Copy WASM grammars from node_modules (resolved relative to @flagshark/core's location)
 const grammars = [
   'tree-sitter-typescript/tree-sitter-typescript.wasm',
-  'tree-sitter-typescript/tree-sitter-tsx.wasm',
   'tree-sitter-javascript/tree-sitter-javascript.wasm',
   'tree-sitter-go/tree-sitter-go.wasm',
   'tree-sitter-python/tree-sitter-python.wasm',

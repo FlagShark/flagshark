@@ -8,9 +8,9 @@ import { Languages } from '../interface.js'
 import { detectFlagsWithTreeSitter } from '../tree-sitter/engine.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
-import type { FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
+import type { DetectorEngine, FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
 
-export type DetectorEngine = 'regex' | 'tree-sitter'
+export type { DetectorEngine }
 
 export interface PythonDetectorOptions {
   providers?: FeatureFlagProvider[]
