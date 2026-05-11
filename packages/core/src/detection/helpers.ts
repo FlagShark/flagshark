@@ -76,7 +76,7 @@ export function extractStringArgument(callText: string, paramIndex: number): str
 
 /**
  * Splits a comma-separated argument list, respecting nested parentheses,
- * brackets, braces, and string literals.
+ * brackets, braces, string literals, and block comments (/* ... *\/).
  */
 export function splitArguments(argsStr: string): string[] {
   const args: string[] = []
@@ -94,6 +94,15 @@ export function splitArguments(argsStr: string): string[] {
         inString = null
       }
       continue
+    }
+
+    // Skip block comments /* ... */
+    if (ch === '/' && argsStr[i + 1] === '*') {
+      const end = argsStr.indexOf('*/', i + 2)
+      if (end !== -1) {
+        i = end + 1
+        continue
+      }
     }
 
     if (ch === '"' || ch === "'" || ch === '`') {

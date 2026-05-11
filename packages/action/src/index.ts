@@ -5,6 +5,14 @@
  * writes a GitHub Actions job summary, and sets a status check.
  */
 
+// Tell @flagshark/core where to find vendored WASM grammars + .scm queries.
+// __dirname is the native CJS global available in the esbuild-bundled action.cjs.
+// In the source (ESM-typed), we declare it so TypeScript is satisfied.
+declare const __dirname: string
+import { join } from 'node:path'
+process.env.FLAGSHARK_WASM_DIR = join(__dirname, 'grammars')
+process.env.FLAGSHARK_QUERIES_DIR = join(__dirname, 'queries')
+
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 

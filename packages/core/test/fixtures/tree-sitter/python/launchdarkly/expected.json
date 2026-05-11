@@ -1,0 +1,16 @@
+[
+  {
+    "file": "positive/single-line.py",
+    "flags": [
+      { "name": "PY_CHECKOUT_V2", "filePath": "positive/single-line.py", "lineNumber": 8, "language": "python", "provider": "ldclient" }
+    ]
+  },
+  {
+    "file": "positive/multi-line.py",
+    "flags": [
+      { "name": "PY_MULTI_LINE", "filePath": "positive/multi-line.py", "lineNumber": 6, "language": "python", "provider": "ldclient" }
+    ]
+  },
+  { "file": "negative/flag-in-comment.py", "flags": [] },
+  { "file": "negative/no-import.py", "flags": [] }
+]

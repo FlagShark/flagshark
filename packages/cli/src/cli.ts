@@ -40,6 +40,7 @@ interface CliArgs {
   verbose: boolean
   help: boolean
   version: boolean
+  engine?: 'regex' | 'tree-sitter'
   configPath?: string
   noConfig?: boolean
   noIgnoreFile?: boolean
@@ -58,7 +59,13 @@ function parseArgs(argv: string[]): CliArgs {
 
   let i = 2 // skip node + script
   while (i < argv.length) {
-    const arg = argv[i]
+    // Support both --flag value and --flag=value forms
+    let arg = argv[i]
+    if (arg.startsWith('--') && arg.includes('=')) {
+      const eqIdx = arg.indexOf('=')
+      argv.splice(i, 1, arg.slice(0, eqIdx), arg.slice(eqIdx + 1))
+      arg = argv[i]
+    }
     switch (arg) {
       case '--json':
         args.json = true
@@ -88,6 +95,15 @@ function parseArgs(argv: string[]): CliArgs {
       case '-v':
         args.version = true
         break
+      case '--engine': {
+        const value = argv[++i]
+        if (value !== 'regex' && value !== 'tree-sitter') {
+          process.stderr.write(`Error: --engine must be 'regex' or 'tree-sitter', got '${value}'\n`)
+          process.exit(2)
+        }
+        args.engine = value
+        break
+      }
       case '--config':
         i++
         args.configPath = argv[i]
@@ -174,6 +190,7 @@ async function main(): Promise<void> {
     cwd: process.cwd(),
     threshold: args.threshold,
     diff: args.diff ?? undefined,
+    engine: args.engine,
     config: configOverride,
     noConfig: args.noConfig,
     noIgnoreFile: args.noIgnoreFile,

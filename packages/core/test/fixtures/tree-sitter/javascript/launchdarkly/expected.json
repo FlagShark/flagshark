@@ -1,0 +1,16 @@
+[
+  {
+    "file": "positive/single-line.js",
+    "flags": [
+      { "name": "JS_CHECKOUT_V2", "filePath": "positive/single-line.js", "lineNumber": 6, "language": "javascript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  {
+    "file": "positive/multi-line.js",
+    "flags": [
+      { "name": "JS_MULTI_LINE", "filePath": "positive/multi-line.js", "lineNumber": 6, "language": "javascript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  { "file": "negative/flag-in-comment.js", "flags": [] },
+  { "file": "negative/no-import.js", "flags": [] }
+]

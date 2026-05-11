@@ -85,7 +85,7 @@ export interface LanguageDetector {
   fileExtensions(): string[]
 
   /** Detects feature flags in the given source code. */
-  detectFlags(filename: string, content: string): FeatureFlag[]
+  detectFlags(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]>
 
   /** Checks if this detector can handle the given file. */
   supportsFile(filename: string): boolean

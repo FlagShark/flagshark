@@ -4,7 +4,7 @@
  */
 
 import { collectFiles } from './scanner.js'
-import { createDefaultRegistry } from './detection/index.js'
+import { createDefaultRegistry, createRegistryWithEngine } from './detection/index.js'
 import { PolyglotAnalyzer } from './detection/polyglot-analyzer.js'
 import { analyzeStaleness } from './staleness.js'
 import { buildDefaultConfig } from './config/defaults.js'
@@ -55,6 +55,9 @@ export interface ScanRepoOptions {
    * Optional logger for debug/info/warn/error messages. Defaults to a no-op.
    */
   logger?: ScanLogger
+
+  /** @internal — undocumented escape hatch for cross-engine smoke testing */
+  engine?: 'regex' | 'tree-sitter'
 
   /**
    * Explicit config to use. If undefined, scanRepo discovers .flagshark.yml
@@ -148,7 +151,9 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
 
   logger.debug('Effective excludes', excluder.effectiveRules)
 
-  const registry = createDefaultRegistry()
+  const registry = opts.engine
+    ? createRegistryWithEngine(opts.engine)
+    : createDefaultRegistry()
   const supportedExtensions = new Set(registry.getSupportedExtensions())
   const analyzer = new PolyglotAnalyzer(registry, logger)
 

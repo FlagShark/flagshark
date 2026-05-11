@@ -1,0 +1,50 @@
+[
+  {
+    "file": "positive/single-line.ts",
+    "flags": [
+      { "name": "CHECKOUT_V2", "filePath": "positive/single-line.ts", "lineNumber": 6, "language": "typescript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  {
+    "file": "positive/multi-line.ts",
+    "flags": [
+      { "name": "MULTI_LINE_FLAG", "filePath": "positive/multi-line.ts", "lineNumber": 6, "language": "typescript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  {
+    "file": "positive/nested-call.ts",
+    "flags": [
+      { "name": "NESTED_FLAG", "filePath": "positive/nested-call.ts", "lineNumber": 6, "language": "typescript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  {
+    "file": "positive/comment-mid-expression.ts",
+    "flags": [
+      { "name": "COMMENT_MID_FLAG", "filePath": "positive/comment-mid-expression.ts", "lineNumber": 6, "language": "typescript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  {
+    "file": "negative/flag-in-comment.ts",
+    "flags": []
+  },
+  {
+    "file": "negative/flag-in-string.ts",
+    "flags": []
+  },
+  {
+    "file": "negative/no-import.ts",
+    "flags": []
+  },
+  {
+    "file": "negative/unrelated-call.ts",
+    "flags": [
+      { "name": "schema_v2", "filePath": "negative/unrelated-call.ts", "lineNumber": 6, "language": "typescript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  },
+  {
+    "file": "positive/const-extracted.ts",
+    "flags": [
+      { "name": "CONST_EXTRACTED_FLAG", "filePath": "positive/const-extracted.ts", "lineNumber": 7, "language": "typescript", "provider": "launchdarkly-node-server-sdk" }
+    ]
+  }
+]
