@@ -36,7 +36,7 @@ export class LanguageRegistry {
   }
 
   /** Detects feature flags in a file using the appropriate language detector. */
-  detectInFile(filename: string, content: string): FeatureFlag[] | null {
+  detectInFile(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]> | null {
     const detector = this.getDetectorForFile(filename)
     if (!detector) {
       return null

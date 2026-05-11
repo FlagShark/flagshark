@@ -5,15 +5,25 @@
 
 import { detectFlagsWithRegex } from '../helpers.js'
 import { Languages } from '../interface.js'
+import { detectFlagsWithTreeSitter } from '../tree-sitter/engine.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
 import type { FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
 
+export type DetectorEngine = 'regex' | 'tree-sitter'
+
+export interface TypeScriptDetectorOptions {
+  providers?: FeatureFlagProvider[]
+  engine?: DetectorEngine
+}
+
 export class TypeScriptDetector implements LanguageDetector {
   private readonly providers: FeatureFlagProvider[]
+  private readonly engine: DetectorEngine
 
-  constructor(providers?: FeatureFlagProvider[]) {
-    this.providers = providers ?? defaultTypeScriptProviders()
+  constructor(opts: TypeScriptDetectorOptions = {}) {
+    this.providers = opts.providers ?? defaultTypeScriptProviders()
+    this.engine = opts.engine ?? 'regex'
   }
 
   language(): Language {
@@ -29,7 +39,10 @@ export class TypeScriptDetector implements LanguageDetector {
     return ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'].includes(ext ?? '')
   }
 
-  detectFlags(filename: string, content: string): FeatureFlag[] {
+  detectFlags(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]> {
+    if (this.engine === 'tree-sitter') {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers)
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers)
   }
 
