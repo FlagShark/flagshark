@@ -7,7 +7,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { parse as parseYaml } from 'yaml'
 import { scanRepo, FlagsharkConfigSchema, type FlagsharkConfig } from '@flagshark/core'
-import { formatText, formatJson } from './formatter.js'
+import { formatText, formatJson } from '@flagshark/core'
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -213,8 +213,8 @@ async function main(): Promise<void> {
   }
 
   const output = args.json
-    ? formatJson(result) + '\n'
-    : formatText(result, { json: false, verbose: args.verbose, maxDisplay: 10 }) + '\n'
+    ? formatJson(result, { version: VERSION }) + '\n'
+    : formatText(result, { verbose: args.verbose, maxDisplay: 10 }) + '\n'
 
   const exitCode = result.staleFlags.length > 0 ? 1 : 0
 

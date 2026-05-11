@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 
-import { formatText, formatJson } from '../src/formatter.js'
+import { formatText } from '../../src/output/text.js'
+import { formatJson } from '../../src/output/json.js'
 
-import type { ScanResult } from '../src/formatter.js'
+import type { ScanRepoResult } from '../../src/scan-repo.js'
 
-function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
+function makeScanResult(overrides: Partial<ScanRepoResult> = {}): ScanRepoResult {
   return {
     totalFlags: 10,
     filesScanned: 50,
@@ -20,20 +21,20 @@ function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
 describe('formatText', () => {
   it('shows healthy message when no stale flags', () => {
     const result = makeScanResult({ healthScore: 100, staleFlags: [] })
-    const output = formatText(result, { json: false, verbose: false, maxDisplay: 10 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
     expect(output).toContain('FlagShark')
     expect(output).toContain('100/100')
   })
 
   it('shows "no flags detected" when totalFlags is 0', () => {
     const result = makeScanResult({ totalFlags: 0, healthScore: 100, staleFlags: [] })
-    const output = formatText(result, { json: false, verbose: false, maxDisplay: 10 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
     expect(output).toContain('No feature flags detected')
   })
 
   it('shows excluded count when excludedCount > 0', () => {
     const result = makeScanResult({ totalFlags: 0, staleFlags: [], excludedCount: 47 })
-    const output = formatText(result, { json: false, verbose: false, maxDisplay: 10 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
     expect(output).toContain('47 excluded')
   })
 
@@ -53,7 +54,7 @@ describe('formatText', () => {
         },
       ],
     })
-    const output = formatText(result, { json: false, verbose: false, maxDisplay: 10 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
     expect(output).toContain('TEST_FLAG')
     expect(output).toContain('60/100')
   })
@@ -62,9 +63,9 @@ describe('formatText', () => {
 describe('formatJson', () => {
   it('produces valid JSON', () => {
     const result = makeScanResult()
-    const output = formatJson(result)
+    const output = formatJson(result, { version: 'test' })
     const parsed = JSON.parse(output)
-    expect(parsed.version).toBe('1.2.0')
+    expect(parsed.version).toBe('test')
     expect(parsed.totalFlags).toBe(10)
     expect(parsed.healthScore).toBe(100)
   })
@@ -82,7 +83,7 @@ describe('formatJson', () => {
         },
       ],
     })
-    const output = formatJson(result)
+    const output = formatJson(result, { version: 'test' })
     const parsed = JSON.parse(output)
     expect(parsed.flags).toHaveLength(1)
     expect(parsed.flags[0].name).toBe('MY_FLAG')
