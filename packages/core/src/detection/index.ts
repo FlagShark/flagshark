@@ -87,12 +87,16 @@ export {
 
 /**
  * Creates a LanguageRegistry pre-loaded with all 13 language detectors.
+ * Tier-1 languages (TypeScript, JavaScript, Go, Python) use tree-sitter by default.
+ * Non-tier-1 detectors use regex (the per-detector default).
  */
 export function createDefaultRegistry(): LanguageRegistry {
   const registry = new LanguageRegistry()
-  registry.register(new GoDetector())
-  registry.register(new TypeScriptDetector())
-  registry.register(new PythonDetector())
+  registry.register(new TypeScriptDetector({ engine: 'tree-sitter' }))
+  registry.register(new JavaScriptDetector({ engine: 'tree-sitter' }))
+  registry.register(new GoDetector({ engine: 'tree-sitter' }))
+  registry.register(new PythonDetector({ engine: 'tree-sitter' }))
+  // Non-tier-1 stay regex (default):
   registry.register(new JavaDetector())
   registry.register(new KotlinDetector())
   registry.register(new SwiftDetector())
@@ -102,10 +106,6 @@ export function createDefaultRegistry(): LanguageRegistry {
   registry.register(new RustDetector())
   registry.register(new CPPDetector())
   registry.register(new ObjectiveCDetector())
-  // JavaScriptDetector has its own provider list (different from TypeScript).
-  // Both can be registered since they have different language keys.
-  // TypeScriptDetector is checked first for .js files (first-match wins).
-  registry.register(new JavaScriptDetector())
   return registry
 }
 
