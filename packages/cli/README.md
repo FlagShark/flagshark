@@ -1,60 +1,82 @@
-# flagshark
+# 🦈 flagshark
 
-Find stale feature flags in your codebase. CLI tool + GitHub Action.
+**Find stale feature flags in your codebase.** Polyglot CLI + GitHub Action. 13 languages, 13 providers, zero config.
 
 ```bash
 npx flagshark scan
 ```
 
 ```
-🦈 FlagShark v1.1.1
+🦈 FlagShark v1.3.0 — scanned 156 files in 2.3s
+                       (47 excluded via .flagsharkignore + test-files preset)
 
-Scanned 156 files across 4 languages
-Detected providers: LaunchDarkly (JS SDK), Unleash (Go SDK)
-Found 23 feature flags, 7 stale
+Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
+Found 23 feature flags · 7 stale · health 70/100 ⚠️
 
-Stale flags:
 ┌──────────────────┬────────────────────────┬───────────────┬──────────────────────────────┐
 │ Flag             │ File                   │ Added         │ Signal                       │
 ├──────────────────┼────────────────────────┼───────────────┼──────────────────────────────┤
-│ CHECKOUT_V2      │ src/checkout.ts:47     │ 14 months ago │ Age > 6 months               │
-│ NEW_NAV          │ src/layout.tsx:12      │ 8 months ago  │ Age > 6 months, Single file  │
-│ BETA_SEARCH      │ src/search.ts:91       │ 11 months ago │ Single file reference        │
+│ CHECKOUT_V2      │ src/checkout.ts:47     │ 14 months ago │ age                          │
+│ NEW_NAV          │ src/layout.tsx:12      │ 8 months ago  │ age, low-usage               │
+│ BETA_SEARCH      │ src/search.ts:91       │ 11 months ago │ low-usage                    │
 └──────────────────┴────────────────────────┴───────────────┴──────────────────────────────┘
 
-Flag Health Score: 70/100 (7/23 flags are stale)
+Exit code: 1 (stale flags found)
 ```
+
+## Why FlagShark
+
+- **Zero install, zero config.** `npx flagshark scan` works on any repo today.
+- **Polyglot.** TypeScript, JavaScript, Go, Python, Java, Kotlin, Swift, Ruby, C#, PHP, Rust, C/C++, Objective-C.
+- **Provider-aware.** Auto-detects 13 flag SDKs — no custom rules to maintain.
+- **AST-based detection** for TS/JS/Go/Python via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, and unrelated calls aren't false positives.
+- **Two staleness signals** — `git blame` age + single-file usage. Both run automatically.
+- **MIT licensed.** No account, no token, no telemetry.
 
 ## Install
 
 ```bash
-# Run without installing
+# Recommended — run without installing
 npx flagshark scan
 
-# Or install globally
+# Or globally
 npm install -g flagshark
 ```
 
-Building a tool on top of the engine? Use [`@flagshark/core`](https://www.npmjs.com/package/@flagshark/core) directly.
-
-## CLI Usage
+## CLI
 
 ```bash
-# Scan current directory
+flagshark scan [options]
+
+Scan options:
+  --diff <ref>             Only scan files changed since this git ref (e.g. main, HEAD~1)
+  --threshold <months>     Staleness age threshold (default: 6, or config.threshold)
+  --verbose                Show all stale flags + effective exclude rules
+
+Output:
+  --json                   Emit JSON to stdout (stable schema for tooling)
+
+Configuration:
+  --config <path>          Use this config file (overrides .flagshark.yml discovery)
+  --no-config              Skip .flagshark.yml discovery
+  --no-ignore-file         Skip .flagsharkignore discovery
+  --show-excluded          List excluded files in the output
+```
+
+Example invocations:
+
+```bash
+# Scan current directory, default 6-month threshold
 flagshark scan
 
-# JSON output (for piping to other tools)
-flagshark scan --json
-
-# Only scan files changed since a git ref
-flagshark scan --diff HEAD~1
+# Scan only files changed since main
 flagshark scan --diff main
 
-# Custom staleness threshold (default: 6 months)
-flagshark scan --threshold 3
+# Stricter threshold + JSON for piping
+flagshark scan --threshold 3 --json | jq '.staleFlags'
 
-# Show all stale flags (default shows top 10)
-flagshark scan --verbose
+# Use a custom config file
+flagshark scan --config ./tooling/flagshark.yml
 ```
 
 ### Exit codes
@@ -63,11 +85,64 @@ flagshark scan --verbose
 |------|---------|
 | 0 | No stale flags found |
 | 1 | Stale flags detected |
-| 2 | Runtime error |
+| 2 | Runtime or configuration error |
+
+## Configuration
+
+FlagShark is zero-config by default. When you want more control, two files compose:
+
+### `.flagsharkignore` — skip files entirely
+
+Drop a `.flagsharkignore` at your repo root. Same syntax as `.gitignore`:
+
+```gitignore
+examples/
+**/*.test.ts
+**/*_test.go
+**/test_*.py
+!examples/important-flag-test.ts   # Re-include with `!`
+```
+
+### `.flagshark.yml` — full config
+
+```yaml
+threshold: 6
+
+excludes:
+  paths:
+    - 'examples/**'
+  files:
+    - '**/*.test.ts'
+  presets:
+    - test-files                 # Curated bundles — see table below
+    - snapshots
+
+suppress:
+  flags:
+    - 'INTERNAL_DEBUG_*'         # Don't report these flag names
+    - 'PERMANENT_KILLSWITCH'
+
+paths:                           # Per-path threshold overrides
+  - match: 'src/critical/**'
+    threshold: 3
+  - match: 'src/experimental/**'
+    threshold: 12
+```
+
+The unconditional baseline — `node_modules`, `.git`, `dist`, `build`, `coverage`, `__pycache__`, `vendor`, `.next`, `.turbo` — is always skipped.
+
+### Built-in presets
+
+| Preset | Covers |
+|---|---|
+| `test-files` | `*.test.*`, `*.spec.*`, `*_test.go`, `test_*.py`, `*Test.java`, `*_spec.rb`, `__tests__/**`, etc. |
+| `snapshots` | `*.snap`, `__snapshots__/**` |
+| `examples` | `examples/**`, `demo/**` |
+| `stories` | `*.stories.{ts,tsx,js,jsx}` (Storybook) |
+| `fixtures` | `__fixtures__/**`, `fixtures/**` |
+| `generated` | `*.generated.{ts,js}`, `*.gen.go`, `generated/**` |
 
 ## GitHub Action
-
-Add to your workflow:
 
 ```yaml
 name: FlagShark
@@ -83,94 +158,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for git blame (staleness) and changed-file scanning
+          fetch-depth: 0
       - uses: FlagShark/flagshark@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Action Inputs
+See the [main repo README](https://github.com/FlagShark/flagshark) for action inputs and full docs.
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `scan` | `changed` | `changed` (PR files only) or `full` (entire repo) |
-| `threshold` | `6` | Staleness threshold in months |
-| `fail-threshold` | `0` | Health score below which the check fails (0 = never fail) |
+## Library usage
 
-### Scan Modes
+Building a tool on top of the engine? Use [`@flagshark/core`](https://www.npmjs.com/package/@flagshark/core) directly:
 
-**`scan: changed`** (default) scans only files modified in the PR. Fast, focused on what you're changing.
+```ts
+import { scanRepo } from '@flagshark/core'
 
-**`scan: full`** scans the entire repository. Shows your full flag health score and finds stale flags everywhere, not just in changed files:
-
-```yaml
-      - uses: FlagShark/flagshark@v1
-        with:
-          scan: full
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+const result = await scanRepo({ cwd: process.cwd(), threshold: 6 })
+console.log(`${result.staleFlags.length} stale of ${result.totalFlags}`)
 ```
-
-### What the Action does
-
-On every PR, FlagShark comments with a table of stale flags:
-
-> ### 🦈 FlagShark found 3 stale flags
->
-> | Flag | File | Added | Signal |
-> |------|------|-------|--------|
-> | `CHECKOUT_V2` | src/checkout.ts:47 | 14 months ago | Age > 6 months |
-> | `NEW_NAV` | src/layout.tsx:12 | 8 months ago | Single file |
->
-> **Flag Health:** 70/100
-
-It also sets a GitHub status check that can optionally block merge if health drops below a threshold.
-
-## Supported Languages
-
-FlagShark detects feature flags across 13 languages:
-
-| Language | Extensions |
-|----------|-----------|
-| TypeScript/JavaScript | .ts, .tsx, .js, .jsx, .mjs, .cjs |
-| Go | .go |
-| Python | .py |
-| Java | .java |
-| Kotlin | .kt |
-| Swift | .swift |
-| Ruby | .rb |
-| C# | .cs |
-| PHP | .php |
-| Rust | .rs |
-| C/C++ | .c, .cpp, .h, .hpp |
-| Objective-C | .m |
-
-## Supported Providers
-
-Auto-detected from imports (no configuration needed):
-
-- LaunchDarkly
-- Unleash
-- Flipt
-- Split.io
-- PostHog
-- Flagsmith
-- ConfigCat
-- Statsig
-- GrowthBook
-- DevCycle
-- Eppo
-- Optimizely
-- Custom flag implementations
-
-## How Staleness Works
-
-A flag is marked stale if **any** of these signals fires:
-
-1. **Age:** `git blame` shows the flag reference was added more than 6 months ago (configurable with `--threshold`)
-2. **Single file:** The flag name appears in only one file across the entire repo, suggesting a completed rollout
-
-FlagShark only checks files that actually import a flag SDK. A function called `isEnabled()` in a file that doesn't import LaunchDarkly/Unleash/etc. won't be flagged. This prevents false positives.
 
 ## License
 
