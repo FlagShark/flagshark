@@ -2,8 +2,9 @@
 
 **Status:** Draft for review
 **Date:** 2026-05-11
-**Scope:** Make `flagshark scan` more useful and customizable: add a config file, more output formats (SARIF, markdown, CSV), inline suppression, per-path rules, custom providers, and a better terminal UX. Companion to the tree-sitter spec.
+**Scope:** Make `flagshark scan` more useful and customizable: add a config file, more output formats (SARIF, markdown, CSV), inline suppression, per-path rules, custom providers, a `.flagsharkignore` file, exclusion presets, and a better terminal UX. Companion to the tree-sitter spec.
 **Coupled spec:** [2026-05-11-tree-sitter-detection-engine-design.md](./2026-05-11-tree-sitter-detection-engine-design.md) — custom providers in config feed both engines; the new `hardcoded` signal (tier 6) must render correctly in all output formats defined here.
+**Tracking issue:** [FlagShark/flagshark#2](https://github.com/FlagShark/flagshark/issues/2) — `.flagsharkignore` + `excludes:` block. Sections §6 and §11 below resolve this issue in full.
 
 ---
 
@@ -16,9 +17,9 @@
    - Spreadsheet-loving stakeholders want CSV.
 
 2. **Let users tune FlagShark to their codebase.**
-   - Ignore generated code, vendor directories, test fixtures.
+   - **Exclude** generated code, vendor directories, test fixtures, examples, and snapshot files from scanning (issue #2). Today's hardcoded `SKIP_DIRS` only catches `node_modules`/`dist`/`coverage` etc. — projects with `examples/` or `*.test.ts` flag references currently get heavy false-positive noise (the issue documents 17/17 false positives in one real scan).
    - Set stricter thresholds for `src/critical/`, looser for `src/experimental/`.
-   - Suppress known-permanent flags (kill-switches) without polluting global state.
+   - **Suppress** known-permanent flags (kill-switches) from results without polluting global state.
    - Register in-house flag SDKs without forking the project.
 
 3. **Maintain zero-config default behavior.**
@@ -94,7 +95,7 @@ export interface ScanRepoOptions {
 }
 ```
 
-`ScanRepoResult` gains one optional field:
+`ScanRepoResult` gains optional fields:
 
 ```ts
 export interface ScanRepoResult {
@@ -104,13 +105,17 @@ export interface ScanRepoResult {
   languageBreakdown: Record<string, number>
   healthScore: number
   scanDuration: number
-  suppressedCount?: number         // NEW — count of flags hidden by ignore rules (so users know)
+  excludedCount?: number           // NEW — files skipped by .flagsharkignore + excludes:
+  suppressedCount?: number         // NEW — flags hidden by suppress.flags or inline comments
 }
 ```
 
 ## 4. Config file schema
 
-Single source of truth, zod-validated, all fields optional.
+Single source of truth, zod-validated, all fields optional. Two distinct filter concepts kept *semantically separate*:
+
+- **`excludes:`** — input filter. Files matching these patterns are **never scanned**. Use for test fixtures, generated code, examples, snapshots. (Resolves issue #2.)
+- **`suppress:`** — output filter. Files are scanned, but matching flag names are filtered out of the report. Use for permanent kill-switches, internal debug flags that shouldn't count toward health score.
 
 ```yaml
 # .flagshark.yml — example showing every available key
@@ -118,22 +123,31 @@ Single source of truth, zod-validated, all fields optional.
 # Global staleness threshold in months. Overridable per-path.
 threshold: 6
 
-# Files and flags to skip entirely.
-ignore:
+# Excludes: input filter — files never scanned (issue #2).
+excludes:
   paths:
-    - 'src/legacy/**'        # glob (uses minimatch)
+    - 'examples/**'         # glob — uses the `ignore` npm package, gitignore semantics
+    - 'e2e/**'
+  files:
     - '**/*.test.ts'
-    - '**/*.generated.ts'
+    - '**/*.spec.ts'
+    - '**/__tests__/**'
+  presets:                  # named bundles of common patterns — see §6.5
+    - 'test-files'          # *.test.*, *.spec.*, *_test.go, test_*.py, etc.
+    - 'snapshots'           # *.snap, __snapshots__/
+
+# Suppress: output filter — flag names hidden from results.
+suppress:
   flags:
-    - 'INTERNAL_DEBUG_*'     # glob, matched against flag name
+    - 'INTERNAL_DEBUG_*'    # glob, matched against flag name
     - 'PERMANENT_KILLSWITCH'
 
 # Per-path overrides — first matching glob wins.
 paths:
   - match: 'src/critical/**'
-    threshold: 3             # stricter
+    threshold: 3            # stricter
   - match: 'src/experimental/**'
-    threshold: 12            # looser
+    threshold: 12           # looser
 
 # Add custom providers (in-house SDKs). Merged with built-in providers per language.
 providers:
@@ -165,7 +179,11 @@ engine:
   go: tree-sitter
 ```
 
-**File discovery:** `loadConfig(cwd)` walks `cwd` upward looking for `.flagshark.yml` or `.flagshark.yaml`. Stops at first hit or at `$HOME`/`/`. Mirrors how `.prettierrc`, `.eslintrc`, etc. behave. The found path is logged at `info` level.
+**Config discovery:** `loadConfig(cwd)` walks `cwd` upward looking for `.flagshark.yml` or `.flagshark.yaml`. Stops at first hit or at `$HOME`/`/`. Mirrors how `.prettierrc`, `.eslintrc`, etc. behave. The found path is logged at `info` level.
+
+**`.flagsharkignore` discovery:** parallel walk for `.flagsharkignore` (see §6.2). Patterns from this file are *unioned* with `excludes.paths` and `excludes.files`. If both exist, both apply.
+
+**Hardcoded safety net (preserved):** the existing `SKIP_DIRS` set in [packages/core/src/scanner.ts](../../packages/core/src/scanner.ts) (`node_modules`, `.git`, `dist`, `build`, `coverage`, `__pycache__`, `.next`, `.turbo`, `vendor`) remains unconditional — users cannot opt back into scanning these. Config-based `excludes:` and `.flagsharkignore` layer *on top* of this baseline.
 
 **Validation:** zod errors fail the scan with exit code 2 and a clean error message: `Invalid .flagshark.yml: paths[1].threshold must be a positive integer`.
 
@@ -179,6 +197,7 @@ The current text formatter ships a single fixed layout. The new formatter takes 
 
 ```
 🦈 FlagShark v1.3.0 — scanned 156 files in 2.3s
+                       (47 excluded via .flagsharkignore + test-files preset)
 
 Detected providers: LaunchDarkly (JS SDK), Unleash (Go SDK)
 Found 23 feature flags · 7 stale · health 70/100  ⚠️
@@ -195,7 +214,7 @@ Stale by FILE (groupBy: file, sortBy: age):
   src/search.ts
     L91   BETA_SEARCH     11mo ago    age, low-usage
 
-Suppressed 4 flags via .flagshark.yml (run --show-suppressed to see them).
+Suppressed 4 flags via suppress.flags (run --show-suppressed to see them).
 
 Exit code: 1 (stale flags found)
 ```
@@ -206,7 +225,7 @@ Exit code: 1 (stale flags found)
 
 ### 5.2 JSON
 
-Unchanged shape (`ScanRepoResult` serialized). Used by the Action and by piping to `jq`. The one addition: `suppressedCount` if any suppression occurred. JSON output is the **stable API** — downstream tooling can rely on it.
+Unchanged shape (`ScanRepoResult` serialized). Used by the Action and by piping to `jq`. New optional fields: `excludedCount` and `suppressedCount` (see §3.2). With `--show-excluded`, an `excluded: string[]` field is added with the full list of skipped paths. JSON output is the **stable API** — downstream tooling can rely on it.
 
 ### 5.3 SARIF (v2.1.0)
 
@@ -299,7 +318,18 @@ flag,file,line,language,provider,signals,age,added_at
 
 Header row required. `added_at` is the git-blame-derived ISO timestamp (we already have this — currently only the human-readable `age` is surfaced; CSV gets the machine-readable timestamp too).
 
-## 6. Suppression
+## 6. Excludes & Suppression
+
+Three layered filtering mechanisms with clear semantic boundaries:
+
+| Mechanism | What it does | Where | When applied |
+|---|---|---|---|
+| **`.flagsharkignore`** | Skip files entirely (input filter) | repo root | Before reading file content |
+| **`excludes:` config** | Skip files entirely (input filter) | `.flagshark.yml` | Before reading file content |
+| **`suppress:` config** | Hide specific flag names (output filter) | `.flagshark.yml` | After detection |
+| **Inline comments** | Hide specific occurrences (output filter) | source code | After detection |
+
+All four are independent and compose. A scanner pass logs at `--verbose`: "Excluded 47 files via .flagsharkignore + 12 via excludes:; suppressed 3 flags via suppress.flags; skipped 1 occurrence via inline comment."
 
 ### 6.1 Inline comment suppression
 
@@ -329,14 +359,124 @@ Specific-flag suppression (`// flagshark-ignore-next-line: FLAG_NAME`) only supp
 
 We do **not** support block-level suppression (`// flagshark-ignore-block-start ... // flagshark-ignore-block-end`) in v1. If users ask for it, easy to add.
 
-### 6.2 Config-level ignore patterns
+### 6.2 `.flagsharkignore` file (issue #2)
 
-`ignore.paths` filters out files before they're scanned (cheaper). `ignore.flags` filters out flags after detection. Both support globs:
+A separate file at the repo root, gitignore-style syntax, parsed with the `ignore` npm package (battle-tested, what `npm`/`eslint`/`prettier` use). Patterns are relative to the file's directory (`.flagsharkignore` at repo root → patterns relative to repo root).
 
-- `paths`: minimatch globs against the file path (e.g., `src/legacy/**`).
-- `flags`: minimatch globs against the flag name (e.g., `INTERNAL_DEBUG_*`).
+```gitignore
+# .flagsharkignore
+examples/
+**/*.test.ts
+**/*.spec.ts
+**/__tests__/
+**/__fixtures__/
+**/__snapshots__/
+**/*.stories.tsx
+!examples/important.ts        # !-prefix re-includes
+```
 
-Suppressed-count is reported in the result so users know how much they're hiding.
+**Why a separate file from `.flagshark.yml`?** Two reasons:
+
+1. **Familiar mental model.** Anyone who's used `.gitignore`, `.eslintignore`, `.dockerignore`, `.npmignore` understands the syntax instantly. Glob patterns + `!` for negation + `#` for comments.
+2. **Diff-friendly.** `.flagsharkignore` is a flat list of patterns; YAML structure makes line-by-line diffs noisier. Users edit `.flagsharkignore` more frequently than the rest of the config.
+
+**Discovery and merging:**
+
+- `loadConfig(cwd)` looks for `.flagsharkignore` at the same level as `.flagshark.yml` (walks upward from cwd).
+- Found patterns merge with `excludes.paths` + `excludes.files` from `.flagshark.yml`. Union semantics: a file is excluded if *any* source excludes it.
+- On conflict (one says exclude, another says re-include via `!`), the `.flagsharkignore` file's later-in-file rule wins — standard gitignore semantics.
+
+### 6.3 `excludes:` config block (issue #2)
+
+For users who want one source of truth in YAML, or who don't want to ship a second dotfile:
+
+```yaml
+excludes:
+  paths:
+    - 'examples/**'
+    - 'e2e/**'
+  files:
+    - '**/*.test.ts'
+    - '**/*.spec.ts'
+    - '**/__tests__/**'
+  presets:
+    - 'test-files'
+    - 'snapshots'
+```
+
+`paths` and `files` are semantically identical at the matcher level (both go to `ignore` package); the split is purely organizational — `paths` for directory-shape patterns, `files` for file-shape patterns. Authors of the issue prefer this split; we honor it.
+
+### 6.4 `suppress:` config block
+
+Output-side flag-name filter — file IS scanned, but matching flag names are dropped from the report:
+
+```yaml
+suppress:
+  flags:
+    - 'INTERNAL_DEBUG_*'      # glob, matched against flag name
+    - 'PERMANENT_KILLSWITCH'
+    - 'TEST_*'
+```
+
+Globs follow the same syntax as `excludes` (via `ignore`/`minimatch`). Suppressed flags are counted (`suppressedCount` in result, see §3.2) so users know how many they're hiding.
+
+### 6.5 Built-in presets
+
+Named bundles of common exclude patterns, expanded at config-load time. Defined in [packages/core/src/config/presets.ts](../../packages/core/src/config/presets.ts):
+
+```ts
+export const PRESETS = {
+  'test-files': [
+    '**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.test.jsx',
+    '**/*.spec.ts', '**/*.spec.tsx', '**/*.spec.js', '**/*.spec.jsx',
+    '**/*_test.go', '**/*_test.py', '**/test_*.py',
+    '**/*Test.java', '**/*Test.kt', '**/*Tests.swift',
+    '**/*_spec.rb', '**/spec/**/*.rb',
+    '**/*Test.cs', '**/*Tests.cs',
+    '**/__tests__/**', '**/tests/**', '**/test/**',
+  ],
+  'snapshots': [
+    '**/*.snap',
+    '**/__snapshots__/**',
+  ],
+  'examples': [
+    'examples/**', 'example/**',
+    'demo/**', 'demos/**',
+  ],
+  'stories': [
+    '**/*.stories.ts', '**/*.stories.tsx',
+    '**/*.stories.js', '**/*.stories.jsx',
+    '**/*.story.ts', '**/*.story.tsx',
+  ],
+  'fixtures': [
+    '**/__fixtures__/**', '**/fixtures/**',
+  ],
+  'generated': [
+    '**/*.generated.ts', '**/*.generated.js',
+    '**/*.gen.go', '**/generated/**',
+  ],
+} as const
+```
+
+**Opt-in, not default.** The issue's author leans opt-in to avoid silently changing scan results for existing users — we agree. The starter `flagshark init` template *suggests* `presets: ['test-files']` as a comment, and the verbose scan output prints `Detected 47 *.test.* files; add 'test-files' to excludes.presets to skip them` so users discover the option naturally. But no preset applies unless explicitly listed.
+
+Implementation note: the issue references a `packages/shared/lib/test-files.ts` `isTestFile()` helper in the private `flag-shark` monorepo with comprehensive language coverage — that pattern set is the source for our `test-files` preset. We don't import the file (the public engine can't depend on the private monorepo); we copy the pattern list at preset-definition time and credit the source in a comment.
+
+### 6.6 Counts in result
+
+The result shape (§3.2) gains tracked counts so JSON consumers and the text formatter can show what was filtered:
+
+```ts
+export interface ScanRepoResult {
+  // ... existing fields ...
+  excludedCount?: number       // files skipped by .flagsharkignore + excludes:
+  suppressedCount?: number     // flags hidden by suppress.flags or inline comments
+}
+```
+
+The text formatter shows: `Excluded 47 files. Suppressed 3 flags. Run --show-excluded / --show-suppressed for details.`
+
+JSON output never lists every excluded file by default (could be thousands of lines) — `--show-excluded` adds an `excluded: string[]` field with the paths.
 
 ## 7. Per-path rules
 
@@ -348,7 +488,7 @@ paths:
     threshold: 12
 ```
 
-First-match-wins. The default threshold (`config.threshold`, or 6) applies if no pattern matches.
+First-match-wins. The default threshold (`config.threshold`, or 6) applies if no pattern matches. The `paths:` block applies *only to files that survived `excludes:` filtering* — excluded files never reach threshold evaluation.
 
 `paths[].threshold` is currently the only overridable field. We **don't** add per-path engine selection, per-path provider lists, or per-path signal weights in v1 — those add complexity without a clear ask. Easy to extend later.
 
@@ -360,12 +500,14 @@ New flags:
 flagshark scan
   --config <path>          # use this config file (override discovery)
   --no-config              # ignore any .flagshark.yml; use built-in defaults
+  --no-ignore-file         # ignore .flagsharkignore (config-only)
   --format <fmt>           # text | json | sarif | markdown | csv
   --output <file>          # write to file instead of stdout
   --group-by <key>         # file | provider | signal | none
   --sort-by <key>          # age | name | count
   --no-color               # disable colors (NO_COLOR env var also honored)
   --show-suppressed        # show suppressed flags in text output (faded)
+  --show-excluded          # show excluded file list (faded; off by default)
   --engine <eng>           # regex | tree-sitter — see tree-sitter spec §6.4
 
 flagshark init             # write a starter .flagshark.yml in cwd
@@ -375,6 +517,7 @@ Existing flags (`--json`, `--diff`, `--threshold`, `--verbose`) keep working:
 
 - `--json` is shorthand for `--format json`. Kept for backwards compat; deprecated in v2.
 - `--threshold N` overrides `config.threshold`. Kept.
+- `--verbose` prints the effective exclude rules at scan start (per issue #2's debug request): `Effective excludes: examples/**, **/*.test.ts (from .flagsharkignore + excludes:test-files preset)`.
 
 **Precedence:** CLI flag > config file > built-in default.
 
@@ -439,11 +582,11 @@ Since the v1.2.0 release (commit `3069587`), `@flagshark/core` and `flagshark` (
 |---|---|---|
 | P0 | This spec | (this doc) |
 | P1 | Implementation plan (writing-plans skill) | docs/superpowers/plans/ |
-| P2 | Config loader + zod schema + `--config`/`--no-config` flags. No behavior change for users without a config file. | `v1.3.0` (alongside tree-sitter T1) |
+| P2 | **Excludes (resolves issue #2):** config loader + zod schema + `.flagsharkignore` + `excludes:` block + presets + `--show-excluded`/`--no-ignore-file`/`--verbose` rule listing. Highest user impact — removes the dominant source of false positives. | `v1.3.0` (alongside tree-sitter T1) |
 | P3 | Markdown + CSV formatters; refactor Action PR comment to use markdown formatter. | `v1.4.0` |
 | P4 | SARIF output + Action `sarif:` input + Code Scanning docs. | `v1.5.0` |
-| P5 | Inline suppression comments + `ignore.flags` config. | `v1.6.0` |
-| P6 | Per-path rules + `ignore.paths` config. | `v1.7.0` |
+| P5 | Inline suppression comments + `suppress.flags` config + `--show-suppressed`. | `v1.6.0` |
+| P6 | Per-path rules (threshold overrides per glob). | `v1.7.0` |
 | P7 | `flagshark init` subcommand + colorized text output + `--group-by`/`--sort-by`. | `v1.8.0` |
 | P8 | Health score weights surface (paired with tree-sitter T6 `hardcoded` signal). | `v1.9.0` |
 
@@ -465,15 +608,23 @@ Phases are sized to ship every 1–2 weeks. They can interleave with tree-sitter
 
 1. **YAML library choice — `yaml@2.x` vs `js-yaml`?** `yaml` is smaller and more modern. `js-yaml` is more battle-tested. *Lean: `yaml@2.x`.*
 
-2. **Should `ignore.flags` accept regex as well as glob?** Globs cover most cases. *Lean: glob only in v1; regex behind `flag_regex:` later if asked.*
+2. **Should `suppress.flags` accept regex as well as glob?** Globs cover most cases. *Lean: glob only in v1; regex behind `flag_regex:` later if asked.*
 
 3. **Suppression comment syntax — `flagshark-ignore-next-line` or shorter (`flagshark-ignore`, `fs-ignore`)?** Shorter is friendlier but ambiguous. *Lean: `flagshark-ignore-next-line` (explicit, follows eslint convention).*
 
-4. **`flagshark init` — what should the starter file look like?** Pure-comment template showing every option, or a minimal `threshold: 6` only? *Lean: minimal default with a comment pointing at the docs; users add what they need.*
+4. **`flagshark init` — what should the starter file look like?** Pure-comment template showing every option, or a minimal `threshold: 6` only? *Lean: minimal default with `presets: ['test-files']` commented out as a hint (mirrors what verbose output suggests on first scan).*
 
 5. **Action's `output-format: none`** — does it disable the PR comment entirely (e.g., for users who only want SARIF)? *Yes — that's the use case.*
 
 6. **Markdown formatter output for the CLI vs the Action — should they diverge?** Action's links are absolute (`https://github.com/owner/repo/blob/sha/...`); CLI's are relative (`src/checkout.ts#L47`). One formatter with a `linkPrefix` option, or two formatters? *Lean: one formatter, `linkPrefix` option.*
+
+7. **(From issue #2) Should `test-files` ship in a default-on preset?** *Lean: no — opt-in only. Silently changing scan results breaks existing users. Compromise: print a hint on first scan when any `*.test.*` or `__tests__/**` files are detected.*
+
+8. **(From issue #2) Should excluded files appear in JSON output by default?** *Lean: no — count only (`excludedCount`). `--show-excluded` adds the full list when needed. Avoids bloating typical JSON output with thousands of paths.*
+
+9. **`excludes.paths` vs `excludes.files` — keep the conceptual split or merge into one `excludes.patterns` list?** The issue author proposed the split. Both keys are matcher-identical; the split is organizational. *Lean: honor the split (paths for directory-shape, files for file-shape) — costs us nothing, matches the issue.*
+
+10. **Should `.flagsharkignore` support multiple files (per-directory, like `.gitignore`)?** Git allows nested `.gitignore` files in subdirectories. *Lean: no for v1 — only one `.flagsharkignore` at repo root. Walks-upward from cwd. Nested-files behavior can be added later if asked.*
 
 ## 14. Out-of-scope follow-ups (for next major)
 
