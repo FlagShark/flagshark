@@ -15,3 +15,6 @@ export type { ScanRepoOptions, ScanRepoResult, ScanLogger } from './scan-repo.js
 
 // Config module
 export * from './config/index.js'
+
+// Output formatters
+export * from './output/index.js'

@@ -15,14 +15,23 @@ inputs:
     description: 'Health score below which the check fails (0 = never fail)'
     required: false
     default: '0'
+  output-format:
+    description: 'PR comment format: `markdown` (default) or `none` to disable. To emit SARIF, use the `sarif:` input instead.'
+    required: false
+    default: 'markdown'
+  sarif:
+    description: 'Write SARIF v2.1.0 output to this path (default: do not write)'
+    required: false
 
 outputs:
   health-score:
     description: 'Flag health score (0-100)'
   stale-count:
-    description: 'Number of stale flags found'
+    description: 'Number of unique stale flag names found'
   total-count:
     description: 'Total number of flags detected'
+  sarif-path:
+    description: 'Absolute path to the SARIF file written (only set when sarif: input is provided)'
 
 runs:
   using: 'node20'
