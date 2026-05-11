@@ -4,7 +4,7 @@
  */
 
 import { collectFiles } from './scanner.js'
-import { createDefaultRegistry } from './detection/index.js'
+import { createDefaultRegistry, createRegistryWithEngine } from './detection/index.js'
 import { PolyglotAnalyzer } from './detection/polyglot-analyzer.js'
 import { analyzeStaleness } from './staleness.js'
 
@@ -49,6 +49,9 @@ export interface ScanRepoOptions {
    * Optional logger for debug/info/warn/error messages. Defaults to a no-op.
    */
   logger?: ScanLogger
+
+  /** @internal — undocumented escape hatch for cross-engine smoke testing */
+  engine?: 'regex' | 'tree-sitter'
 }
 
 export interface ScanRepoResult {
@@ -96,7 +99,9 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   const logger = opts.logger ?? NOOP_LOGGER
   const threshold = opts.threshold ?? 6
 
-  const registry = createDefaultRegistry()
+  const registry = opts.engine
+    ? createRegistryWithEngine(opts.engine)
+    : createDefaultRegistry()
   const supportedExtensions = new Set(registry.getSupportedExtensions())
   const analyzer = new PolyglotAnalyzer(registry, logger)
 
