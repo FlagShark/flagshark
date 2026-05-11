@@ -11,7 +11,8 @@ describe('parser-cache', () => {
     const parser = await getParser('typescript')
     expect(parser).toBeDefined()
     const tree = parser.parse('const x = 1')
-    expect(tree.rootNode.type).toBe('program')
+    expect(tree).not.toBeNull()
+    expect(tree!.rootNode.type).toBe('program')
   })
 
   it('caches parsers — second call returns the same instance', async () => {

@@ -85,6 +85,9 @@ export function formatText(result: ScanResult, options: FormatOptions): string {
   // Language summary
   const langCount = Object.keys(result.languageBreakdown).length
   lines.push(`Scanned ${result.filesScanned} files across ${langCount} language${langCount === 1 ? '' : 's'}`)
+  if (result.excludedCount && result.excludedCount > 0) {
+    lines.push(`(${result.excludedCount} excluded via .flagsharkignore + excludes)`)
+  }
 
   // No flags found
   if (result.totalFlags === 0) {
@@ -135,6 +138,15 @@ export function formatText(result: ScanResult, options: FormatOptions): string {
     lines.push('Open source CLI  \u2192 https://github.com/FlagShark/flagshark')
   }
 
+  // Excluded paths
+  if (result.excludedPaths && result.excludedPaths.length > 0) {
+    lines.push('')
+    lines.push(`Excluded files (${result.excludedPaths.length}):`)
+    for (const p of result.excludedPaths) {
+      lines.push(`  ${p}`)
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -168,6 +180,7 @@ export function formatJson(result: ScanResult): string {
     detectedProviders: result.detectedProviders,
     languages,
     flags,
+    excludedPaths: result.excludedPaths,
     scanDuration: result.scanDuration,
     links: {
       dashboard: 'https://flagshark.com',

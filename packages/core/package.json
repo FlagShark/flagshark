@@ -26,12 +26,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ignore": "^5.3.0",
     "p-limit": "^6.0.0",
     "tree-sitter-go": "^0.25.0",
     "tree-sitter-javascript": "^0.25.0",
     "tree-sitter-python": "^0.25.0",
     "tree-sitter-typescript": "^0.23.0",
     "web-tree-sitter": "^0.25.0",
+    "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
