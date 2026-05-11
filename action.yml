@@ -15,6 +15,10 @@ inputs:
     description: 'Health score below which the check fails (0 = never fail)'
     required: false
     default: '0'
+  output-format:
+    description: 'PR comment format: markdown (default) or none (disable PR comment)'
+    required: false
+    default: 'markdown'
 
 outputs:
   health-score:

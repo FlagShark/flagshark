@@ -16,8 +16,8 @@ process.env.FLAGSHARK_QUERIES_DIR = join(__dirname, 'queries')
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
-import { scanRepo } from '@flagshark/core'
-import type { StaleFlag } from '@flagshark/core'
+import { scanRepo, formatMarkdown } from '@flagshark/core'
+import type { ScanRepoResult } from '@flagshark/core'
 
 const COMMENT_MARKER = '<!-- flagshark-action -->'
 
@@ -40,6 +40,7 @@ async function run(): Promise<void> {
     const scanMode = core.getInput('scan') || 'changed'
     const threshold = parseInt(core.getInput('threshold') || '6', 10)
     const failThreshold = parseInt(core.getInput('fail-threshold') || '0', 10)
+    const outputFormat = core.getInput('output-format') || 'markdown'
 
     // Determine diff ref for "changed" mode
     const baseRef =
@@ -96,10 +97,10 @@ async function run(): Promise<void> {
     core.setOutput('total-count', totalFlags.toString())
 
     // Post PR comment
-    if (github.context.payload.pull_request && totalFlags > 0) {
+    if (github.context.payload.pull_request && totalFlags > 0 && outputFormat === 'markdown') {
       const token = process.env.GITHUB_TOKEN || core.getInput('token')
       if (token) {
-        await postComment(token, staleFlags, totalFlags, healthScore, scanMode, langStats, providers, scanDuration)
+        await postComment(token, result, scanMode as 'full' | 'changed')
       }
     }
 
@@ -163,75 +164,20 @@ async function run(): Promise<void> {
 
 async function postComment(
   token: string,
-  staleFlags: StaleFlag[],
-  totalFlags: number,
-  healthScore: number,
-  scanMode: string,
-  langStats: Record<string, number>,
-  providers: string[],
-  scanDuration: number,
+  result: ScanRepoResult,
+  scanMode: 'full' | 'changed',
 ): Promise<void> {
   const octokit = github.getOctokit(token)
   const { owner, repo } = github.context.repo
   const prNumber = github.context.payload.pull_request!.number
+  const headSha = github.context.payload.pull_request!.head.sha
+  const linkPrefix = `https://github.com/${owner}/${repo}/blob/${headSha}/`
 
-  const uniqueStaleCount = new Set(staleFlags.map((f) => f.name)).size
-  const modeLabel = scanMode === 'full' ? 'Full repo scan' : 'Changed files only'
-  const healthEmoji = healthScore >= 90 ? '🟢' : healthScore >= 70 ? '🟡' : healthScore >= 40 ? '🟠' : '🔴'
-  const langList = Object.entries(langStats).map(([l, c]) => `${l} (${c})`).join(', ')
-  const providerList = providers.length > 0
-    ? providers.slice(0, 5).join(', ') + (providers.length > 5 ? ` +${providers.length - 5} more` : '')
-    : 'none detected'
-
-  let body = `${COMMENT_MARKER}\n`
-
-  // Header
-  if (uniqueStaleCount === 0) {
-    body += `## 🦈 FlagShark — All flags healthy\n\n`
-  } else {
-    body += `## 🦈 FlagShark — ${uniqueStaleCount} stale flag${uniqueStaleCount !== 1 ? 's' : ''} found\n\n`
-  }
-
-  // Health score badge
-  body += `${healthEmoji} **Health Score: ${healthScore}/100**\n\n`
-
-  // Stats row
-  body += `| Metric | Value |\n`
-  body += `|--------|-------|\n`
-  body += `| Flags detected | ${totalFlags} |\n`
-  body += `| Stale flags | ${uniqueStaleCount} |\n`
-  body += `| Languages | ${langList} |\n`
-  body += `| Providers | ${providerList} |\n`
-  body += `| Scan mode | ${modeLabel} |\n`
-  body += `| Scan time | ${scanDuration}ms |\n\n`
-
-  // Stale flags table
-  if (uniqueStaleCount > 0) {
-    body += `<details${uniqueStaleCount <= 5 ? ' open' : ''}>\n`
-    body += `<summary><strong>Stale flags (${uniqueStaleCount})</strong></summary>\n\n`
-    body += '| Flag | File | Age | Why it looks stale |\n'
-    body += '|------|------|-----|--------------------|\n'
-
-    const displayFlags = staleFlags.slice(0, 20)
-    for (const flag of displayFlags) {
-      const signals = flag.signals.map(s => s.description).join(', ')
-      const shortPath = flag.filePath.replace(/^\.\//, '')
-      body += `| \`${flag.name}\` | \`${shortPath}:${flag.lineNumber}\` | ${flag.age || 'unknown'} | ${signals} |\n`
-    }
-
-    if (staleFlags.length > 20) {
-      body += `\n*... and ${staleFlags.length - 20} more. Run \`npx flagshark scan --verbose\` locally for the full list.*\n`
-    }
-
-    body += '\n</details>\n\n'
-  }
-
-  // Footer with links
-  body += '---\n'
-  body += `*[FlagShark](https://github.com/FlagShark/flagshark) finds stale feature flags before they cause incidents*\n\n`
-  body += `[Automate flag cleanup](https://flagshark.com) · `
-  body += `[Install CLI](https://www.npmjs.com/package/flagshark) · `
-  body += `[Open source](https://github.com/FlagShark/flagshark)\n`
+  const body = formatMarkdown(result, {
+    scanMode,
+    linkPrefix,
+    commentMarker: COMMENT_MARKER,
+  })
 
   // Find existing comment to update
   const { data: comments } = await octokit.rest.issues.listComments({
