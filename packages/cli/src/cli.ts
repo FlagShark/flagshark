@@ -4,10 +4,9 @@
  * Scans a codebase for feature flags and reports staleness.
  */
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { parse as parseYaml } from 'yaml'
-import { scanRepo, FlagsharkConfigSchema, type FlagsharkConfig } from '@flagshark/core'
-import { formatText, formatJson } from '@flagshark/core'
+import { scanRepo, FlagsharkConfigSchema, type FlagsharkConfig, selectFormatter } from '@flagshark/core'
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -29,12 +28,19 @@ Configuration:
   --no-config              Skip config file discovery
   --no-ignore-file         Skip .flagsharkignore discovery
   --show-excluded          Show excluded files in text output
+
+Output:
+  --format <fmt>           Output format: text | json | markdown | csv | sarif (default: text)
+  --output <path> | -o     Write output to this file instead of stdout
+  --json                   Shorthand for --format json (deprecated, will be removed in v2)
 `.trim()
 
 // ── Arg parsing ───────────────────────────────────────────────────
 
 interface CliArgs {
   json: boolean
+  format: 'text' | 'json' | 'markdown' | 'csv' | 'sarif'
+  output?: string
   diff: string | null
   threshold: number | undefined
   verbose: boolean
@@ -50,6 +56,7 @@ interface CliArgs {
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     json: false,
+    format: 'text',
     diff: null,
     threshold: undefined,
     verbose: false,
@@ -69,6 +76,20 @@ function parseArgs(argv: string[]): CliArgs {
     switch (arg) {
       case '--json':
         args.json = true
+        args.format = 'json'
+        break
+      case '--format': {
+        const v = argv[++i]
+        if (!['text', 'json', 'markdown', 'csv', 'sarif'].includes(v)) {
+          process.stderr.write(`Error: --format must be one of text, json, markdown, csv, sarif; got '${v}'\n`)
+          process.exit(2)
+        }
+        args.format = v as CliArgs['format']
+        break
+      }
+      case '--output':
+      case '-o':
+        args.output = argv[++i]
         break
       case '--diff':
         i++
@@ -212,16 +233,25 @@ async function main(): Promise<void> {
     }
   }
 
-  const output = args.json
-    ? formatJson(result, { version: VERSION }) + '\n'
-    : formatText(result, { verbose: args.verbose, maxDisplay: 10 }) + '\n'
+  const formatter = selectFormatter(args.format)
+  const output = formatter(result, {
+    version: VERSION,
+    scanMode: args.diff ? 'changed' : 'full',
+    verbose: args.verbose,
+  })
 
   const exitCode = result.staleFlags.length > 0 ? 1 : 0
 
-  if (process.stdout.write(output)) {
+  if (args.output) {
+    writeFileSync(args.output, output)
     process.exit(exitCode)
   } else {
-    process.stdout.once('drain', () => process.exit(exitCode))
+    const finalOutput = output.endsWith('\n') ? output : output + '\n'
+    if (process.stdout.write(finalOutput)) {
+      process.exit(exitCode)
+    } else {
+      process.stdout.once('drain', () => process.exit(exitCode))
+    }
   }
 }
 
