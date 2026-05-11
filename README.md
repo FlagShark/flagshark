@@ -78,6 +78,8 @@ jobs:
 | `scan` | `changed` | `changed` (PR files only — fast) or `full` (entire repo — full health score) |
 | `threshold` | `6` | Staleness threshold in months |
 | `fail-threshold` | `0` | Fail the check if health drops below this score (0 = never fail) |
+| `output-format` | `markdown` | PR comment format: `markdown` or `none` |
+| `sarif` | (unset) | Write SARIF v2.1.0 to this path — pair with `codeql-action/upload-sarif` |
 
 ### PR comment
 
@@ -91,6 +93,25 @@ jobs:
 > **Flag Health:** 70/100
 
 A GitHub status check is also set, which can block merge if `fail-threshold` is configured.
+
+### Upload to GitHub Code Scanning (Security tab)
+
+Set the `sarif:` input and chain `codeql-action/upload-sarif`:
+
+```yaml
+- uses: FlagShark/flagshark@v1
+  with:
+    sarif: flagshark.sarif
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: flagshark.sarif
+```
+
+Stale flags now appear in your repo's **Security → Code Scanning** tab — same UX as CodeQL or ESLint with SARIF output.
 
 ## Configuration
 

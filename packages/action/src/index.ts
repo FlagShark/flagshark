@@ -9,14 +9,15 @@
 // __dirname is the native CJS global available in the esbuild-bundled action.cjs.
 // In the source (ESM-typed), we declare it so TypeScript is satisfied.
 declare const __dirname: string
-import { join } from 'node:path'
+import { writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 process.env.FLAGSHARK_WASM_DIR = join(__dirname, 'grammars')
 process.env.FLAGSHARK_QUERIES_DIR = join(__dirname, 'queries')
 
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
-import { scanRepo, formatMarkdown } from '@flagshark/core'
+import { scanRepo, formatMarkdown, formatSarif } from '@flagshark/core'
 import type { ScanRepoResult } from '@flagshark/core'
 
 const COMMENT_MARKER = '<!-- flagshark-action -->'
@@ -95,6 +96,17 @@ async function run(): Promise<void> {
     core.setOutput('health-score', healthScore.toString())
     core.setOutput('stale-count', uniqueStaleNames.toString())
     core.setOutput('total-count', totalFlags.toString())
+
+    // Write SARIF file if requested
+    const sarifPath = core.getInput('sarif')
+    if (sarifPath) {
+      const actionVersion = process.env.GITHUB_ACTION_REF || 'unknown'
+      const sarifJson = formatSarif(result, { version: actionVersion })
+      const absolutePath = resolve(process.cwd(), sarifPath)
+      writeFileSync(absolutePath, sarifJson)
+      core.info(`Wrote SARIF to ${absolutePath}`)
+      core.setOutput('sarif-path', absolutePath)
+    }
 
     // Post PR comment
     if (github.context.payload.pull_request && totalFlags > 0 && outputFormat === 'markdown') {

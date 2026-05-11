@@ -19,6 +19,9 @@ inputs:
     description: 'PR comment format: markdown (default) or none (disable PR comment)'
     required: false
     default: 'markdown'
+  sarif:
+    description: 'Write SARIF v2.1.0 output to this path (default: do not write)'
+    required: false
 
 outputs:
   health-score:
