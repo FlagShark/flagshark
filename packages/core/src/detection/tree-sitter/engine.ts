@@ -6,6 +6,7 @@ import type { FeatureFlagProvider, Language, MethodConfig } from '../interface.j
 
 import { getParser } from './parser-cache.js'
 import { getQuery, iterateCalls, getArgument, extractStringLiteral } from './query-runner.js'
+import { resolveConstStringTS } from './const-resolver.js'
 
 const FLAG_KEY_MAX_LENGTH = 256
 const INVALID_PREFIXES = ['http://', 'https://', 'file://', '/']
@@ -69,7 +70,13 @@ export async function detectFlagsWithTreeSitter(
       const arg = getArgument(argsNode, method.flagKeyIndex)
       if (!arg) continue
 
-      const flagKey = extractStringLiteral(arg)
+      let flagKey = extractStringLiteral(arg)
+
+      // Goal C: const-extraction for TypeScript/JavaScript
+      if (flagKey === null && (language === 'typescript' || language === 'javascript')) {
+        flagKey = resolveConstStringTS(arg, tree.rootNode)
+      }
+
       if (!flagKey || !isValidFlagKey(flagKey)) continue
 
       flags.push({

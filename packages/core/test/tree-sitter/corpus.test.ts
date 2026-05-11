@@ -63,7 +63,9 @@ for (const { name: language, providers } of LANGUAGES) {
       }>
 
       // Only check positive cases — negative cases test precision wins that regex doesn't get.
-      const positives = cases.filter((c) => c.file.startsWith('positive/'))
+      const positives = cases.filter((c) =>
+        c.file.startsWith('positive/') && !c.file.startsWith('positive/const-')
+      )
 
       for (const c of positives) {
         it(`${provider} / ${c.file} — both engines agree on flag names`, async () => {
