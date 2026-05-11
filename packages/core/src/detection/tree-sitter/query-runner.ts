@@ -9,6 +9,12 @@ import { getParser } from './parser-cache.js'
 
 /** Loads the .scm query text for a language, relative to this module. */
 export function loadQueryText(lang: Language): string {
+  // In an Action bundle context, queries are vendored alongside the WASM grammars.
+  // FLAGSHARK_QUERIES_DIR (set by the action entry) points at dist/queries/.
+  const queriesDir = process.env.FLAGSHARK_QUERIES_DIR
+  if (queriesDir) {
+    return readFileSync(`${queriesDir}/${lang}.scm`, 'utf-8')
+  }
   const url = new URL(`./queries/${lang}.scm`, import.meta.url)
   return readFileSync(fileURLToPath(url), 'utf-8')
 }

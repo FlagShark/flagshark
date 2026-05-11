@@ -4,7 +4,16 @@ import { Language as TreeSitterLanguage, Parser } from 'web-tree-sitter'
 
 import type { Language } from '../interface.js'
 
-const require_ = createRequire(import.meta.url)
+// Lazily created so that bundled CJS environments (where import.meta.url is
+// unavailable) don't crash at module initialisation — we only need require_
+// when FLAGSHARK_WASM_DIR is NOT set (i.e. normal npm / dev usage).
+let require_: ReturnType<typeof createRequire> | null = null
+function getRequire(): ReturnType<typeof createRequire> {
+  if (!require_) {
+    require_ = createRequire(import.meta.url)
+  }
+  return require_
+}
 
 const WASM_RESOLUTION: Partial<Record<Language, string>> = {
   typescript: 'tree-sitter-typescript/tree-sitter-typescript.wasm',
@@ -32,7 +41,7 @@ function resolveWasmPath(spec: string): string {
     const file = spec.split('/').pop()!
     return `${bundleDir}/${file}`
   }
-  return require_.resolve(spec)
+  return getRequire().resolve(spec)
 }
 
 export async function getParser(lang: Language): Promise<Parser> {
