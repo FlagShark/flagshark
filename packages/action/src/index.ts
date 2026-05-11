@@ -17,7 +17,7 @@ process.env.FLAGSHARK_QUERIES_DIR = join(__dirname, 'queries')
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
-import { scanRepo, formatMarkdown, formatSarif } from '@flagshark/core'
+import { scanRepo, formatMarkdown, formatSarif, healthEmoji } from '@flagshark/core'
 import type { ScanRepoResult } from '@flagshark/core'
 
 const COMMENT_MARKER = '<!-- flagshark-action -->'
@@ -42,6 +42,10 @@ async function run(): Promise<void> {
     const threshold = parseInt(core.getInput('threshold') || '6', 10)
     const failThreshold = parseInt(core.getInput('fail-threshold') || '0', 10)
     const outputFormat = core.getInput('output-format') || 'markdown'
+
+    if (outputFormat !== 'markdown' && outputFormat !== 'none') {
+      core.warning(`Unknown output-format "${outputFormat}" — expected "markdown" or "none". Defaulting to "markdown".`)
+    }
 
     // Determine diff ref for "changed" mode
     const baseRef =
@@ -125,10 +129,10 @@ async function run(): Promise<void> {
     }
 
     // Job summary (visible in Actions UI under "Summary" tab)
-    const healthEmoji = healthScore >= 90 ? '🟢' : healthScore >= 70 ? '🟡' : healthScore >= 40 ? '🟠' : '🔴'
+    const emoji = healthEmoji(healthScore)
 
     core.summary.addHeading('🦈 FlagShark Scan Results', 2)
-    core.summary.addRaw(`\n${healthEmoji} **Health Score: ${healthScore}/100**\n\n`)
+    core.summary.addRaw(`\n${emoji} **Health Score: ${healthScore}/100**\n\n`)
     core.summary.addTable([
       [{ data: 'Metric', header: true }, { data: 'Value', header: true }],
       ['Files scanned', filesScanned.toString()],

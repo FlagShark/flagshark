@@ -44095,6 +44095,9 @@ async function run2() {
     const threshold = parseInt(core.getInput("threshold") || "6", 10);
     const failThreshold = parseInt(core.getInput("fail-threshold") || "0", 10);
     const outputFormat = core.getInput("output-format") || "markdown";
+    if (outputFormat !== "markdown" && outputFormat !== "none") {
+      core.warning(`Unknown output-format "${outputFormat}" \u2014 expected "markdown" or "none". Defaulting to "markdown".`);
+    }
     const baseRef = scanMode === "changed" && github.context.payload.pull_request ? `origin/${github.context.payload.pull_request.base.ref}` : void 0;
     if (scanMode === "changed" && !github.context.payload.pull_request) {
       core.info("scan: changed requested but no pull_request context \u2014 scanning full tree instead");
@@ -44153,10 +44156,10 @@ async function run2() {
         `Flag health score ${healthScore}/100 is below threshold ${failThreshold}/100. ${uniqueStaleNames} stale flags found.`
       );
     }
-    const healthEmoji2 = healthScore >= 90 ? "\u{1F7E2}" : healthScore >= 70 ? "\u{1F7E1}" : healthScore >= 40 ? "\u{1F7E0}" : "\u{1F534}";
+    const emoji = healthEmoji(healthScore);
     core.summary.addHeading("\u{1F988} FlagShark Scan Results", 2);
     core.summary.addRaw(`
-${healthEmoji2} **Health Score: ${healthScore}/100**
+${emoji} **Health Score: ${healthScore}/100**
 
 `);
     core.summary.addTable([

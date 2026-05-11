@@ -16,7 +16,7 @@ inputs:
     required: false
     default: '0'
   output-format:
-    description: 'PR comment format: markdown (default) or none (disable PR comment)'
+    description: 'PR comment format: `markdown` (default) or `none` to disable. To emit SARIF, use the `sarif:` input instead.'
     required: false
     default: 'markdown'
   sarif:
@@ -27,9 +27,11 @@ outputs:
   health-score:
     description: 'Flag health score (0-100)'
   stale-count:
-    description: 'Number of stale flags found'
+    description: 'Number of unique stale flag names found'
   total-count:
     description: 'Total number of flags detected'
+  sarif-path:
+    description: 'Absolute path to the SARIF file written (only set when sarif: input is provided)'
 
 runs:
   using: 'node20'
