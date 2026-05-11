@@ -9,7 +9,9 @@
 
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, extname } from 'node:path'
+import { join, extname, relative } from 'node:path'
+
+import type { Excluder } from './config/excluder.js'
 
 const SKIP_DIRS = new Set([
   'node_modules',
@@ -33,24 +35,45 @@ export interface ScanOptions {
   root: string
   supportedExtensions: Set<string>
   diffRef?: string // if set, only scan files changed since this ref
+  excluder?: Excluder
+  collectExcludedPaths?: boolean
+}
+
+export interface CollectFilesResult {
+  files: Map<string, string>
+  excludedCount: number
+  excludedPaths?: string[]
 }
 
 /**
- * Collects files to scan, reads their contents, and returns a Map<filePath, content>.
+ * Collects files to scan, reads their contents, and returns a Map<filePath, content>
+ * along with the count of files excluded by the optional excluder.
  */
-export function collectFiles(options: ScanOptions): Map<string, string> {
-  const { root, supportedExtensions, diffRef } = options
+export function collectFiles(options: ScanOptions): CollectFilesResult {
+  const { root, supportedExtensions, diffRef, excluder, collectExcludedPaths } = options
   const files = new Map<string, string>()
+  let excludedCount = 0
+  const excludedPaths: string[] | undefined = collectExcludedPaths ? [] : undefined
 
   let filePaths: string[]
 
   if (diffRef) {
-    filePaths = getDiffFiles(diffRef, supportedExtensions)
+    filePaths = getDiffFiles(diffRef, supportedExtensions, root)
   } else {
     filePaths = walkDir(root, supportedExtensions)
   }
 
   for (const fp of filePaths) {
+    if (excluder) {
+      const relativePath = relative(root, fp)
+      if (excluder.shouldExclude(relativePath)) {
+        excludedCount++
+        if (excludedPaths) {
+          excludedPaths.push(relativePath)
+        }
+        continue
+      }
+    }
     try {
       const stat = statSync(fp)
       if (stat.size > MAX_FILE_SIZE) {
@@ -65,23 +88,25 @@ export function collectFiles(options: ScanOptions): Map<string, string> {
     }
   }
 
-  return files
+  return { files, excludedCount, excludedPaths }
 }
 
 /**
  * Get files changed since a git ref.
  */
-function getDiffFiles(ref: string, supportedExtensions: Set<string>): string[] {
+function getDiffFiles(ref: string, supportedExtensions: Set<string>, root: string): string[] {
   try {
     const output = execFileSync('git', ['diff', ref, '--name-only', '--diff-filter=ACMR'], {
       encoding: 'utf-8',
       timeout: 30000,
+      cwd: root,
     })
     return output
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .filter((line) => supportedExtensions.has(extname(line)))
+      .map((line) => join(root, line))
   } catch {
     throw new Error(`Failed to get diff from ref "${ref}". Is this a git repository?`)
   }

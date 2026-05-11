@@ -7,9 +7,15 @@ import { collectFiles } from './scanner.js'
 import { createDefaultRegistry } from './detection/index.js'
 import { PolyglotAnalyzer } from './detection/polyglot-analyzer.js'
 import { analyzeStaleness } from './staleness.js'
+import { buildDefaultConfig } from './config/defaults.js'
+import { buildExcluder } from './config/excluder.js'
+import { loadConfigFile } from './config/loader.js'
+import { loadIgnoreFile } from './config/ignore-file.js'
 
 import type { FeatureFlag } from './detection/feature-flag.js'
 import type { StaleFlag } from './staleness.js'
+import type { FlagsharkConfig } from './config/schema.js'
+import type { EffectiveRules } from './config/excluder.js'
 
 export interface ScanLogger {
   debug: (...args: unknown[]) => void
@@ -49,6 +55,27 @@ export interface ScanRepoOptions {
    * Optional logger for debug/info/warn/error messages. Defaults to a no-op.
    */
   logger?: ScanLogger
+
+  /**
+   * Explicit config to use. If undefined, scanRepo discovers .flagshark.yml
+   * from cwd upward.
+   */
+  config?: FlagsharkConfig
+
+  /**
+   * Set true to skip auto-discovery of .flagshark.yml (used by --no-config).
+   */
+  noConfig?: boolean
+
+  /**
+   * Set true to skip .flagsharkignore discovery (used by --no-ignore-file).
+   */
+  noIgnoreFile?: boolean
+
+  /**
+   * When true, the result will include the list of excluded file paths.
+   */
+  collectExcludedPaths?: boolean
 }
 
 export interface ScanRepoResult {
@@ -82,6 +109,15 @@ export interface ScanRepoResult {
 
   /** Wall-clock duration of the scan in milliseconds. */
   scanDuration: number
+
+  /** Number of files skipped due to exclude rules (paths, presets, .flagsharkignore). */
+  excludedCount?: number
+
+  /** Relative paths of excluded files. Only populated when collectExcludedPaths is true. */
+  excludedPaths?: string[]
+
+  /** Diagnostic — populated only when logger.debug level is active or callers explicitly opt in. */
+  effectiveExcludes?: EffectiveRules
 }
 
 const NOOP_LOGGER: ScanLogger = {
@@ -94,20 +130,38 @@ const NOOP_LOGGER: ScanLogger = {
 export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   const start = performance.now()
   const logger = opts.logger ?? NOOP_LOGGER
-  const threshold = opts.threshold ?? 6
+
+  const config =
+    opts.config ??
+    (opts.noConfig
+      ? buildDefaultConfig()
+      : (await loadConfigFile(opts.cwd))?.config ?? buildDefaultConfig())
+
+  const threshold = opts.threshold ?? config.threshold ?? 6
+
+  const ignoreFile = opts.noIgnoreFile ? null : await loadIgnoreFile(opts.cwd)
+
+  const excluder = buildExcluder({
+    config,
+    ignoreFilePatterns: ignoreFile?.patterns ?? [],
+  })
+
+  logger.debug('Effective excludes', excluder.effectiveRules)
 
   const registry = createDefaultRegistry()
   const supportedExtensions = new Set(registry.getSupportedExtensions())
   const analyzer = new PolyglotAnalyzer(registry, logger)
 
   logger.debug('Collecting files...')
-  const files = collectFiles({
+  const { files, excludedCount, excludedPaths } = collectFiles({
     root: opts.cwd,
     supportedExtensions,
     diffRef: opts.diff,
+    excluder,
+    collectExcludedPaths: opts.collectExcludedPaths,
   })
 
-  logger.debug(`Detected ${files.size} candidate files`)
+  logger.debug(`Detected ${files.size} candidate files (excluded ${excludedCount})`)
   const filesScanned = files.size
   const analysisResult = await analyzer.analyzeFiles(files, opts.signal)
 
@@ -142,5 +196,8 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     languageBreakdown: Object.fromEntries(analysisResult.languages),
     healthScore,
     scanDuration: Math.round(performance.now() - start),
+    excludedCount,
+    excludedPaths,
+    effectiveExcludes: excluder.effectiveRules,
   }
 }

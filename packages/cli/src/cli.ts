@@ -4,7 +4,9 @@
  * Scans a codebase for feature flags and reports staleness.
  */
 
-import { scanRepo } from '@flagshark/core'
+import { readFileSync, existsSync } from 'node:fs'
+import { parse as parseYaml } from 'yaml'
+import { scanRepo, FlagsharkConfigSchema, type FlagsharkConfig } from '@flagshark/core'
 import { formatText, formatJson } from './formatter.js'
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -21,6 +23,12 @@ Options:
   --verbose         Show all stale flags (not just top 10)
   --help            Show help
   --version         Show version
+
+Configuration:
+  --config <path>          Use this config file (overrides .flagshark.yml discovery)
+  --no-config              Skip config file discovery
+  --no-ignore-file         Skip .flagsharkignore discovery
+  --show-excluded          Show excluded files in text output
 `.trim()
 
 // ── Arg parsing ───────────────────────────────────────────────────
@@ -28,17 +36,21 @@ Options:
 interface CliArgs {
   json: boolean
   diff: string | null
-  threshold: number
+  threshold: number | undefined
   verbose: boolean
   help: boolean
   version: boolean
+  configPath?: string
+  noConfig?: boolean
+  noIgnoreFile?: boolean
+  showExcluded?: boolean
 }
 
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     json: false,
     diff: null,
-    threshold: 6,
+    threshold: undefined,
     verbose: false,
     help: false,
     version: false,
@@ -75,6 +87,22 @@ function parseArgs(argv: string[]): CliArgs {
       case '--version':
       case '-v':
         args.version = true
+        break
+      case '--config':
+        i++
+        args.configPath = argv[i]
+        if (!args.configPath) {
+          throw new Error('--config requires a file path argument')
+        }
+        break
+      case '--no-config':
+        args.noConfig = true
+        break
+      case '--no-ignore-file':
+        args.noIgnoreFile = true
+        break
+      case '--show-excluded':
+        args.showExcluded = true
         break
       case 'scan':
         // accepted as subcommand, no-op
@@ -126,12 +154,46 @@ async function main(): Promise<void> {
     logger.info('Scanning current directory...')
   }
 
+  let configOverride: FlagsharkConfig | undefined
+  if (args.configPath) {
+    if (!existsSync(args.configPath)) {
+      process.stderr.write(`Error: config file not found: ${args.configPath}\n`)
+      process.exit(2)
+    }
+    const raw = readFileSync(args.configPath, 'utf-8')
+    const parsed = parseYaml(raw)
+    const configResult = FlagsharkConfigSchema.safeParse(parsed)
+    if (!configResult.success) {
+      process.stderr.write(`Error: invalid config at ${args.configPath}: ${configResult.error.message}\n`)
+      process.exit(2)
+    }
+    configOverride = configResult.data
+  }
+
   const result = await scanRepo({
     cwd: process.cwd(),
     threshold: args.threshold,
     diff: args.diff ?? undefined,
+    config: configOverride,
+    noConfig: args.noConfig,
+    noIgnoreFile: args.noIgnoreFile,
+    collectExcludedPaths: args.showExcluded,
     logger,
   })
+
+  if (args.verbose && result.effectiveExcludes) {
+    const r = result.effectiveExcludes
+    const allRules = [
+      ...r.paths.map((p) => `excludes.paths: ${p}`),
+      ...r.files.map((p) => `excludes.files: ${p}`),
+      ...r.presets.flatMap((name, i) => [`excludes.presets[${i}]: ${name}`]),
+      ...r.ignoreFile.map((p) => `.flagsharkignore: ${p}`),
+    ]
+    if (allRules.length > 0) {
+      process.stderr.write('Effective excludes:\n')
+      for (const rule of allRules) process.stderr.write(`  ${rule}\n`)
+    }
+  }
 
   const output = args.json
     ? formatJson(result) + '\n'
