@@ -12,3 +12,6 @@ export type { ScanOptions } from './scanner.js'
 // Re-export scanRepo orchestrator
 export { scanRepo } from './scan-repo.js'
 export type { ScanRepoOptions, ScanRepoResult, ScanLogger } from './scan-repo.js'
+
+// Config module
+export * from './config/index.js'
