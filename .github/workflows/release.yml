@@ -19,7 +19,13 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: bun install --frozen-lockfile
+      # NOTE: do NOT use --frozen-lockfile here. We need bun install to sync the
+      # lockfile to whatever versions the bumped package.json files declare, so
+      # that `bun pm pack` rewrites workspace:* to the current release version
+      # (not the previous release version, which is what `bun.lock` records on
+      # the commit that did the bump). See issue #5 (v1.3.0 shipped flagshark
+      # depending on @flagshark/core@1.2.0 because the lockfile lagged).
+      - run: bun install
       - run: bun run build
       - run: bun run test
       # bun pm pack rewrites workspace:* in the tarball; npm publishes the tarball

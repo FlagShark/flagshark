@@ -10,7 +10,7 @@ import { scanRepo, FlagsharkConfigSchema, type FlagsharkConfig, selectFormatter 
 
 // ── Constants ─────────────────────────────────────────────────────
 
-const VERSION = '1.3.0'
+const VERSION = '1.3.1'
 
 const HELP_TEXT = `
 flagshark scan [options]
