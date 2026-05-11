@@ -26,6 +26,11 @@
   },
   "dependencies": {
     "p-limit": "^6.0.0",
+    "tree-sitter-go": "^0.25.0",
+    "tree-sitter-javascript": "^0.25.0",
+    "tree-sitter-python": "^0.25.0",
+    "tree-sitter-typescript": "^0.23.0",
+    "web-tree-sitter": "^0.25.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -33,5 +38,7 @@
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
