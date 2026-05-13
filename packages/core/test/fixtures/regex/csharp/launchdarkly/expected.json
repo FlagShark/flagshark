@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.cs",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.cs",
+        "lineNumber": 14,
+        "language": "csharp",
+        "provider": "LaunchDarkly.Sdk"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.cs",
+    "flags": []
+  }
+]
