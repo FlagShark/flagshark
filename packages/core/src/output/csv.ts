@@ -7,7 +7,7 @@
 
 import type { ScanRepoResult } from '../scan-repo.js'
 
-const HEADER = 'flag,file,line,language,provider,signals,age'
+const HEADER = 'flag,file,line,language,provider,signals,age,severity'
 
 /** RFC 4180 cell escape: wrap in quotes; double any internal quotes. */
 function csvCell(value: string | number | undefined): string {
@@ -20,6 +20,7 @@ export function formatCsv(result: ScanRepoResult): string {
 
   for (const flag of result.staleFlags) {
     const signals = flag.signals.map((s) => s.type).join('; ')
+    const severity = flag.signals.some((s) => s.severity === 'error') ? 'error' : 'warning'
     lines.push(
       [
         csvCell(flag.name),
@@ -29,6 +30,7 @@ export function formatCsv(result: ScanRepoResult): string {
         csvCell(flag.provider),
         csvCell(signals),
         csvCell(flag.age),
+        csvCell(severity),
       ].join(','),
     )
   }
