@@ -69,8 +69,10 @@ export function extractStringArgument(callText: string, paramIndex: number): str
 
   let arg = args[paramIndex].trim()
 
-  // Strip Swift/Kotlin labeled argument prefix (e.g. "forKey: " or "name: ")
-  // before attempting to extract the string value.
+  // Strip leading argument label (e.g. `forKey: ` / `flagKey: ` / `key: `) before
+  // matching the quoted value. Applies to Swift external argument labels and
+  // PHP 8 / Ruby keyword-arg call sites. Kotlin uses `=` for named args and is
+  // not affected.
   const labelMatch = arg.match(/^\w+\s*:\s*(.+)$/)
   if (labelMatch) {
     arg = labelMatch[1].trim()
