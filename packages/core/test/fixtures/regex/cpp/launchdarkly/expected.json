@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.cpp",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.cpp",
+        "lineNumber": 4,
+        "language": "cpp",
+        "provider": "launchdarkly"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.cpp",
+    "flags": []
+  }
+]
