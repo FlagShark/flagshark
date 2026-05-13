@@ -16,8 +16,8 @@
   "files": ["dist/", "bin/"],
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.js --external:zod --external:@flagshark/core --external:yaml",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "bun run build && vitest run",
+    "test:coverage": "bun run build && vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
