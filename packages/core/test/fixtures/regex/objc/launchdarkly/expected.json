@@ -1,17 +1,5 @@
 [
   {
-    "file": "positive/basic.m",
-    "flags": [
-      {
-        "name": "CHECKOUT_V2",
-        "filePath": "positive/basic.m",
-        "lineNumber": 5,
-        "language": "objc",
-        "provider": "LaunchDarkly/LDClient.h"
-      }
-    ]
-  },
-  {
     "file": "negative/no-import.m",
     "flags": []
   }
