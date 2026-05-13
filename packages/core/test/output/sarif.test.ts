@@ -32,10 +32,18 @@ describe('formatSarif', () => {
     expect(sarif.runs[0].tool.driver.informationUri).toBe('https://github.com/FlagShark/flagshark')
   })
 
-  it('declares the three rules: stale-age, stale-low-usage, stale-hardcoded', () => {
-    const sarif = JSON.parse(formatSarif(makeResult(), { version: '1.4.0' }))
-    const ruleIds = sarif.runs[0].tool.driver.rules.map((r: { id: string }) => r.id).sort()
-    expect(ruleIds).toEqual(['stale-age', 'stale-hardcoded', 'stale-low-usage'])
+  it('declares rules dynamically based on signal types present in results', () => {
+    // Empty results → no rules emitted
+    const sarifEmpty = JSON.parse(formatSarif(makeResult(), { version: '1.4.0' }))
+    expect(sarifEmpty.runs[0].tool.driver.rules).toHaveLength(0)
+
+    // stale-age rule appears when age signal is present
+    const sarifAge = JSON.parse(formatSarif(makeResult({
+      staleFlags: [{ name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'ld',
+        signals: [{ type: 'age', severity: 'warning', description: 'old' }] }],
+    }), { version: '1.4.0' }))
+    const ageRuleIds = sarifAge.runs[0].tool.driver.rules.map((r: { id: string }) => r.id)
+    expect(ageRuleIds).toContain('stale-age')
   })
 
   it('emits one result per stale flag', () => {
@@ -58,7 +66,7 @@ describe('formatSarif', () => {
     const results = sarif.runs[0].results
     expect(results).toHaveLength(1)
     expect(results[0].ruleId).toBe('stale-age')
-    expect(results[0].level).toBe('note')
+    expect(results[0].level).toBe('warning')
     expect(results[0].message.text).toContain('CHECKOUT_V2')
     expect(results[0].locations[0].physicalLocation.artifactLocation.uri).toBe('src/checkout.ts')
     expect(results[0].locations[0].physicalLocation.region.startLine).toBe(47)
@@ -66,28 +74,25 @@ describe('formatSarif', () => {
     expect(results[0].properties.provider).toBe('launchdarkly')
   })
 
-  it('maps signal count to severity: 1 signal = note, 2 = warning, 3+ = error', () => {
+  it('maps severity field to SARIF level: warning signals → warning, error signals → error', () => {
     const sarif = JSON.parse(formatSarif(
       makeResult({
         staleFlags: [
           {
-            name: 'ONE', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
+            name: 'WARN', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
             signals: [{ type: 'age', severity: 'warning', description: 'old' }], age: '12 months ago',
           },
           {
-            name: 'TWO', filePath: 'b.ts', lineNumber: 2, language: 'typescript', provider: 'launchdarkly',
-            signals: [
-              { type: 'age', severity: 'warning', description: 'old' },
-              { type: 'low-usage', severity: 'warning', description: 'single' },
-            ],
+            name: 'ERR', filePath: 'b.ts', lineNumber: 2, language: 'typescript', provider: 'launchdarkly',
+            signals: [{ type: 'missing-in-platform', severity: 'error', description: 'missing' }],
             age: '12 months ago',
           },
         ],
       }),
       { version: '1.4.0' },
     ))
-    expect(sarif.runs[0].results.find((r: { properties: { flag: string } }) => r.properties.flag === 'ONE').level).toBe('note')
-    expect(sarif.runs[0].results.find((r: { properties: { flag: string } }) => r.properties.flag === 'TWO').level).toBe('warning')
+    expect(sarif.runs[0].results.find((r: { properties: { flag: string } }) => r.properties.flag === 'WARN').level).toBe('warning')
+    expect(sarif.runs[0].results.find((r: { properties: { flag: string } }) => r.properties.flag === 'ERR').level).toBe('error')
   })
 
   it('picks rule id from the first signal (deterministic)', () => {
@@ -107,8 +112,8 @@ describe('formatSarif', () => {
     expect(sarif.runs[0].results[0].ruleId).toBe('stale-low-usage')
   })
 
-  it('maps "hardcoded" first signal to stale-hardcoded rule (line 85)', () => {
-    // Covers the final `else` branch in toSarifResult ruleId mapping
+  it('maps "hardcoded" first signal to stale-hardcoded rule', () => {
+    // Covers the fallback branch in signalTypeToRuleId
     const sarif = JSON.parse(formatSarif(
       makeResult({
         staleFlags: [{
@@ -119,5 +124,60 @@ describe('formatSarif', () => {
       { version: '1.4.0' },
     ))
     expect(sarif.runs[0].results[0].ruleId).toBe('stale-hardcoded')
+  })
+
+  it('uses stale-hardcoded rule when flag has no signals', () => {
+    // Covers the firstSignal falsy branch in toSarifResult
+    const sarif = JSON.parse(formatSarif(
+      makeResult({
+        staleFlags: [{
+          name: 'Y', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
+          signals: [],
+        }],
+      }),
+      { version: '1.4.0' },
+    ))
+    expect(sarif.runs[0].results[0].ruleId).toBe('stale-hardcoded')
+  })
+})
+
+describe('sarif formatter — severity + rule IDs', () => {
+  function staleFlag(name: string, type: 'missing-in-platform' | 'archived-in-platform' | 'age', severity: 'error' | 'warning') {
+    return {
+      name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type, severity, description: 'desc' }],
+      age: '12 months ago',
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length, filesScanned: 1, staleFlags,
+      detectedProviders: [], languageBreakdown: {},
+      healthScore: 50, scanDuration: 1,
+    }
+  }
+
+  it('emits level: error for missing-in-platform flag', () => {
+    const out = JSON.parse(formatSarif(makeResult([staleFlag('M', 'missing-in-platform', 'error')]), { version: 'v1' }))
+    const r = out.runs[0].results[0]
+    expect(r.level).toBe('error')
+  })
+
+  it('emits level: warning for age signal', () => {
+    const out = JSON.parse(formatSarif(makeResult([staleFlag('A', 'age', 'warning')]), { version: 'v1' }))
+    const r = out.runs[0].results[0]
+    expect(r.level).toBe('warning')
+  })
+
+  it('includes flagshark/missing-in-platform rule', () => {
+    const out = JSON.parse(formatSarif(makeResult([staleFlag('M', 'missing-in-platform', 'error')]), { version: 'v1' }))
+    const ruleIds = (out.runs[0].tool.driver.rules ?? []).map((r: { id: string }) => r.id)
+    expect(ruleIds).toContain('flagshark/missing-in-platform')
+  })
+
+  it('includes flagshark/archived-in-platform rule when archived signal present', () => {
+    const out = JSON.parse(formatSarif(makeResult([staleFlag('A', 'archived-in-platform', 'warning')]), { version: 'v1' }))
+    const ruleIds = (out.runs[0].tool.driver.rules ?? []).map((r: { id: string }) => r.id)
+    expect(ruleIds).toContain('flagshark/archived-in-platform')
   })
 })

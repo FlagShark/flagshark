@@ -11,8 +11,6 @@
 import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag } from '../staleness.js'
 
-import { sarifLevel } from './shared.js'
-
 export interface SarifFormatOptions {
   /** Tool driver version (the FlagShark release version). */
   version: string
@@ -31,29 +29,55 @@ interface SarifResult {
   properties: Record<string, string | number | undefined>
 }
 
-const RULES = [
-  {
+const RULE_DEFS: Record<string, { id: string; name: string; shortDescription: { text: string }; helpUri: string }> = {
+  'stale-age': {
     id: 'stale-age',
     name: 'Stale by age',
     shortDescription: { text: 'Flag reference older than the configured threshold' },
     helpUri: 'https://github.com/FlagShark/flagshark#how-staleness-works',
   },
-  {
+  'stale-low-usage': {
     id: 'stale-low-usage',
     name: 'Stale by usage',
     shortDescription: { text: 'Flag appears in only one file across the repo' },
     helpUri: 'https://github.com/FlagShark/flagshark#how-staleness-works',
   },
-  {
+  'stale-hardcoded': {
     id: 'stale-hardcoded',
     name: 'Stale by hardcoded variation',
     shortDescription: { text: 'Flag call uses a constant default — the flag may be permanently removed upstream' },
     helpUri: 'https://github.com/FlagShark/flagshark#how-staleness-works',
   },
-] as const
+  'flagshark/missing-in-platform': {
+    id: 'flagshark/missing-in-platform',
+    name: 'Missing in platform',
+    shortDescription: { text: 'Flag is referenced in code but does not exist in the feature flag platform' },
+    helpUri: 'https://github.com/FlagShark/flagshark#how-staleness-works',
+  },
+  'flagshark/archived-in-platform': {
+    id: 'flagshark/archived-in-platform',
+    name: 'Archived in platform',
+    shortDescription: { text: 'Flag is referenced in code but has been archived in the feature flag platform' },
+    helpUri: 'https://github.com/FlagShark/flagshark#how-staleness-works',
+  },
+}
+
+function signalTypeToRuleId(signalType: string): string {
+  if (signalType === 'age') return 'stale-age'
+  if (signalType === 'low-usage') return 'stale-low-usage'
+  if (signalType === 'missing-in-platform') return 'flagshark/missing-in-platform'
+  if (signalType === 'archived-in-platform') return 'flagshark/archived-in-platform'
+  return 'stale-hardcoded'
+}
 
 export function formatSarif(result: ScanRepoResult, options: SarifFormatOptions): string {
   const results: SarifResult[] = result.staleFlags.map((flag) => toSarifResult(flag))
+
+  // Collect only the rule IDs that appear in results
+  const usedRuleIds = new Set(results.map((r) => r.ruleId))
+  const rules = [...usedRuleIds]
+    .filter((id) => id in RULE_DEFS)
+    .map((id) => RULE_DEFS[id])
 
   const envelope = {
     $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
@@ -65,7 +89,7 @@ export function formatSarif(result: ScanRepoResult, options: SarifFormatOptions)
             name: 'FlagShark',
             version: options.version,
             informationUri: 'https://github.com/FlagShark/flagshark',
-            rules: RULES,
+            rules,
           },
         },
         results,
@@ -78,15 +102,14 @@ export function formatSarif(result: ScanRepoResult, options: SarifFormatOptions)
 
 function toSarifResult(flag: StaleFlag): SarifResult {
   const firstSignal = flag.signals[0]
-  const ruleId = firstSignal?.type === 'age'
-    ? 'stale-age'
-    : firstSignal?.type === 'low-usage'
-      ? 'stale-low-usage'
-      : 'stale-hardcoded'
+  const ruleId = signalTypeToRuleId(firstSignal ? firstSignal.type : '')
+
+  // Level is based on max severity across all signals
+  const level: 'error' | 'warning' = flag.signals.some((s) => s.severity === 'error') ? 'error' : 'warning'
 
   return {
     ruleId,
-    level: sarifLevel(flag.signals.length),
+    level,
     message: {
       text: `Flag "${flag.name}" appears stale. ${flag.signals.map((s) => s.description).join('; ')}`,
     },
