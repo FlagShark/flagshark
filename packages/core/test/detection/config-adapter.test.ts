@@ -65,6 +65,11 @@ describe('languageToConfigLanguage', () => {
     expect(languageToConfigLanguage('cpp')).toBe('cpp')
     expect(languageToConfigLanguage('objc')).toBe('objc')
   })
+
+  it('returns "all" for an unknown language (line 55 — fallback branch)', () => {
+    // Casting an unknown language exercises the `?? 'all'` fallback
+    expect(languageToConfigLanguage('unknown-lang' as never)).toBe('all')
+  })
 })
 
 describe('loadProvidersForLanguage', () => {

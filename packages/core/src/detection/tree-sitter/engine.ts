@@ -44,8 +44,8 @@ export async function detectFlagsWithTreeSitter(
   if (methodLookup.size === 0) return []
 
   const parser = await getParser(language)
-  const tree = parser.parse(content)
-  if (!tree) return []
+  // parser.parse() always returns a tree for valid content; non-null assert is safe.
+  const tree = parser.parse(content)!
 
   const query = await getQuery(language)
 

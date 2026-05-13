@@ -108,10 +108,10 @@ export function getMethodReturnType(method: MethodConfig): string {
 
 /** Returns the effective default value index (-1 when unset). */
 export function getMethodDefaultValueIndex(method: MethodConfig): number {
-  if ((method.default_value_index ?? 0) === 0 && !method.return_type) {
+  if (method.default_value_index === 0 && !method.return_type) {
     return -1
   }
-  return method.default_value_index ?? 0
+  return method.default_value_index
 }
 
 /** Checks if a provider applies to a given language. */

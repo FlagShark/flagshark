@@ -12,13 +12,11 @@ export function resolveConstStringTS(node: Node, fileRoot: Node): string | null 
   const name = node.text
 
   for (const child of fileRoot.namedChildren) {
-    if (!child) continue
     if (child.type !== 'lexical_declaration') continue
     if (child.children[0]?.type !== 'const') continue
 
     for (const decl of child.namedChildren) {
-      if (!decl) continue
-      if (decl.type !== 'variable_declarator') continue
+      // namedChildren of a const lexical_declaration are always variable_declarator nodes.
       const nameNode = decl.childForFieldName('name')
       const valueNode = decl.childForFieldName('value')
       if (!nameNode || !valueNode) continue

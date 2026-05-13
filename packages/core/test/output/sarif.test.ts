@@ -106,4 +106,18 @@ describe('formatSarif', () => {
     ))
     expect(sarif.runs[0].results[0].ruleId).toBe('stale-low-usage')
   })
+
+  it('maps "hardcoded" first signal to stale-hardcoded rule (line 85)', () => {
+    // Covers the final `else` branch in toSarifResult ruleId mapping
+    const sarif = JSON.parse(formatSarif(
+      makeResult({
+        staleFlags: [{
+          name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
+          signals: [{ type: 'hardcoded', description: 'hardcoded default' }],
+        }],
+      }),
+      { version: '1.4.0' },
+    ))
+    expect(sarif.runs[0].results[0].ruleId).toBe('stale-hardcoded')
+  })
 })

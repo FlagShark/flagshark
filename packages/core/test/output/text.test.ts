@@ -58,6 +58,129 @@ describe('formatText', () => {
     expect(output).toContain('TEST_FLAG')
     expect(output).toContain('60/100')
   })
+
+  it('shows "... and N more" when stale flags exceed maxDisplay (lines 89-91)', () => {
+    const staleFlags = Array.from({ length: 5 }, (_, i) => ({
+      name: `FLAG_${i}`,
+      filePath: `src/file${i}.ts`,
+      lineNumber: i + 1,
+      language: 'typescript',
+      provider: 'LaunchDarkly',
+      signals: [{ type: 'age' as const, description: 'old' }],
+      age: '8 months ago',
+    }))
+    const result = makeScanResult({ totalFlags: 5, healthScore: 50, staleFlags })
+    // maxDisplay: 2 with 5 flags → remaining = 3
+    const output = formatText(result, { verbose: false, maxDisplay: 2 })
+    expect(output).toContain('... and 3 more')
+  })
+
+  it('does not show "... and N more" when verbose is true', () => {
+    const staleFlags = Array.from({ length: 5 }, (_, i) => ({
+      name: `FLAG_${i}`,
+      filePath: `src/file${i}.ts`,
+      lineNumber: i + 1,
+      language: 'typescript',
+      provider: 'LaunchDarkly',
+      signals: [{ type: 'age' as const, description: 'old' }],
+      age: '8 months ago',
+    }))
+    const result = makeScanResult({ totalFlags: 5, healthScore: 50, staleFlags })
+    const output = formatText(result, { verbose: true, maxDisplay: 2 })
+    expect(output).not.toContain('more (use --verbose')
+  })
+
+  it('shows excluded paths when excludedPaths is set (lines 107-112)', () => {
+    const result = makeScanResult({
+      totalFlags: 1,
+      healthScore: 100,
+      staleFlags: [],
+      excludedPaths: ['examples/demo.ts', 'test/app.test.ts'],
+    })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('Excluded files (2):')
+    expect(output).toContain('examples/demo.ts')
+    expect(output).toContain('test/app.test.ts')
+  })
+
+  it('shows "All flags look healthy" when staleCount === 0', () => {
+    const result = makeScanResult({ totalFlags: 10, healthScore: 100, staleFlags: [] })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('All flags look healthy')
+  })
+
+  it('shows stale link when there are stale flags', () => {
+    const result = makeScanResult({
+      totalFlags: 5,
+      healthScore: 60,
+      staleFlags: [{
+        name: 'TEST_FLAG',
+        filePath: 'src/test.ts',
+        lineNumber: 42,
+        language: 'typescript',
+        provider: 'LaunchDarkly',
+        signals: [{ type: 'age', description: 'Added 8 months ago' }],
+        age: '8 months ago',
+      }],
+    })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('flagshark.com')
+  })
+
+  it('shows "low-usage" signal text in table', () => {
+    const result = makeScanResult({
+      totalFlags: 3,
+      healthScore: 70,
+      staleFlags: [{
+        name: 'LOW_USAGE',
+        filePath: 'src/test.ts',
+        lineNumber: 10,
+        language: 'typescript',
+        provider: 'LaunchDarkly',
+        signals: [{ type: 'low-usage', description: 'Single file usage' }],
+      }],
+    })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('Single file')
+  })
+
+  it('shows hardcoded signal description (line 41 — else fallback)', () => {
+    // Signal type 'hardcoded' falls through to `return s.description`
+    const result = makeScanResult({
+      totalFlags: 3,
+      healthScore: 70,
+      staleFlags: [{
+        name: 'HARD_CODED',
+        filePath: 'src/test.ts',
+        lineNumber: 5,
+        language: 'typescript',
+        provider: 'LaunchDarkly',
+        signals: [{ type: 'hardcoded', description: 'Hardcoded value detected' }],
+      }],
+    })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('Hardcoded value detected')
+  })
+
+  it('truncates long flag names in table (lines 17-18 — pad truncation)', () => {
+    // Flag name longer than 16 chars triggers the `str.length > width` branch
+    const result = makeScanResult({
+      totalFlags: 3,
+      healthScore: 60,
+      staleFlags: [{
+        name: 'THIS_IS_A_VERY_LONG_FLAG_NAME_EXCEEDS_COLUMN',
+        filePath: 'src/test.ts',
+        lineNumber: 1,
+        language: 'typescript',
+        provider: 'LaunchDarkly',
+        signals: [{ type: 'age', description: 'old' }],
+        age: '8 months ago',
+      }],
+    })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    // Truncated name should contain '…' ellipsis
+    expect(output).toContain('…')
+  })
 })
 
 describe('formatJson', () => {

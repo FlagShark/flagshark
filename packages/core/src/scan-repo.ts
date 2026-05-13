@@ -123,11 +123,12 @@ export interface ScanRepoResult {
   effectiveExcludes?: EffectiveRules
 }
 
+const NOOP: (...args: unknown[]) => void = () => {}
 const NOOP_LOGGER: ScanLogger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
+  debug: NOOP,
+  info: NOOP,
+  warn: NOOP,
+  error: NOOP,
 }
 
 export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
@@ -140,7 +141,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
       ? buildDefaultConfig()
       : (await loadConfigFile(opts.cwd))?.config ?? buildDefaultConfig())
 
-  const threshold = opts.threshold ?? config.threshold ?? 6
+  const threshold = opts.threshold ?? config.threshold
 
   const ignoreFile = opts.noIgnoreFile ? null : await loadIgnoreFile(opts.cwd)
 

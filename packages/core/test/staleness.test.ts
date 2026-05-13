@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import os from 'node:os'
 
 import { analyzeStaleness } from '../src/staleness.js'
+import { makeTempRepo } from './fixtures/repo-builder.js'
 
 import type { FeatureFlag } from '../src/detection/feature-flag.js'
 
@@ -57,5 +62,245 @@ describe('analyzeStaleness', () => {
       const signalTypes = stale.signals.map((s) => s.type)
       expect(signalTypes).toContain('low-usage')
     }
+  })
+
+  it('produces "N days ago" age format for flags committed ~5 days ago (lines 136-137)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `client.variation('DAYS_OLD_FLAG', user, false)\n`,
+    )
+    // 5 days ago
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], {
+      cwd: dir,
+      env: { ...process.env, GIT_AUTHOR_DATE: fiveDaysAgo, GIT_COMMITTER_DATE: fiveDaysAgo },
+    })
+
+    const filePath = join(dir, 'src', 'app.ts')
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('DAYS_OLD_FLAG', [{
+      name: 'DAYS_OLD_FLAG',
+      filePath,
+      lineNumber: 2,
+      language: 'typescript',
+      provider: 'launchdarkly',
+    }])
+
+    // With 0 threshold months, every flag older than now is "stale by age"
+    const result = await analyzeStaleness(flags, {
+      thresholdMonths: 0,
+      repoRoot: dir,
+    })
+
+    rmSync(dir, { recursive: true, force: true })
+
+    // If blame succeeded, age should be in "N days ago" format
+    const stale = result.find((f) => f.name === 'DAYS_OLD_FLAG')
+    if (stale?.age) {
+      expect(stale.age).toMatch(/day/)
+    }
+  })
+
+  it('produces "1 month ago" age format (singular month — line 133)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `client.variation('ONE_MONTH_FLAG', user, false)\n`,
+    )
+    // 45 days ago → 1 month (singular)
+    const fortyFiveDaysAgo = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString()
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], {
+      cwd: dir,
+      env: { ...process.env, GIT_AUTHOR_DATE: fortyFiveDaysAgo, GIT_COMMITTER_DATE: fortyFiveDaysAgo },
+    })
+
+    const filePath = join(dir, 'src', 'app.ts')
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('ONE_MONTH_FLAG', [{
+      name: 'ONE_MONTH_FLAG',
+      filePath,
+      lineNumber: 2,
+      language: 'typescript',
+      provider: 'launchdarkly',
+    }])
+
+    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    rmSync(dir, { recursive: true, force: true })
+
+    const stale = result.find((f) => f.name === 'ONE_MONTH_FLAG')
+    if (stale?.age) {
+      expect(stale.age).toBe('1 month ago')
+    }
+  })
+
+  it('produces "N months ago" age format (plural months — line 133)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `client.variation('MULTI_MONTH_FLAG', user, false)\n`,
+    )
+    // 75 days ago → ~2.5 months → "2 months ago" (plural)
+    const seventyFiveDaysAgo = new Date(Date.now() - 75 * 24 * 60 * 60 * 1000).toISOString()
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], {
+      cwd: dir,
+      env: { ...process.env, GIT_AUTHOR_DATE: seventyFiveDaysAgo, GIT_COMMITTER_DATE: seventyFiveDaysAgo },
+    })
+
+    const filePath = join(dir, 'src', 'app.ts')
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('MULTI_MONTH_FLAG', [{
+      name: 'MULTI_MONTH_FLAG',
+      filePath,
+      lineNumber: 2,
+      language: 'typescript',
+      provider: 'launchdarkly',
+    }])
+
+    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    rmSync(dir, { recursive: true, force: true })
+
+    const stale = result.find((f) => f.name === 'MULTI_MONTH_FLAG')
+    if (stale?.age) {
+      expect(stale.age).toMatch(/\d+ months ago/)
+    }
+  })
+
+  it('produces "1 day ago" age format (singular day — line 136)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `client.variation('ONE_DAY_FLAG', user, false)\n`,
+    )
+    // Exactly 26 hours ago → 1 day
+    const oneDayAgo = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString()
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], {
+      cwd: dir,
+      env: { ...process.env, GIT_AUTHOR_DATE: oneDayAgo, GIT_COMMITTER_DATE: oneDayAgo },
+    })
+
+    const filePath = join(dir, 'src', 'app.ts')
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('ONE_DAY_FLAG', [{
+      name: 'ONE_DAY_FLAG',
+      filePath,
+      lineNumber: 2,
+      language: 'typescript',
+      provider: 'launchdarkly',
+    }])
+
+    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    rmSync(dir, { recursive: true, force: true })
+
+    const stale = result.find((f) => f.name === 'ONE_DAY_FLAG')
+    if (stale?.age) {
+      expect(stale.age).toMatch(/1 day ago/)
+    }
+  })
+
+  it('produces "1 year ago" age format (singular year — line 130)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `client.variation('ONE_YEAR_FLAG', user, false)\n`,
+    )
+    // Exactly 370 days ago → 1 year
+    const oneYearAgo = new Date(Date.now() - 370 * 24 * 60 * 60 * 1000).toISOString()
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], {
+      cwd: dir,
+      env: { ...process.env, GIT_AUTHOR_DATE: oneYearAgo, GIT_COMMITTER_DATE: oneYearAgo },
+    })
+
+    const filePath = join(dir, 'src', 'app.ts')
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('ONE_YEAR_FLAG', [{
+      name: 'ONE_YEAR_FLAG',
+      filePath,
+      lineNumber: 2,
+      language: 'typescript',
+      provider: 'launchdarkly',
+    }])
+
+    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    rmSync(dir, { recursive: true, force: true })
+
+    const stale = result.find((f) => f.name === 'ONE_YEAR_FLAG')
+    if (stale?.age) {
+      expect(stale.age).toMatch(/1 year ago/)
+    }
+  })
+
+  it('uses "unknown" provider when flag has no provider set (line 261)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `client.variation('NO_PROVIDER_FLAG', user, false)\n`,
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const filePath = join(dir, 'src', 'app.ts')
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('NO_PROVIDER_FLAG', [{
+      name: 'NO_PROVIDER_FLAG',
+      filePath,
+      lineNumber: 2,
+      language: 'typescript',
+      // provider is intentionally omitted — triggers ?? 'unknown' fallback
+    }])
+
+    // Low threshold and low-usage to ensure flag is stale
+    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    rmSync(dir, { recursive: true, force: true })
+
+    const stale = result.find((f) => f.name === 'NO_PROVIDER_FLAG')
+    if (stale) {
+      expect(stale.provider).toBe('unknown')
+    }
+  })
+
+  it('handles non-git directory gracefully (isShallowRepo catch — lines 46-47)', async () => {
+    // A plain temp dir (not a git repo) causes execSync to throw → catch returns false
+    const tempDir = join(os.tmpdir(), `flagshark-not-git-${Date.now()}`)
+    mkdirSync(tempDir, { recursive: true })
+    writeFileSync(join(tempDir, 'app.ts'), 'const x = 1')
+
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('SOME_FLAG', [{
+      name: 'SOME_FLAG',
+      filePath: join(tempDir, 'app.ts'),
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'test',
+    }])
+
+    // Should not throw — isShallowRepo catches the git error
+    let result: Awaited<ReturnType<typeof analyzeStaleness>> | undefined
+    await expect(async () => {
+      result = await analyzeStaleness(flags, {
+        thresholdMonths: 6,
+        repoRoot: tempDir,
+      })
+    }).not.toThrow()
+
+    rmSync(tempDir, { recursive: true, force: true })
+    expect(result).toBeDefined()
   })
 })

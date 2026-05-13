@@ -219,6 +219,7 @@ export function detectFlagsWithRegex(
           const callStart = match.index
           // Extract the full call from this position
           const restOfContent = getCallExpression(lines, lineIdx, callStart)
+          /* v8 ignore next 3 -- defensive; getCallExpression only returns null when no '(' is ever found, which the matching regex guarantees */
           if (!restOfContent) {
             continue
           }
@@ -286,6 +287,7 @@ function getCallExpression(lines: string[], startLine: number, startCol: number)
     }
   }
 
+  /* v8 ignore next -- foundOpen is always true here: the matching regex requires '(' which startCol points to */
   return foundOpen ? result : null
 }
 

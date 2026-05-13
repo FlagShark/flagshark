@@ -25,8 +25,11 @@ export class CPPDetector implements LanguageDetector {
   }
 
   supportsFile(filename: string): boolean {
-    const ext = filename.toLowerCase().split('.').pop()
-    return ['cpp', 'cc', 'cxx', 'c++', 'hpp', 'hh', 'hxx', 'h++', 'h', 'c'].includes(ext ?? '')
+    const lower = filename.toLowerCase()
+    const dotIdx = lower.lastIndexOf('.')
+    if (dotIdx === -1) return false
+    const ext = lower.slice(dotIdx + 1)
+    return ['cpp', 'cc', 'cxx', 'c++', 'hpp', 'hh', 'hxx', 'h++', 'h', 'c'].includes(ext)
   }
 
   detectFlags(filename: string, content: string): FeatureFlag[] {

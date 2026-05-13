@@ -145,4 +145,33 @@ describe('formatMarkdown', () => {
     )
     expect(md).toContain('https://github.com/owner/repo/blob/abc123/src/x.ts#L5')
   })
+
+  it('shows "+N more" when more than 5 providers (line 41)', () => {
+    const md = formatMarkdown(
+      makeResult({
+        totalFlags: 3,
+        filesScanned: 50,
+        detectedProviders: ['ld', 'unleash', 'split', 'statsig', 'posthog', 'growthbook'],
+      }),
+      { scanMode: 'full' },
+    )
+    expect(md).toContain('+1 more')
+  })
+
+  it('shows "unknown" age when flag.age is undefined (line 103)', () => {
+    const md = formatMarkdown(
+      makeResult({
+        totalFlags: 1,
+        healthScore: 70,
+        staleFlags: [{
+          name: 'NO_AGE', filePath: 'src/x.ts', lineNumber: 1, language: 'typescript',
+          provider: 'launchdarkly',
+          signals: [{ type: 'age', description: 'old' }],
+          // no age field
+        }],
+      }),
+      { scanMode: 'full' },
+    )
+    expect(md).toContain('unknown')
+  })
 })

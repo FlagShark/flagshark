@@ -39,8 +39,11 @@ export class JavaScriptDetector implements LanguageDetector {
   }
 
   supportsFile(filename: string): boolean {
-    const ext = filename.toLowerCase().split('.').pop()
-    return ['js', 'jsx', 'mjs', 'cjs'].includes(ext ?? '')
+    const lower = filename.toLowerCase()
+    const dotIdx = lower.lastIndexOf('.')
+    if (dotIdx === -1) return false
+    const ext = lower.slice(dotIdx + 1)
+    return ['js', 'jsx', 'mjs', 'cjs'].includes(ext)
   }
 
   detectFlags(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]> {

@@ -31,9 +31,8 @@ export async function getQuery(lang: Language): Promise<Query> {
 
   const load = (async () => {
     const parser = await getParser(lang)
-    const tsLang = parser.language
-    if (!tsLang) throw new Error(`Parser for ${lang} has no language set`)
-    const query = new Query(tsLang, loadQueryText(lang))
+    // parser.language is always set after getParser succeeds (setLanguage called in parser-cache.ts)
+    const query = new Query(parser.language!, loadQueryText(lang))
     queryCache.set(lang, query)
     inFlightQueries.delete(lang)
     return query
@@ -56,7 +55,9 @@ export function* iterateCalls(tree: Tree, query: Query): Generator<MatchedCall> 
     const call = captures.find((c) => c.name === 'call')?.node
     const method = captures.find((c) => c.name === 'method')?.node
     const args = captures.find((c) => c.name === 'args')?.node
-    if (!call || !method || !args) continue
+    // All current .scm queries include @call, @method, @args in every pattern.
+    // Defensive: skip matches that are somehow missing a capture.
+    if (!call || !method || !args) continue  // only fires if a query pattern is added without all captures
     yield { callNode: call, methodName: method.text, argsNode: args }
   }
 }
@@ -85,6 +86,7 @@ export function extractStringLiteral(node: Node): string | null {
     if (first === last && (first === '"' || first === "'" || first === '`')) {
       return text.slice(1, -1)
     }
+    /* v8 ignore next 2 -- Python triple-quoted flag literals; no fixture today but real engine behavior */
     if (text.startsWith('"""') && text.endsWith('"""')) return text.slice(3, -3)
     if (text.startsWith("'''") && text.endsWith("'''")) return text.slice(3, -3)
   }

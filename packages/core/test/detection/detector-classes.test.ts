@@ -9,6 +9,9 @@ import { PHPDetector } from '../../src/detection/detectors/php.js'
 import { RustDetector } from '../../src/detection/detectors/rust.js'
 import { CPPDetector } from '../../src/detection/detectors/cpp.js'
 import { ObjectiveCDetector } from '../../src/detection/detectors/objectivec.js'
+import { TypeScriptDetector } from '../../src/detection/detectors/typescript.js'
+import { JavaScriptDetector } from '../../src/detection/detectors/javascript.js'
+import { PythonDetector } from '../../src/detection/detectors/python.js'
 
 import type { FeatureFlagProvider } from '../../src/detection/interface.js'
 
@@ -80,6 +83,41 @@ describe('detector classes', () => {
   }
 })
 
+describe('CPPDetector — supportsFile with no extension (dotIdx === -1 branch)', () => {
+  it('rejects a filename with no extension', () => {
+    const d = new CPPDetector()
+    expect(d.supportsFile('Makefile')).toBe(false)
+  })
+})
+
+describe('PHPDetector — supportsFile with no extension (dotIdx === -1 branch)', () => {
+  it('rejects a filename with no extension', () => {
+    const d = new PHPDetector()
+    expect(d.supportsFile('Makefile')).toBe(false)
+  })
+})
+
+describe('TypeScriptDetector — supportsFile with no extension (dotIdx === -1 branch)', () => {
+  it('rejects a filename with no extension', () => {
+    const d = new TypeScriptDetector()
+    expect(d.supportsFile('Makefile')).toBe(false)
+  })
+})
+
+describe('JavaScriptDetector — supportsFile with no extension (dotIdx === -1 branch)', () => {
+  it('rejects a filename with no extension', () => {
+    const d = new JavaScriptDetector()
+    expect(d.supportsFile('Makefile')).toBe(false)
+  })
+})
+
+describe('PythonDetector — supportsFile with no extension (dotIdx === -1 branch)', () => {
+  it('rejects a filename with no extension', () => {
+    const d = new PythonDetector()
+    expect(d.supportsFile('requirements')).toBe(false)
+  })
+})
+
 describe('RubyDetector special file types', () => {
   it('supports Rakefile (no extension)', () => {
     const d = new RubyDetector()
@@ -104,5 +142,15 @@ describe('RubyDetector special file types', () => {
   it('rejects file with no extension and non-special name', () => {
     const d = new RubyDetector()
     expect(d.supportsFile('README')).toBe(false)
+  })
+
+  it('supports Rakefile with a directory path prefix (slashIdx !== -1 branch)', () => {
+    const d = new RubyDetector()
+    expect(d.supportsFile('tasks/Rakefile')).toBe(true)
+  })
+
+  it('supports Gemfile with a directory path prefix', () => {
+    const d = new RubyDetector()
+    expect(d.supportsFile('config/Gemfile')).toBe(true)
   })
 })

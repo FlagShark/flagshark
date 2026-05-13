@@ -37,6 +37,7 @@ function readAndValidate(path: string): LoadedConfig {
   try {
     parsed = parseYaml(raw)
   } catch (err) {
+    /* v8 ignore next 5 -- yaml library only throws YAMLParseError; the else-branch is unreachable */
     if (err instanceof YAMLParseError) {
       throw new Error(`Invalid YAML in ${path}: ${err.message}`)
     }

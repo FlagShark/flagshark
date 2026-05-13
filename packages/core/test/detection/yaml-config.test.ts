@@ -343,6 +343,24 @@ describe('lintConfig', () => {
     })
     expect(lintConfig(cfg)).toEqual([])
   })
+
+  it('skips isXxx-style names (capital letter after "is" — lines 247-249)', () => {
+    // 'isFeature' starts with 'is', has >2 chars, and method.name[2] === 'F' (uppercase A-Z)
+    // Does NOT contain 'enabled' so won't be caught by the first condition
+    const cfg = makeConfig({
+      providers: [
+        makeProvider({
+          methods: [
+            {
+              name: 'isFeature',
+              flag_key_index: 0, context_index: 0, min_params: 0, examples: [], return_type: '', default_value_index: 0,
+            },
+          ],
+        }),
+      ],
+    })
+    expect(lintConfig(cfg)).toEqual([])
+  })
 })
 
 describe('CONFIG_FILE_LOCATIONS', () => {
