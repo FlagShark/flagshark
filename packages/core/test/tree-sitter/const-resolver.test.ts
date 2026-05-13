@@ -103,7 +103,7 @@ describe('const-resolver / typescript', () => {
     expect(tree).not.toBeNull()
     const calls = tree!.rootNode.descendantsOfType('call_expression')
     // Find the outer client.variation call (not the inner return)
-    const call = calls.find((c) => c.text.startsWith('client.variation'))!
+    const call = calls.find((c) => c?.text.startsWith('client.variation'))!
     expect(call).not.toBeUndefined()
     const args = call.childForFieldName('arguments')!
     const flagArg = args.namedChildren[0]!

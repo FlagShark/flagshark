@@ -6,16 +6,16 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs'
-import { join, tmpdir } from 'node:path'
-import os from 'node:os'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 import { collectFiles } from '../src/scanner.js'
 
 let workDir: string
 
 beforeEach(() => {
-  workDir = mkdirSync(join(os.tmpdir(), `flagshark-scanner-branch-${Date.now()}`), { recursive: false }) ?? ''
-  workDir = join(os.tmpdir(), `flagshark-scanner-branch-${Date.now()}`)
+  workDir = mkdirSync(join(tmpdir(), `flagshark-scanner-branch-${Date.now()}`), { recursive: false }) ?? ''
+  workDir = join(tmpdir(), `flagshark-scanner-branch-${Date.now()}`)
   mkdirSync(workDir, { recursive: true })
 })
 
