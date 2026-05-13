@@ -183,6 +183,48 @@ describe('formatText', () => {
   })
 })
 
+describe('text formatter — severity + new signals', () => {
+  function staleFlag(name: string, signalType: 'missing-in-platform' | 'archived-in-platform' | 'age', severity: 'error' | 'warning') {
+    return {
+      name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type: signalType, severity, description: 'desc' }],
+      age: '12 months ago',
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length,
+      filesScanned: 1,
+      staleFlags,
+      detectedProviders: [],
+      languageBreakdown: {},
+      healthScore: 50,
+      scanDuration: 1,
+    }
+  }
+
+  it('sorts error-severity flags before warning-severity', () => {
+    const result = makeResult([
+      staleFlag('OLD', 'age', 'warning'),
+      staleFlag('MISSING', 'missing-in-platform', 'error'),
+    ])
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out.indexOf('MISSING')).toBeLessThan(out.indexOf('OLD'))
+  })
+
+  it('shows missing-in-platform signal in the output', () => {
+    const result = makeResult([staleFlag('M', 'missing-in-platform', 'error')])
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toMatch(/missing-in-platform/)
+  })
+
+  it('shows archived-in-platform signal in the output', () => {
+    const result = makeResult([staleFlag('A', 'archived-in-platform', 'warning')])
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toMatch(/archived-in-platform/)
+  })
+})
+
 describe('formatJson', () => {
   it('produces valid JSON', () => {
     const result = makeScanResult()
