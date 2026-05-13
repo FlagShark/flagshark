@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { crossReference, mergePlatformSignals } from '../../src/providers/cross-reference.js'
 import type { FeatureFlag } from '../../src/detection/feature-flag.js'
-import type { PlatformFlag } from '../../src/providers/interface.js'
+import type { PlatformFlag, PlatformSignal } from '../../src/providers/interface.js'
 
 function flag(name: string): FeatureFlag {
   return { name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' }
@@ -83,7 +83,7 @@ describe('mergePlatformSignals', () => {
 
   it('clones to avoid shared-array mutation', () => {
     const into = new Map()
-    const srcArr = [{ type: 'missing-in-platform' as const, severity: 'error' as const, description: 'x' }]
+    const srcArr: PlatformSignal[] = [{ type: 'missing-in-platform', severity: 'error', description: 'x' }]
     const src = new Map([['A', srcArr]])
     mergePlatformSignals(into, src)
     srcArr.push({ type: 'archived-in-platform', severity: 'warning', description: 'y' })
