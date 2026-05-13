@@ -108,3 +108,29 @@ describe('parseArgs', () => {
     expect(() => args('--bogus')).toThrow(/Unknown option/)
   })
 })
+
+describe('parseArgs — platform integration flags', () => {
+  function args(...flags: string[]) {
+    return parseArgs(['node', 'cli', ...flags])
+  }
+
+  it('--no-cache sets noCache true', () => {
+    expect(args('--no-cache').noCache).toBe(true)
+  })
+
+  it('--no-cache is false by default', () => {
+    expect(args().noCache).toBeFalsy()
+  })
+
+  it('--fail-on-error true is the default', () => {
+    expect(args().failOnError).toBe(true)
+  })
+
+  it('--no-fail-on-error sets failOnError false', () => {
+    expect(args('--no-fail-on-error').failOnError).toBe(false)
+  })
+
+  it('--fail-on-error explicitly sets failOnError true', () => {
+    expect(args('--fail-on-error').failOnError).toBe(true)
+  })
+})

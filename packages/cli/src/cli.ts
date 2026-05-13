@@ -40,6 +40,11 @@ Output:
   --format <fmt>           Output format: text | json | markdown | csv | sarif (default: text)
   --output <path> | -o     Write output to this file instead of stdout
   --json                   Shorthand for --format json (deprecated, will be removed in v2)
+
+Platform integration:
+  --no-cache             Skip platform-flag cache, force re-fetch
+  --fail-on-error        Fail on any missing-in-platform flag (default: true)
+  --no-fail-on-error     Disable fail-on-error
 `.trim()
 
 // ── Arg parsing ───────────────────────────────────────────────────
@@ -58,6 +63,8 @@ export interface CliArgs {
   noConfig?: boolean
   noIgnoreFile?: boolean
   showExcluded?: boolean
+  noCache?: boolean
+  failOnError?: boolean
 }
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -69,6 +76,7 @@ export function parseArgs(argv: string[]): CliArgs {
     verbose: false,
     help: false,
     version: false,
+    failOnError: true,
   }
 
   let i = 2 // skip node + script
@@ -145,6 +153,15 @@ export function parseArgs(argv: string[]): CliArgs {
         break
       case '--show-excluded':
         args.showExcluded = true
+        break
+      case '--no-cache':
+        args.noCache = true
+        break
+      case '--no-fail-on-error':
+        args.failOnError = false
+        break
+      case '--fail-on-error':
+        args.failOnError = true
         break
       case 'scan':
         // accepted as subcommand, no-op
@@ -239,6 +256,7 @@ export async function runCli(argv: string[], io: RunCliIO): Promise<number> {
     noConfig: args.noConfig,
     noIgnoreFile: args.noIgnoreFile,
     collectExcludedPaths: args.showExcluded,
+    noCache: args.noCache,
     logger,
   })
 
@@ -263,7 +281,12 @@ export async function runCli(argv: string[], io: RunCliIO): Promise<number> {
     verbose: args.verbose,
   })
 
-  const exitCode = result.staleFlags.length > 0 ? 1 : 0
+  const hasErrorSignals = result.staleFlags.some((f) =>
+    f.signals.some((s) => s.severity === 'error'),
+  )
+  const exitCode = (args.failOnError && hasErrorSignals)
+    ? 1
+    : (result.staleFlags.length > 0 ? 1 : 0)
 
   if (args.output) {
     writeFileSync(args.output, output)

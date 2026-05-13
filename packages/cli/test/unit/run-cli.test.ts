@@ -5,6 +5,26 @@ import { join } from 'node:path'
 import { runCli, createLogger, toErrorMessage } from '../../src/cli.js'
 import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
+// ── Mock helpers ──────────────────────────────────────────────────────────────
+// The mock is installed globally so vi.hoisted works correctly; the real
+// implementation is used as the default so existing tests are unaffected.
+
+const { mockScanRepo, realScanRepo } = vi.hoisted(() => {
+  // We can't import here, so we capture the real impl after the mock is set up.
+  // We use a wrapper that is swapped in the failOnError describe block.
+  const mockFn = vi.fn()
+  return { mockScanRepo: mockFn, realScanRepo: { fn: undefined as unknown as typeof import('@flagshark/core').scanRepo } }
+})
+
+vi.mock('@flagshark/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@flagshark/core')>()
+  // Stash the real impl so tests can restore it
+  realScanRepo.fn = actual.scanRepo
+  // Default: delegate to the real implementation
+  mockScanRepo.mockImplementation((...args: Parameters<typeof actual.scanRepo>) => actual.scanRepo(...args))
+  return { ...actual, scanRepo: mockScanRepo }
+})
+
 function collect(stream: PassThrough): { text: () => string } {
   let buf = ''
   stream.on('data', (chunk) => { buf += chunk.toString() })
@@ -241,5 +261,57 @@ describe('runCli — coverage branches', () => {
     // JSON output means scanRepo ran successfully with diff option
     expect(() => JSON.parse(out.text())).not.toThrow()
     expect(JSON.parse(out.text()).totalFlags).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('runCli — failOnError + hasErrorSignals branches', () => {
+  const cannedErrorResult = {
+    totalFlags: 1,
+    filesScanned: 1,
+    staleFlags: [{
+      name: 'MISSING_FLAG',
+      filePath: 'src/a.ts',
+      lineNumber: 3,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type: 'missing-in-platform' as const, severity: 'error' as const, description: 'not in LD' }],
+      age: '0 months ago',
+    }],
+    detectedProviders: ['launchdarkly-node-server-sdk'],
+    languageBreakdown: { typescript: 1 },
+    healthScore: 0,
+    scanDuration: 1,
+  }
+
+  beforeEach(() => {
+    mockScanRepo.mockResolvedValue(cannedErrorResult)
+  })
+
+  afterEach(() => {
+    // Restore default (delegate to real impl) after each test in this block
+    mockScanRepo.mockImplementation((...args: Parameters<typeof realScanRepo.fn>) => realScanRepo.fn(...args))
+  })
+
+  it('returns 1 when failOnError is true (default) and error-severity signals present', async () => {
+    const stdout = new PassThrough()
+    const stderr = new PassThrough()
+    const code = await runCli(['node', 'cli', '--format', 'json'], { stdout, stderr, cwd: process.cwd() })
+    expect(code).toBe(1)
+  })
+
+  it('returns 1 when --no-fail-on-error but stale flags still present (staleFlags.length > 0)', async () => {
+    const stdout = new PassThrough()
+    const stderr = new PassThrough()
+    const code = await runCli(['node', 'cli', '--no-fail-on-error', '--format', 'json'], { stdout, stderr, cwd: process.cwd() })
+    // staleFlags.length > 0 → still 1 even without failOnError
+    expect(code).toBe(1)
+  })
+
+  it('--no-cache is forwarded to scanRepo', async () => {
+    const stdout = new PassThrough()
+    const stderr = new PassThrough()
+    mockScanRepo.mockResolvedValue({ ...cannedErrorResult, staleFlags: [], totalFlags: 0, healthScore: 100 })
+    await runCli(['node', 'cli', '--no-cache', '--format', 'json'], { stdout, stderr, cwd: process.cwd() })
+    expect(mockScanRepo).toHaveBeenCalledWith(expect.objectContaining({ noCache: true }))
   })
 })
