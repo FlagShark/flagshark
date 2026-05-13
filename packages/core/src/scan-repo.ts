@@ -11,6 +11,7 @@ import { buildDefaultConfig } from './config/defaults.js'
 import { buildExcluder } from './config/excluder.js'
 import { loadConfigFile } from './config/loader.js'
 import { loadIgnoreFile } from './config/ignore-file.js'
+import { orchestratePlatforms } from './providers/orchestrate.js'
 
 import type { FeatureFlag } from './detection/feature-flag.js'
 import type { StaleFlag } from './staleness.js'
@@ -79,6 +80,9 @@ export interface ScanRepoOptions {
    * When true, the result will include the list of excluded file paths.
    */
   collectExcludedPaths?: boolean
+
+  /** When true, bypass platform cache for this run. */
+  noCache?: boolean
 }
 
 export interface ScanRepoResult {
@@ -171,9 +175,17 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   const filesScanned = files.size
   const analysisResult = await analyzer.analyzeFiles(files, opts.signal)
 
+  const platformSignals = await orchestratePlatforms({
+    platformsConfig: config.platforms as Record<string, unknown> | undefined,
+    detectedFlags: analysisResult.totalFlags,
+    logger,
+    noCache: opts.noCache,
+    signal: opts.signal,
+  })
+
   const staleFlags = await analyzeStaleness(
     analysisResult.totalFlags,
-    { thresholdMonths: threshold, repoRoot: opts.cwd },
+    { thresholdMonths: threshold, repoRoot: opts.cwd, platformSignals },
   )
 
   const totalFlags = analysisResult.totalFlags.size
