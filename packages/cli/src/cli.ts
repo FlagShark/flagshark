@@ -1,7 +1,7 @@
-#!/usr/bin/env node
 /**
- * FlagShark CLI entry point.
- * Scans a codebase for feature flags and reports staleness.
+ * FlagShark CLI — pure, testable core.
+ * Exposes runCli(argv, io) that returns an exit code instead of calling process.exit.
+ * The binary entry point is main.ts.
  */
 
 import { readFileSync, existsSync, writeFileSync } from 'node:fs'
@@ -81,8 +81,7 @@ function parseArgs(argv: string[]): CliArgs {
       case '--format': {
         const v = argv[++i]
         if (!['text', 'json', 'markdown', 'csv', 'sarif'].includes(v)) {
-          process.stderr.write(`Error: --format must be one of text, json, markdown, csv, sarif; got '${v}'\n`)
-          process.exit(2)
+          throw new Error(`--format must be one of text, json, markdown, csv, sarif; got '${v}'`)
         }
         args.format = v as CliArgs['format']
         break
@@ -119,8 +118,7 @@ function parseArgs(argv: string[]): CliArgs {
       case '--engine': {
         const value = argv[++i]
         if (value !== 'regex' && value !== 'tree-sitter') {
-          process.stderr.write(`Error: --engine must be 'regex' or 'tree-sitter', got '${value}'\n`)
-          process.exit(2)
+          throw new Error(`--engine must be 'regex' or 'tree-sitter', got '${value}'`)
         }
         args.engine = value
         break
@@ -168,19 +166,31 @@ function createLogger(verbose: boolean) {
   }
 }
 
-// ── Main ──────────────────────────────────────────────────────────
+// ── Public entry — pure, returns exit code instead of calling process.exit ────
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv)
+export interface RunCliIO {
+  stdout: NodeJS.WritableStream
+  stderr: NodeJS.WritableStream
+  cwd: string
+}
+
+export async function runCli(argv: string[], io: RunCliIO): Promise<number> {
+  let args: CliArgs
+  try {
+    args = parseArgs(argv)
+  } catch (err) {
+    io.stderr.write(`[error] ${err instanceof Error ? err.message : String(err)}\n`)
+    return 2
+  }
 
   if (args.version) {
-    process.stdout.write(`flagshark v${VERSION}\n`)
-    process.exit(0)
+    io.stdout.write(`flagshark v${VERSION}\n`)
+    return 0
   }
 
   if (args.help) {
-    process.stdout.write(HELP_TEXT + '\n')
-    process.exit(0)
+    io.stdout.write(HELP_TEXT + '\n')
+    return 0
   }
 
   const logger = createLogger(args.verbose)
@@ -194,21 +204,27 @@ async function main(): Promise<void> {
   let configOverride: FlagsharkConfig | undefined
   if (args.configPath) {
     if (!existsSync(args.configPath)) {
-      process.stderr.write(`Error: config file not found: ${args.configPath}\n`)
-      process.exit(2)
+      io.stderr.write(`Error: config file not found: ${args.configPath}\n`)
+      return 2
     }
     const raw = readFileSync(args.configPath, 'utf-8')
-    const parsed = parseYaml(raw)
+    let parsed: unknown
+    try {
+      parsed = parseYaml(raw)
+    } catch (err) {
+      io.stderr.write(`Error: invalid YAML at ${args.configPath}: ${err instanceof Error ? err.message : String(err)}\n`)
+      return 2
+    }
     const configResult = FlagsharkConfigSchema.safeParse(parsed)
     if (!configResult.success) {
-      process.stderr.write(`Error: invalid config at ${args.configPath}: ${configResult.error.message}\n`)
-      process.exit(2)
+      io.stderr.write(`Error: invalid config at ${args.configPath}: ${configResult.error.message}\n`)
+      return 2
     }
     configOverride = configResult.data
   }
 
   const result = await scanRepo({
-    cwd: process.cwd(),
+    cwd: io.cwd,
     threshold: args.threshold,
     diff: args.diff ?? undefined,
     engine: args.engine,
@@ -228,8 +244,8 @@ async function main(): Promise<void> {
       ...r.ignoreFile.map((p) => `.flagsharkignore: ${p}`),
     ]
     if (allRules.length > 0) {
-      process.stderr.write('Effective excludes:\n')
-      for (const rule of allRules) process.stderr.write(`  ${rule}\n`)
+      io.stderr.write('Effective excludes:\n')
+      for (const rule of allRules) io.stderr.write(`  ${rule}\n`)
     }
   }
 
@@ -244,20 +260,10 @@ async function main(): Promise<void> {
 
   if (args.output) {
     writeFileSync(args.output, output)
-    process.exit(exitCode)
-  } else {
-    const finalOutput = output.endsWith('\n') ? output : output + '\n'
-    if (process.stdout.write(finalOutput)) {
-      process.exit(exitCode)
-    } else {
-      process.stdout.once('drain', () => process.exit(exitCode))
-    }
+    return exitCode
   }
+
+  const finalOutput = output.endsWith('\n') ? output : output + '\n'
+  io.stdout.write(finalOutput)
+  return exitCode
 }
-
-// ── Entry ─────────────────────────────────────────────────────────
-
-main().catch((err: unknown) => {
-  console.error(`[error] ${err instanceof Error ? err.message : String(err)}`)
-  process.exit(2)
-})
