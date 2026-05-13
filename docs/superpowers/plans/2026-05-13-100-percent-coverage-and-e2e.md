@@ -286,7 +286,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { makeTempRepo, commitAll, writeFlagFile } from './repo-builder.js'
+import { makeTempRepo, commitAll, writeFixtureFile } from './repo-builder.js'
 
 const dirsToClean: string[] = []
 afterEach(() => {
@@ -302,10 +302,10 @@ describe('repo-builder', () => {
     expect(email).toBe('test@test')
   })
 
-  it('writeFlagFile creates missing directories and writes content', () => {
+  it('writeFixtureFile creates missing directories and writes content', () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'src/nested/deep.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/nested/deep.ts', 'export const x = 1\n')
     const content = readFileSync(join(dir, 'src/nested/deep.ts'), 'utf-8')
     expect(content).toBe('export const x = 1\n')
   })
@@ -313,7 +313,7 @@ describe('repo-builder', () => {
   it('commitAll stages and commits everything', () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'a.ts', 'export const a = 1\n')
+    writeFixtureFile(dir, 'a.ts', 'export const a = 1\n')
     commitAll(dir, 'init')
     const log = execFileSync('git', ['log', '--oneline'], { cwd: dir, encoding: 'utf-8' })
     expect(log).toContain('init')
@@ -322,7 +322,7 @@ describe('repo-builder', () => {
   it('commitAll honors GIT_*_DATE for staleness control', () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'a.ts', 'export const a = 1\n')
+    writeFixtureFile(dir, 'a.ts', 'export const a = 1\n')
     commitAll(dir, 'old', '2024-01-01T00:00:00')
     const date = execFileSync('git', ['log', '-1', '--format=%aI'], { cwd: dir, encoding: 'utf-8' }).trim()
     expect(date.startsWith('2024-01-01')).toBe(true)
@@ -364,7 +364,7 @@ export function makeTempRepo(): string {
  * Write a file inside the fixture repo, creating parent dirs as needed.
  * Path is repo-relative.
  */
-export function writeFlagFile(repoDir: string, relPath: string, content: string): void {
+export function writeFixtureFile(repoDir: string, relPath: string, content: string): void {
   const fullPath = join(repoDir, relPath)
   mkdirSync(dirname(fullPath), { recursive: true })
   writeFileSync(fullPath, content)
@@ -1518,11 +1518,11 @@ Expected: PASS.
 
 If gaps exist on `scan-repo.ts`, append tests to `packages/core/test/scan-repo.test.ts`:
 ```ts
-import { makeTempRepo, writeFlagFile, commitAll } from './fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from './fixtures/repo-builder.js'
 
 it('honors engine: regex override', async () => {
   const dir = makeTempRepo()
-  writeFlagFile(dir, 'src/a.ts',
+  writeFixtureFile(dir, 'src/a.ts',
     `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
     `const client = LaunchDarkly.init('sdk-key')\n` +
     `client.variation('REGEX_ENGINE_FLAG', user, false)\n`)
@@ -1534,9 +1534,9 @@ it('honors engine: regex override', async () => {
 
 it('populates excludedPaths when collectExcludedPaths is true', async () => {
   const dir = makeTempRepo()
-  writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
-  writeFlagFile(dir, 'examples/demo.ts', 'export const y = 1\n')
-  writeFlagFile(dir, '.flagsharkignore', 'examples/\n')
+  writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
+  writeFixtureFile(dir, 'examples/demo.ts', 'export const y = 1\n')
+  writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
   commitAll(dir, 'init')
 
   const result = await scanRepo({ cwd: dir, collectExcludedPaths: true })
@@ -2187,7 +2187,7 @@ Create `packages/cli/test/e2e/scan-basic.test.ts`:
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runCli } from '../helpers/run-cli.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -2196,7 +2196,7 @@ describe('CLI E2E — basic scan', () => {
   it('exits 0 for a repo with no flags', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/empty.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/empty.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const r = runCli([], { cwd: dir })
@@ -2210,8 +2210,8 @@ describe('CLI E2E — basic scan', () => {
     const body =
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n`
-    writeFlagFile(dir, 'src/a.ts', body + `client.variation('FRESH_FLAG', user, false)\n`)
-    writeFlagFile(dir, 'src/b.ts', body + `client.variation('FRESH_FLAG', user, false)\n`)
+    writeFixtureFile(dir, 'src/a.ts', body + `client.variation('FRESH_FLAG', user, false)\n`)
+    writeFixtureFile(dir, 'src/b.ts', body + `client.variation('FRESH_FLAG', user, false)\n`)
     commitAll(dir, 'init')
 
     const r = runCli([], { cwd: dir })
@@ -2221,7 +2221,7 @@ describe('CLI E2E — basic scan', () => {
   it('exits 1 when stale flags found', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/old.ts',
+    writeFixtureFile(dir, 'src/old.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('OLD_FLAG', user, false)\n`)
@@ -2235,7 +2235,7 @@ describe('CLI E2E — basic scan', () => {
   it('--verbose emits info logs to stderr', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--verbose'], { cwd: dir })
@@ -2273,7 +2273,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { runCli } from '../helpers/run-cli.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -2282,15 +2282,15 @@ describe('CLI E2E — config', () => {
   it('auto-discovers .flagshark.yml from cwd', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('FOO', user, false)\n`)
-    writeFlagFile(dir, 'src/a.test.ts',
+    writeFixtureFile(dir, 'src/a.test.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('TEST_FOO', user, false)\n`)
-    writeFlagFile(dir, '.flagshark.yml', 'excludes:\n  presets:\n    - test-files\n')
+    writeFixtureFile(dir, '.flagshark.yml', 'excludes:\n  presets:\n    - test-files\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--format', 'json'], { cwd: dir })
@@ -2302,7 +2302,7 @@ describe('CLI E2E — config', () => {
   it('--config <path> overrides discovery', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('FOO', user, false)\n`)
@@ -2316,7 +2316,7 @@ describe('CLI E2E — config', () => {
   it('--config with missing file exits 2', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--config', './nope.yml'], { cwd: dir })
@@ -2327,7 +2327,7 @@ describe('CLI E2E — config', () => {
   it('--config with malformed YAML exits 2', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     writeFileSync(join(dir, 'bad.yml'), 'threshold: "not-a-number"\nbogus_root: [::\n')
     commitAll(dir, 'init')
 
@@ -2338,15 +2338,15 @@ describe('CLI E2E — config', () => {
   it('--no-config ignores .flagshark.yml', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('FOO', user, false)\n`)
-    writeFlagFile(dir, 'src/a.test.ts',
+    writeFixtureFile(dir, 'src/a.test.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('TEST_FOO', user, false)\n`)
-    writeFlagFile(dir, '.flagshark.yml', 'excludes:\n  presets:\n    - test-files\n')
+    writeFixtureFile(dir, '.flagshark.yml', 'excludes:\n  presets:\n    - test-files\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--no-config', '--format', 'json'], { cwd: dir })
@@ -2375,7 +2375,7 @@ git commit -m "test: CLI E2E — config discovery, --config, --no-config"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runCli } from '../helpers/run-cli.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -2384,15 +2384,15 @@ describe('CLI E2E — ignore file', () => {
   it('honors .flagsharkignore by default', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('REAL', user, false)\n`)
-    writeFlagFile(dir, 'examples/demo.ts',
+    writeFixtureFile(dir, 'examples/demo.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('DEMO', user, false)\n`)
-    writeFlagFile(dir, '.flagsharkignore', 'examples/\n')
+    writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--format', 'json'], { cwd: dir })
@@ -2403,15 +2403,15 @@ describe('CLI E2E — ignore file', () => {
   it('--no-ignore-file bypasses .flagsharkignore', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('REAL', user, false)\n`)
-    writeFlagFile(dir, 'examples/demo.ts',
+    writeFixtureFile(dir, 'examples/demo.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('DEMO', user, false)\n`)
-    writeFlagFile(dir, '.flagsharkignore', 'examples/\n')
+    writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--no-ignore-file', '--format', 'json'], { cwd: dir })
@@ -2422,9 +2422,9 @@ describe('CLI E2E — ignore file', () => {
   it('--show-excluded with --verbose logs effective excludes', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
-    writeFlagFile(dir, 'examples/demo.ts', 'export const y = 1\n')
-    writeFlagFile(dir, '.flagsharkignore', 'examples/\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'examples/demo.ts', 'export const y = 1\n')
+    writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--show-excluded', '--verbose'], { cwd: dir })
@@ -2455,7 +2455,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { runCli } from '../helpers/run-cli.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -2466,8 +2466,8 @@ function makeRepo(): string {
   const body =
     `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
     `const client = LaunchDarkly.init('sdk-key')\n`
-  writeFlagFile(dir, 'src/a.ts', body + `client.variation('A_FLAG', user, false)\n`)
-  writeFlagFile(dir, 'src/b.ts', body + `client.variation('A_FLAG', user, false)\n`)
+  writeFixtureFile(dir, 'src/a.ts', body + `client.variation('A_FLAG', user, false)\n`)
+  writeFixtureFile(dir, 'src/b.ts', body + `client.variation('A_FLAG', user, false)\n`)
   commitAll(dir, 'init')
   return dir
 }
@@ -2542,7 +2542,7 @@ git commit -m "test: CLI E2E — output format matrix + --output file"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runCli } from '../helpers/run-cli.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -2554,10 +2554,10 @@ describe('CLI E2E — --diff', () => {
     const body =
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n`
-    writeFlagFile(dir, 'src/old.ts', body + `client.variation('OLD', user, false)\n`)
+    writeFixtureFile(dir, 'src/old.ts', body + `client.variation('OLD', user, false)\n`)
     commitAll(dir, 'first')
 
-    writeFlagFile(dir, 'src/new.ts', body + `client.variation('NEW', user, false)\n`)
+    writeFixtureFile(dir, 'src/new.ts', body + `client.variation('NEW', user, false)\n`)
     commitAll(dir, 'second')
 
     const r = runCli(['--diff', 'HEAD~1', '--format', 'json'], { cwd: dir })
@@ -2568,7 +2568,7 @@ describe('CLI E2E — --diff', () => {
   it('--diff stderr info log includes the ref', () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const r = runCli(['--diff', 'HEAD'], { cwd: dir })
@@ -2615,7 +2615,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { afterEach } from 'vitest'
 import { join } from 'node:path'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirsToClean: string[] = []
 afterEach(() => { for (const d of dirsToClean.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -2656,7 +2656,7 @@ describe('runCli — coverage branches', () => {
   it('writes to --output path and skips stdout', async () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
     const outPath = join(dir, 'out.json')
 
@@ -2672,7 +2672,7 @@ describe('runCli — coverage branches', () => {
   it('returns 1 when stale flags found', async () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'src/old.ts',
+    writeFixtureFile(dir, 'src/old.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('OLD', user, false)\n`)
@@ -2687,8 +2687,8 @@ describe('runCli — coverage branches', () => {
   it('verbose with effective excludes prints them to stderr', async () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
-    writeFlagFile(dir, '.flagsharkignore', 'examples/\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
     commitAll(dir, 'init')
 
     const stdout = new PassThrough()
@@ -3410,7 +3410,7 @@ git commit -m "test: add Action E2E run-action helper"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runAction } from '../helpers/run-action.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3419,7 +3419,7 @@ describe('action E2E — scan with PR context', () => {
   it('with stale flags and PR context, posts a markdown comment', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/old.ts',
+    writeFixtureFile(dir, 'src/old.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('OLD_FLAG', user, false)\n`)
@@ -3445,7 +3445,7 @@ describe('action E2E — scan with PR context', () => {
     const body =
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n`
-    writeFlagFile(dir, 'src/a.ts', body + `client.variation('FOO', user, false)\n`)
+    writeFixtureFile(dir, 'src/a.ts', body + `client.variation('FOO', user, false)\n`)
     commitAll(dir, 'init')
 
     let capturedDiff: string | undefined
@@ -3495,7 +3495,7 @@ git commit -m "test: action E2E — PR context posts comment, diff ref set"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runAction } from '../helpers/run-action.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3504,7 +3504,7 @@ describe('action E2E — no PR context', () => {
   it('scan: changed without PR logs info and runs full scan', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const { core } = await runAction({
@@ -3519,7 +3519,7 @@ describe('action E2E — no PR context', () => {
   it('scan: full with no PR context just runs', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const { core, octokit } = await runAction({
@@ -3553,7 +3553,7 @@ git commit -m "test: action E2E — no PR context falls back to full scan"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runAction } from '../helpers/run-action.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3562,7 +3562,7 @@ describe('action E2E — fail-threshold', () => {
   function setupStaleRepo() {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/old.ts',
+    writeFixtureFile(dir, 'src/old.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('OLD', user, false)\n`)
@@ -3591,7 +3591,7 @@ describe('action E2E — fail-threshold', () => {
   it('health >= threshold → does not fail', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const { core } = await runAction({
@@ -3624,7 +3624,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { runAction } from '../helpers/run-action.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3633,7 +3633,7 @@ describe('action E2E — SARIF', () => {
   it('writes SARIF file when sarif input is set', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('FLAG', user, false)\n`)
@@ -3654,7 +3654,7 @@ describe('action E2E — SARIF', () => {
   it('does not write SARIF when input is absent', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const { core } = await runAction({
@@ -3689,7 +3689,7 @@ git commit -m "test: action E2E — SARIF output writes file when configured"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runAction } from '../helpers/run-action.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3698,7 +3698,7 @@ describe('action E2E — comment lifecycle', () => {
   function setupRepoWithFlag() {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts',
+    writeFixtureFile(dir, 'src/a.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('FLAG_X', user, false)\n`)
@@ -3767,7 +3767,7 @@ git commit -m "test: action E2E — comment create vs update lifecycle"
 import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runAction } from '../helpers/run-action.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3775,7 +3775,7 @@ afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, f
 function setupRepo() {
   const dir = makeTempRepo()
   dirs.push(dir)
-  writeFlagFile(dir, 'src/a.ts',
+  writeFixtureFile(dir, 'src/a.ts',
     `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
     `const client = LaunchDarkly.init('sdk-key')\n` +
     `client.variation('FLAG', user, false)\n`)
@@ -3886,7 +3886,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runAction } from '../helpers/run-action.js'
 import { summaryText } from '../helpers/fake-actions-core.js'
-import { makeTempRepo, writeFlagFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
+import { makeTempRepo, writeFixtureFile, commitAll } from '../../../core/test/fixtures/repo-builder.js'
 
 const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -3895,7 +3895,7 @@ describe('action E2E — summary', () => {
   it('summary contains heading, health score, metric table', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const { core } = await runAction({
@@ -3912,7 +3912,7 @@ describe('action E2E — summary', () => {
   it('summary "Top stale flags" only renders when stale > 0', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/a.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/a.ts', 'export const x = 1\n')
     commitAll(dir, 'init')
 
     const { core } = await runAction({
@@ -3926,7 +3926,7 @@ describe('action E2E — summary', () => {
   it('summary renders Top stale flags table when stale > 0', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFlagFile(dir, 'src/old.ts',
+    writeFixtureFile(dir, 'src/old.ts',
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('STALE_FLAG', user, false)\n`)
