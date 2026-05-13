@@ -38,6 +38,8 @@ export async function run(deps: RunDeps): Promise<void> {
     const threshold = parseInt(core.getInput('threshold') || '6', 10)
     const failThreshold = parseInt(core.getInput('fail-threshold') || '0', 10)
     const outputFormat = core.getInput('output-format') || 'markdown'
+    const noCache = core.getInput('no-cache') === 'true'
+    const failOnError = core.getInput('fail-on-error') !== 'false'  // default true
 
     if (outputFormat !== 'markdown' && outputFormat !== 'none') {
       core.warning(`Unknown output-format "${outputFormat}" — expected "markdown" or "none". Defaulting to "markdown".`)
@@ -52,7 +54,7 @@ export async function run(deps: RunDeps): Promise<void> {
       core.info('scan: changed requested but no pull_request context — scanning full tree instead')
     }
 
-    const result = await scanRepoFn({ cwd, threshold, diff: baseRef, logger })
+    const result = await scanRepoFn({ cwd, threshold, diff: baseRef, logger, noCache })
 
     const {
       totalFlags, filesScanned, staleFlags,
@@ -62,6 +64,21 @@ export async function run(deps: RunDeps): Promise<void> {
     } = result
 
     const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size
+
+    const errorFlagNames = new Set<string>()
+    for (const f of staleFlags) {
+      if (f.signals.some((s) => s.severity === 'error')) {
+        errorFlagNames.add(f.name)
+      }
+    }
+    core.setOutput('error-count', errorFlagNames.size.toString())
+
+    if (failOnError && errorFlagNames.size > 0) {
+      core.setFailed(
+        `${errorFlagNames.size} flag(s) reference missing platform entries: ${[...errorFlagNames].join(', ')}`,
+      )
+      // continue to write summary so users still see the report
+    }
 
     core.info('')
     core.info('┌─────────────────────────────────────────┐')
