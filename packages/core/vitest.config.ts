@@ -13,7 +13,7 @@ export default defineConfig({
       thresholds: {
         lines: 75,
         branches: 75,
-        functions: 65,
+        functions: 65, // actual ~68%; raised to 100 in Phase 2 once detectors are covered
         statements: 75,
       },
     },
