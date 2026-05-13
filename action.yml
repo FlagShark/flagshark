@@ -40,6 +40,8 @@ outputs:
     description: 'Total number of flags detected'
   sarif-path:
     description: 'Absolute path to the SARIF file written (only set when sarif: input is provided)'
+  error-count:
+    description: 'Number of unique flag names with error-severity signals (e.g., missing-in-platform)'
 
 runs:
   using: 'node20'

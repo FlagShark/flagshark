@@ -31596,13 +31596,13 @@ var require_dist = __commonJS({
 });
 
 // src/index.ts
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var core = __toESM(require_core(), 1);
 var github = __toESM(require_github(), 1);
 
 // src/run.ts
-var import_node_fs5 = require("node:fs");
-var import_node_path4 = require("node:path");
+var import_node_fs6 = require("node:fs");
+var import_node_path5 = require("node:path");
 
 // ../core/dist/detection/interface.js
 var Languages = {
@@ -43431,6 +43431,7 @@ function checkAgeSignal(authorTime, thresholdMonths) {
   return {
     signal: {
       type: "age",
+      severity: "warning",
       description: `Flag reference last modified ${age} (threshold: ${thresholdMonths} months)`
     },
     age
@@ -43443,6 +43444,7 @@ function checkLowUsageSignal(flagName, occurrences) {
   }
   return {
     type: "low-usage",
+    severity: "warning",
     description: `Flag "${flagName}" only appears in 1 file \u2014 may have been fully rolled out`
   };
 }
@@ -43480,6 +43482,16 @@ async function analyzeStaleness(flags2, options) {
       }
       if (lowUsageSignal) {
         signals.push(lowUsageSignal);
+      }
+      const platformSigs = options.platformSignals?.get(flagName);
+      if (platformSigs) {
+        for (const ps of platformSigs) {
+          signals.push({
+            type: ps.type,
+            severity: ps.severity,
+            description: ps.description
+          });
+        }
       }
       if (signals.length > 0) {
         staleFlags.push({
@@ -43661,7 +43673,8 @@ var FlagsharkConfigSchema = external_exports.object({
   providers: external_exports.array(CustomProviderSchema).default([]),
   output: OutputConfigSchema,
   healthScore: HealthScoreSchema,
-  engine: EngineSchema
+  engine: EngineSchema,
+  platforms: external_exports.record(external_exports.string(), external_exports.object({ token_env: external_exports.string().optional() }).passthrough()).optional()
 }).strict();
 
 // ../core/dist/config/defaults.js
@@ -43858,6 +43871,249 @@ async function loadIgnoreFile(startDir) {
   }
 }
 
+// ../core/dist/providers/launchdarkly/types.js
+var EnvironmentSchema = external_exports.object({
+  lastModified: external_exports.number().optional()
+}).passthrough();
+var FlagItemSchema = external_exports.object({
+  key: external_exports.string(),
+  archived: external_exports.boolean(),
+  environments: external_exports.record(external_exports.string(), EnvironmentSchema).optional()
+}).passthrough();
+var FlagsResponseSchema = external_exports.object({
+  items: external_exports.array(FlagItemSchema),
+  totalCount: external_exports.number(),
+  _links: external_exports.object({
+    next: external_exports.object({ href: external_exports.string() }).optional()
+  }).optional()
+}).passthrough();
+
+// ../core/dist/providers/launchdarkly/errors.js
+var LdApiError = class extends Error {
+  status;
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+    this.name = "LdApiError";
+  }
+};
+
+// ../core/dist/providers/launchdarkly/client.js
+var DEFAULT_API_BASE = "https://app.launchdarkly.com";
+var LD_API_VERSION = "20240415";
+async function fetchAllFlags(config, opts = {}) {
+  const fetchFn = opts.fetch ?? globalThis.fetch;
+  const apiBase = opts.apiBase ?? DEFAULT_API_BASE;
+  const out2 = [];
+  let path = buildFirstPath(config.project, config.environment);
+  while (path) {
+    const res = await fetchFn(new URL(path, apiBase), {
+      headers: {
+        Authorization: config.token,
+        "LD-API-Version": LD_API_VERSION
+      },
+      signal: opts.signal
+    });
+    if (!res.ok) {
+      throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status);
+    }
+    const json = await res.json();
+    const parsed = FlagsResponseSchema.parse(json);
+    for (const item of parsed.items) {
+      const envData = item.environments?.[config.environment];
+      out2.push({
+        key: item.key,
+        archived: item.archived,
+        lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null
+      });
+    }
+    path = parsed._links?.next?.href;
+  }
+  return out2;
+}
+function buildFirstPath(project, environment) {
+  const params = new URLSearchParams({
+    env: environment,
+    limit: "100",
+    offset: "0",
+    summary: "1"
+  });
+  return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`;
+}
+
+// ../core/dist/providers/launchdarkly/definition.js
+var launchdarklyConfigSchema = external_exports.object({
+  project: external_exports.string(),
+  environment: external_exports.string(),
+  api_base: external_exports.string().url().optional(),
+  token_env: external_exports.string().optional()
+});
+var launchdarklyDefinition = {
+  name: "launchdarkly",
+  displayName: "LaunchDarkly",
+  defaultTokenEnv: "LAUNCHDARKLY_API_TOKEN",
+  configSchema: launchdarklyConfigSchema,
+  createClient: (cfg, token) => ({
+    name: "launchdarkly",
+    displayName: "LaunchDarkly",
+    listFlags: ({ signal } = {}) => fetchAllFlags({
+      project: cfg.project,
+      environment: cfg.environment,
+      token
+    }, { apiBase: cfg.api_base, signal })
+  })
+};
+
+// ../core/dist/providers/registry.js
+var platformRegistry = [
+  launchdarklyDefinition
+];
+function findPlatform(name2) {
+  return platformRegistry.find((p) => p.name === name2);
+}
+
+// ../core/dist/providers/cross-reference.js
+function crossReference(detectedFlags, platformFlags, platformDisplayName) {
+  const platformByKey = new Map(platformFlags.map((f) => [f.key, f]));
+  const out2 = /* @__PURE__ */ new Map();
+  for (const key of detectedFlags.keys()) {
+    const platform = platformByKey.get(key);
+    if (!platform) {
+      out2.set(key, [{
+        type: "missing-in-platform",
+        severity: "error",
+        description: `referenced in code but not found in ${platformDisplayName}`
+      }]);
+    } else if (platform.archived) {
+      out2.set(key, [{
+        type: "archived-in-platform",
+        severity: "warning",
+        description: `archived in ${platformDisplayName}`
+      }]);
+    }
+  }
+  return out2;
+}
+function mergePlatformSignals(into, source) {
+  for (const [key, signals] of source) {
+    const existing = into.get(key);
+    if (existing) {
+      existing.push(...signals);
+    } else {
+      into.set(key, [...signals]);
+    }
+  }
+}
+
+// ../core/dist/providers/cache.js
+var import_node_crypto = require("node:crypto");
+var import_node_fs5 = require("node:fs");
+var import_node_os3 = require("node:os");
+var import_node_path4 = require("node:path");
+var DEFAULT_TTL_MS = 24 * 60 * 60 * 1e3;
+function resolveCacheDir(override) {
+  if (override)
+    return override;
+  const xdg = process.env.XDG_CACHE_HOME;
+  const base = xdg && xdg.length > 0 ? xdg : (0, import_node_path4.join)((0, import_node_os3.homedir)(), ".cache");
+  return (0, import_node_path4.join)(base, "flagshark");
+}
+function computeCacheKey(platformName, config, token) {
+  const tokenHash = (0, import_node_crypto.createHash)("sha256").update(token).digest("hex").slice(0, 8);
+  const configHash = (0, import_node_crypto.createHash)("sha256").update(JSON.stringify(config)).digest("hex").slice(0, 8);
+  return `v1-${platformName}-${configHash}-${tokenHash}`;
+}
+function readCache(key, opts = {}) {
+  const dir = resolveCacheDir(opts.cacheDir);
+  const path = (0, import_node_path4.join)(dir, `${key}.json`);
+  let raw;
+  try {
+    raw = (0, import_node_fs5.readFileSync)(path, "utf-8");
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed?.fetchedAt !== "string" || !Array.isArray(parsed.flags)) {
+    return null;
+  }
+  const fetchedAt = new Date(parsed.fetchedAt);
+  const ttl = opts.ttlMs ?? DEFAULT_TTL_MS;
+  if (Date.now() - fetchedAt.getTime() >= ttl)
+    return null;
+  const flags2 = parsed.flags.map((f) => ({
+    key: f.key,
+    archived: f.archived,
+    lastModified: f.lastModified ? new Date(f.lastModified) : null
+  }));
+  return { fetchedAt, flags: flags2 };
+}
+function writeCache(key, flags2, opts = {}) {
+  const dir = resolveCacheDir(opts.cacheDir);
+  try {
+    (0, import_node_fs5.mkdirSync)(dir, { recursive: true });
+    const body2 = {
+      fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      flags: flags2.map((f) => ({
+        key: f.key,
+        archived: f.archived,
+        lastModified: f.lastModified ? f.lastModified.toISOString() : null
+      }))
+    };
+    (0, import_node_fs5.writeFileSync)((0, import_node_path4.join)(dir, `${key}.json`), JSON.stringify(body2));
+  } catch {
+  }
+}
+async function loadPlatformFlagsCached(client, cacheKey, opts = {}) {
+  if (!opts.noCache) {
+    const cached = readCache(cacheKey, opts);
+    if (cached)
+      return cached.flags;
+  }
+  const flags2 = await client.listFlags({ signal: opts.signal });
+  writeCache(cacheKey, flags2, opts);
+  return flags2;
+}
+
+// ../core/dist/providers/orchestrate.js
+async function orchestratePlatforms(opts) {
+  const out2 = /* @__PURE__ */ new Map();
+  if (!opts.platformsConfig)
+    return out2;
+  for (const [name2, rawConfig] of Object.entries(opts.platformsConfig)) {
+    const def = findPlatform(name2);
+    if (!def) {
+      opts.logger.warn(`Unknown platform '${name2}' \u2014 skipping`);
+      continue;
+    }
+    const parsed = def.configSchema.safeParse(rawConfig);
+    if (!parsed.success) {
+      opts.logger.warn(`Invalid config for platform '${name2}': ${parsed.error.message}`);
+      continue;
+    }
+    const tokenEnv = rawConfig.token_env ?? def.defaultTokenEnv;
+    const token = process.env[tokenEnv];
+    if (!token) {
+      opts.logger.warn(`${def.displayName}: missing ${tokenEnv}; skipping platform integration`);
+      continue;
+    }
+    try {
+      const client = def.createClient(parsed.data, token);
+      const cacheKey = computeCacheKey(name2, parsed.data, token);
+      const flags2 = opts.listFlagsOverride ? await opts.listFlagsOverride(opts.signal) : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal });
+      const signals = crossReference(opts.detectedFlags, flags2, def.displayName);
+      mergePlatformSignals(out2, signals);
+    } catch (err2) {
+      opts.logger.warn(`${def.displayName}: ${err2.message}. Continuing with code-only signals.`);
+    }
+  }
+  return out2;
+}
+
 // ../core/dist/scan-repo.js
 var NOOP = () => {
 };
@@ -43892,7 +44148,14 @@ async function scanRepo(opts) {
   logger.debug(`Detected ${files.size} candidate files (excluded ${excludedCount})`);
   const filesScanned = files.size;
   const analysisResult = await analyzer.analyzeFiles(files, opts.signal);
-  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdMonths: threshold, repoRoot: opts.cwd });
+  const platformSignals = await orchestratePlatforms({
+    platformsConfig: config.platforms,
+    detectedFlags: analysisResult.totalFlags,
+    logger,
+    noCache: opts.noCache,
+    signal: opts.signal
+  });
+  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdMonths: threshold, repoRoot: opts.cwd, platformSignals });
   const totalFlags = analysisResult.totalFlags.size;
   const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
   const healthScore = totalFlags === 0 ? 100 : Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100);
@@ -43931,13 +44194,6 @@ function healthEmoji(score) {
     return "\u{1F7E0}";
   return "\u{1F534}";
 }
-function sarifLevel(signalCount) {
-  if (signalCount >= 3)
-    return "error";
-  if (signalCount === 2)
-    return "warning";
-  return "note";
-}
 
 // ../core/dist/output/markdown.js
 var DEFAULT_MAX_STALE = 20;
@@ -43965,6 +44221,20 @@ function formatMarkdown(result, options) {
   body2 += `${emoji} **Health Score: ${result.healthScore}/100**
 
 `;
+  const errorFlags = result.staleFlags.filter((f) => f.signals.some((s) => s.severity === "error"));
+  const warningFlags = result.staleFlags.filter((f) => !f.signals.some((s) => s.severity === "error"));
+  if (errorFlags.length > 0) {
+    body2 += `### \u{1F6A8} Production-risk: flags missing in platform
+
+`;
+    body2 += "| Flag | File | Age | Why it looks stale |\n";
+    body2 += "|------|------|-----|--------------------|\n";
+    for (const flag of errorFlags) {
+      body2 += `| ${formatRow(flag, options.linkPrefix)} |
+`;
+    }
+    body2 += "\n";
+  }
   body2 += `| Metric | Value |
 `;
   body2 += `|--------|-------|
@@ -43982,22 +44252,22 @@ function formatMarkdown(result, options) {
   body2 += `| Scan time | ${result.scanDuration}ms |
 
 `;
-  if (staleCount > 0) {
-    body2 += `<details${staleCount <= 5 ? " open" : ""}>
+  if (warningFlags.length > 0) {
+    const displayFlags = warningFlags.slice(0, maxStale);
+    body2 += `<details${warningFlags.length <= 5 ? " open" : ""}>
 `;
-    body2 += `<summary><strong>Stale flags (${staleCount})</strong></summary>
+    body2 += `<summary><strong>Stale flags (${warningFlags.length})</strong></summary>
 
 `;
     body2 += "| Flag | File | Age | Why it looks stale |\n";
     body2 += "|------|------|-----|--------------------|\n";
-    const displayFlags = result.staleFlags.slice(0, maxStale);
     for (const flag of displayFlags) {
       body2 += `| ${formatRow(flag, options.linkPrefix)} |
 `;
     }
-    if (result.staleFlags.length > maxStale) {
+    if (warningFlags.length > maxStale) {
       body2 += `
-*... and ${result.staleFlags.length - maxStale} more. Run \`npx flagshark scan --verbose\` locally for the full list.*
+*... and ${warningFlags.length - maxStale} more. Run \`npx flagshark scan --verbose\` locally for the full list.*
 `;
     }
     body2 += "\n</details>\n\n";
@@ -44023,28 +44293,53 @@ function normalizePrefix(prefix) {
 }
 
 // ../core/dist/output/sarif.js
-var RULES = [
-  {
+var RULE_DEFS = {
+  "stale-age": {
     id: "stale-age",
     name: "Stale by age",
     shortDescription: { text: "Flag reference older than the configured threshold" },
     helpUri: "https://github.com/FlagShark/flagshark#how-staleness-works"
   },
-  {
+  "stale-low-usage": {
     id: "stale-low-usage",
     name: "Stale by usage",
     shortDescription: { text: "Flag appears in only one file across the repo" },
     helpUri: "https://github.com/FlagShark/flagshark#how-staleness-works"
   },
-  {
+  "stale-hardcoded": {
     id: "stale-hardcoded",
     name: "Stale by hardcoded variation",
     shortDescription: { text: "Flag call uses a constant default \u2014 the flag may be permanently removed upstream" },
     helpUri: "https://github.com/FlagShark/flagshark#how-staleness-works"
+  },
+  "flagshark/missing-in-platform": {
+    id: "flagshark/missing-in-platform",
+    name: "Missing in platform",
+    shortDescription: { text: "Flag is referenced in code but does not exist in the feature flag platform" },
+    helpUri: "https://github.com/FlagShark/flagshark#how-staleness-works"
+  },
+  "flagshark/archived-in-platform": {
+    id: "flagshark/archived-in-platform",
+    name: "Archived in platform",
+    shortDescription: { text: "Flag is referenced in code but has been archived in the feature flag platform" },
+    helpUri: "https://github.com/FlagShark/flagshark#how-staleness-works"
   }
-];
+};
+function signalTypeToRuleId(signalType) {
+  if (signalType === "age")
+    return "stale-age";
+  if (signalType === "low-usage")
+    return "stale-low-usage";
+  if (signalType === "missing-in-platform")
+    return "flagshark/missing-in-platform";
+  if (signalType === "archived-in-platform")
+    return "flagshark/archived-in-platform";
+  return "stale-hardcoded";
+}
 function formatSarif(result, options) {
   const results = result.staleFlags.map((flag) => toSarifResult(flag));
+  const usedRuleIds = new Set(results.map((r) => r.ruleId));
+  const rules = [...usedRuleIds].filter((id) => id in RULE_DEFS).map((id) => RULE_DEFS[id]);
   const envelope = {
     $schema: "https://json.schemastore.org/sarif-2.1.0.json",
     version: "2.1.0",
@@ -44055,7 +44350,7 @@ function formatSarif(result, options) {
             name: "FlagShark",
             version: options.version,
             informationUri: "https://github.com/FlagShark/flagshark",
-            rules: RULES
+            rules
           }
         },
         results
@@ -44066,10 +44361,11 @@ function formatSarif(result, options) {
 }
 function toSarifResult(flag) {
   const firstSignal = flag.signals[0];
-  const ruleId = firstSignal?.type === "age" ? "stale-age" : firstSignal?.type === "low-usage" ? "stale-low-usage" : "stale-hardcoded";
+  const ruleId = signalTypeToRuleId(firstSignal ? firstSignal.type : "");
+  const level = flag.signals.some((s) => s.severity === "error") ? "error" : "warning";
   return {
     ruleId,
-    level: sarifLevel(flag.signals.length),
+    level,
     message: {
       text: `Flag "${flag.name}" appears stale. ${flag.signals.map((s) => s.description).join("; ")}`
     },
@@ -44108,6 +44404,8 @@ async function run2(deps) {
     const threshold = parseInt(core2.getInput("threshold") || "6", 10);
     const failThreshold = parseInt(core2.getInput("fail-threshold") || "0", 10);
     const outputFormat = core2.getInput("output-format") || "markdown";
+    const noCache = core2.getInput("no-cache") === "true";
+    const failOnError = core2.getInput("fail-on-error") !== "false";
     if (outputFormat !== "markdown" && outputFormat !== "none") {
       core2.warning(`Unknown output-format "${outputFormat}" \u2014 expected "markdown" or "none". Defaulting to "markdown".`);
     }
@@ -44115,7 +44413,7 @@ async function run2(deps) {
     if (scanMode === "changed" && !github2.context.payload.pull_request) {
       core2.info("scan: changed requested but no pull_request context \u2014 scanning full tree instead");
     }
-    const result = await scanRepoFn({ cwd, threshold, diff: baseRef, logger });
+    const result = await scanRepoFn({ cwd, threshold, diff: baseRef, logger, noCache });
     const {
       totalFlags,
       filesScanned,
@@ -44126,6 +44424,18 @@ async function run2(deps) {
       scanDuration
     } = result;
     const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
+    const errorFlagNames = /* @__PURE__ */ new Set();
+    for (const f of staleFlags) {
+      if (f.signals.some((s) => s.severity === "error")) {
+        errorFlagNames.add(f.name);
+      }
+    }
+    core2.setOutput("error-count", errorFlagNames.size.toString());
+    if (failOnError && errorFlagNames.size > 0) {
+      core2.setFailed(
+        `${errorFlagNames.size} flag(s) reference missing platform entries: ${[...errorFlagNames].join(", ")}`
+      );
+    }
     core2.info("");
     core2.info("\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510");
     core2.info("\u2502  \u{1F988} FlagShark Scan Results               \u2502");
@@ -44148,9 +44458,9 @@ async function run2(deps) {
     if (sarifPath) {
       const actionVersion = process.env.GITHUB_ACTION_REF || "unknown";
       const sarifJson = formatSarif(result, { version: actionVersion });
-      const absolutePath = (0, import_node_path4.resolve)(cwd, sarifPath);
-      (0, import_node_fs5.mkdirSync)((0, import_node_path4.dirname)(absolutePath), { recursive: true });
-      (0, import_node_fs5.writeFileSync)(absolutePath, sarifJson);
+      const absolutePath = (0, import_node_path5.resolve)(cwd, sarifPath);
+      (0, import_node_fs6.mkdirSync)((0, import_node_path5.dirname)(absolutePath), { recursive: true });
+      (0, import_node_fs6.writeFileSync)(absolutePath, sarifJson);
       core2.info(`Wrote SARIF to ${absolutePath}`);
       core2.setOutput("sarif-path", absolutePath);
     }
@@ -44243,8 +44553,8 @@ async function postComment(opts) {
 }
 
 // src/index.ts
-process.env.FLAGSHARK_WASM_DIR = (0, import_node_path5.join)(__dirname, "grammars");
-process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path5.join)(__dirname, "queries");
+process.env.FLAGSHARK_WASM_DIR = (0, import_node_path6.join)(__dirname, "grammars");
+process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path6.join)(__dirname, "queries");
 run2({ core, github, cwd: process.cwd() });
 /*! Bundled license information:
 
