@@ -48,4 +48,10 @@ describe('expandPresets', () => {
     const set = new Set(result)
     expect(set.size).toBe(result.length)
   })
+
+  it('skips unknown preset names gracefully (line 62 — defensive guard)', () => {
+    // Passing an unknown name via type cast exercises the `if (!patterns) continue` branch.
+    const result = expandPresets(['unknown-preset' as never])
+    expect(result).toEqual([])
+  })
 })

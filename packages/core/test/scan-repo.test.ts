@@ -1,18 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 import { scanRepo } from '../src/scan-repo.js'
-
-function makeTempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'flagshark-test-'))
-  execFileSync('git', ['init', '-q'], { cwd: dir })
-  execFileSync('git', ['config', 'user.email', 'test@test'], { cwd: dir })
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: dir })
-  return dir
-}
+import { makeTempRepo } from './fixtures/repo-builder.js'
 
 describe('scanRepo', () => {
   it('returns a ScanRepoResult for a repo with one flag', async () => {
@@ -191,6 +183,64 @@ describe('scanRepo', () => {
 
     expect(result.totalFlags).toBe(1)
     expect(result.excludedCount).toBe(1)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('uses noConfig: true to bypass config file discovery (line 140)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `const client = LaunchDarkly.init('sdk-key')\n` +
+      `client.variation('NO_CONFIG_FLAG', user, false)\n`,
+    )
+    // Even with a .flagshark.yml present, noConfig bypasses it
+    writeFileSync(join(dir, '.flagshark.yml'), 'threshold: 999\n')
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({ cwd: dir, noConfig: true })
+    expect(result.totalFlags).toBe(1)
+    // If config was loaded, threshold 999 would suppress stale flags by age;
+    // noConfig defaults to 6 months (default) + single-file signal fires anyway.
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('passes engine option to use regex explicitly (line 155)', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
+      `const client = LaunchDarkly.init('sdk-key')\n` +
+      `client.variation('ENGINE_TEST', user, false)\n`,
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({ cwd: dir, engine: 'regex' })
+    expect(result.totalFlags).toBe(1)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('returns healthScore 100 when no flags are found (totalFlags === 0 branch)', async () => {
+    // A TS file with no feature flag calls → totalFlags = 0 → healthScore = 100
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'util.ts'),
+      `export function add(a: number, b: number): number { return a + b }\n`,
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({ cwd: dir, noConfig: true })
+    expect(result.totalFlags).toBe(0)
+    expect(result.healthScore).toBe(100)
 
     rmSync(dir, { recursive: true, force: true })
   })

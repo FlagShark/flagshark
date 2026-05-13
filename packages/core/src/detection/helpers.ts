@@ -67,7 +67,16 @@ export function extractStringArgument(callText: string, paramIndex: number): str
     return null
   }
 
-  const arg = args[paramIndex].trim()
+  let arg = args[paramIndex].trim()
+
+  // Strip leading argument label (e.g. `forKey: ` / `flagKey: ` / `key: `) before
+  // matching the quoted value. Applies to Swift external argument labels and
+  // PHP 8 / Ruby keyword-arg call sites. Kotlin uses `=` for named args and is
+  // not affected.
+  const labelMatch = arg.match(/^\w+\s*:\s*(.+)$/)
+  if (labelMatch) {
+    arg = labelMatch[1].trim()
+  }
 
   // Match quoted strings: "value", 'value', or `value`
   const match = arg.match(/^["'`](.*)["'`]$/)
@@ -210,6 +219,7 @@ export function detectFlagsWithRegex(
           const callStart = match.index
           // Extract the full call from this position
           const restOfContent = getCallExpression(lines, lineIdx, callStart)
+          /* v8 ignore next 3 -- defensive; getCallExpression only returns null when no '(' is ever found, which the matching regex guarantees */
           if (!restOfContent) {
             continue
           }
@@ -277,6 +287,7 @@ function getCallExpression(lines: string[], startLine: number, startCol: number)
     }
   }
 
+  /* v8 ignore next -- foundOpen is always true here: the matching regex requires '(' which startCol points to */
   return foundOpen ? result : null
 }
 

@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.kt",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.kt",
+        "lineNumber": 5,
+        "language": "kotlin",
+        "provider": "com.launchdarkly.sdk"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.kt",
+    "flags": []
+  }
+]

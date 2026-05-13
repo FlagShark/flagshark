@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.php",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.php",
+        "lineNumber": 12,
+        "language": "php",
+        "provider": "LaunchDarkly\\"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.php",
+    "flags": []
+  }
+]

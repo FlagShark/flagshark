@@ -1,3 +1,4 @@
+/* v8 ignore file -- type-only module; no runtime statements to execute */
 /**
  * Represents a detected feature flag in source code.
  */

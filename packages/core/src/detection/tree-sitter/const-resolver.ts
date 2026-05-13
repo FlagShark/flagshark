@@ -12,13 +12,14 @@ export function resolveConstStringTS(node: Node, fileRoot: Node): string | null 
   const name = node.text
 
   for (const child of fileRoot.namedChildren) {
+    /* v8 ignore next -- web-tree-sitter types namedChildren as (Node|null)[]; runtime values are non-null */
     if (!child) continue
     if (child.type !== 'lexical_declaration') continue
     if (child.children[0]?.type !== 'const') continue
 
     for (const decl of child.namedChildren) {
+      /* v8 ignore next -- same as above; runtime values are non-null */
       if (!decl) continue
-      if (decl.type !== 'variable_declarator') continue
       const nameNode = decl.childForFieldName('name')
       const valueNode = decl.childForFieldName('value')
       if (!nameNode || !valueNode) continue

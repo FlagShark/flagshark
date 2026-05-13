@@ -66,4 +66,22 @@ describe('loadConfigFile', () => {
     writeFileSync(join(workDir, '.flagshark.yml'), 'unknown_key: hello\n')
     await expect(loadConfigFile(workDir)).rejects.toThrow(/unknown/i)
   })
+
+  it('returns default config for a file that parses to null (lines 47-48)', async () => {
+    // YAML `~` or empty file parses to null — hits the `parsed == null` branch
+    writeFileSync(join(workDir, '.flagshark.yml'), '~\n')
+    const result = await loadConfigFile(workDir)
+    expect(result).not.toBeNull()
+    expect(result?.config).toBeDefined()
+    // Should use default schema (no threshold override)
+    expect(result?.config.threshold).toBe(6)
+  })
+
+  it('returns default config for a file that parses to a non-object scalar', async () => {
+    // YAML `42` parses to a number — not an object, hits the `typeof parsed !== 'object'` branch
+    writeFileSync(join(workDir, '.flagshark.yml'), '42\n')
+    const result = await loadConfigFile(workDir)
+    expect(result).not.toBeNull()
+    expect(result?.config).toBeDefined()
+  })
 })

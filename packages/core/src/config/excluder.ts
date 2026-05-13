@@ -4,6 +4,7 @@ import { expandPresets } from './presets.js'
 
 import type { FlagsharkConfig } from './schema.js'
 
+/* v8 ignore next -- CJS/ESM interop shim; one branch is always taken depending on bundler */
 const ignore = (ignoreModule as unknown as { default?: typeof ignoreModule }).default ?? ignoreModule
 
 export interface EffectiveRules {

@@ -1,19 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 import { collectFiles } from '../src/scanner.js'
 import { buildExcluder } from '../src/config/excluder.js'
 import { buildDefaultConfig } from '../src/config/defaults.js'
+import { makeTempRepo } from './fixtures/repo-builder.js'
 
 describe('collectFiles with excluder', () => {
   let workDir: string
 
   beforeEach(() => {
-    workDir = mkdtempSync(join(tmpdir(), 'flagshark-scanner-ex-'))
-    execFileSync('git', ['init', '-q'], { cwd: workDir })
+    workDir = makeTempRepo()
     mkdirSync(join(workDir, 'src'))
     mkdirSync(join(workDir, 'examples'))
     writeFileSync(join(workDir, 'src', 'app.ts'), 'export const x = 1\n')

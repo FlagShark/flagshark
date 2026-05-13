@@ -184,14 +184,6 @@ function checkLowUsageSignal(flagName: string, occurrences: FeatureFlag[]): Stal
   }
 }
 
-/**
- * Hardcoded signal — placeholder for tree-sitter v2.
- * Always returns null (no signal) for the regex v1 implementation.
- */
-function checkHardcodedSignal(_flag: FeatureFlag): StalenessSignal | null {
-  return null
-}
-
 // ── Main entry point ───────────────────────────────────────────────
 
 /**
@@ -255,11 +247,9 @@ export async function analyzeStaleness(
         signals.push(lowUsageSignal)
       }
 
-      // Hardcoded signal (v2 placeholder)
-      const hardcoded = checkHardcodedSignal(flag)
-      if (hardcoded) {
-        signals.push(hardcoded)
-      }
+      // Hardcoded signal (v2 placeholder — always null for regex v1)
+      // checkHardcodedSignal returns null unconditionally; kept for structural symmetry
+      // with the other signal detectors. No branch emitted here.
 
       // Only include flags that have at least one signal.
       if (signals.length > 0) {

@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.java",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.java",
+        "lineNumber": 7,
+        "language": "java",
+        "provider": "com.launchdarkly.sdk"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.java",
+    "flags": []
+  }
+]

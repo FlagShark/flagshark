@@ -26,12 +26,14 @@ export class RubyDetector implements LanguageDetector {
 
   supportsFile(filename: string): boolean {
     const lower = filename.toLowerCase()
-    const ext = lower.split('.').pop()
-    if (['rb', 'rake', 'gemspec'].includes(ext ?? '')) {
-      return true
+    const dotIdx = lower.lastIndexOf('.')
+    if (dotIdx !== -1) {
+      const ext = lower.slice(dotIdx + 1)
+      if (['rb', 'rake', 'gemspec'].includes(ext)) return true
     }
     // Also check for Rakefile, Gemfile, etc.
-    const baseName = lower.split('/').pop() ?? ''
+    const slashIdx = lower.lastIndexOf('/')
+    const baseName = slashIdx === -1 ? lower : lower.slice(slashIdx + 1)
     return baseName === 'rakefile' || baseName === 'gemfile'
   }
 

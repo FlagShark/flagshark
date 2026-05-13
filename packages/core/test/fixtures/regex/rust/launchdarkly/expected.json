@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.rs",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.rs",
+        "lineNumber": 4,
+        "language": "rust",
+        "provider": "launchdarkly_server_sdk"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.rs",
+    "flags": []
+  }
+]
