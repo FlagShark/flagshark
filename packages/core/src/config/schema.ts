@@ -74,6 +74,10 @@ export const FlagsharkConfigSchema = z.object({
   output: OutputConfigSchema,
   healthScore: HealthScoreSchema,
   engine: EngineSchema,
+  platforms: z.record(
+    z.string(),
+    z.object({ token_env: z.string().optional() }).passthrough(),
+  ).optional(),
 }).strict()
 
 export type FlagsharkConfig = z.infer<typeof FlagsharkConfigSchema>

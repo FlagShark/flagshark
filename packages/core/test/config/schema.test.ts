@@ -45,6 +45,37 @@ describe('FlagsharkConfigSchema', () => {
   })
 })
 
+describe('FlagsharkConfigSchema — platforms field', () => {
+  it('accepts an empty platforms map', () => {
+    const r = FlagsharkConfigSchema.safeParse({ platforms: {} })
+    expect(r.success).toBe(true)
+  })
+
+  it('accepts a platforms entry with token_env', () => {
+    const r = FlagsharkConfigSchema.safeParse({
+      platforms: { launchdarkly: { project: 'p', environment: 'e', token_env: 'MY_TOKEN' } },
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('passes through unknown keys (validated at platform-use time)', () => {
+    const r = FlagsharkConfigSchema.safeParse({
+      platforms: { launchdarkly: { project: 'p', environment: 'e', custom_field: 'x' } },
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('rejects platforms as an array (must be record)', () => {
+    const r = FlagsharkConfigSchema.safeParse({ platforms: [] })
+    expect(r.success).toBe(false)
+  })
+
+  it('omits platforms field by default', () => {
+    const r = FlagsharkConfigSchema.parse({})
+    expect(r.platforms).toBeUndefined()
+  })
+})
+
 describe('buildDefaultConfig', () => {
   it('returns an empty-but-valid config', () => {
     const cfg = buildDefaultConfig()
