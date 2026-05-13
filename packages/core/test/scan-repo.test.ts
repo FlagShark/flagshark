@@ -1,18 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 import { scanRepo } from '../src/scan-repo.js'
-
-function makeTempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'flagshark-test-'))
-  execFileSync('git', ['init', '-q'], { cwd: dir })
-  execFileSync('git', ['config', 'user.email', 'test@test'], { cwd: dir })
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: dir })
-  return dir
-}
+import { makeTempRepo } from './fixtures/repo-builder.js'
 
 describe('scanRepo', () => {
   it('returns a ScanRepoResult for a repo with one flag', async () => {
