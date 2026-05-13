@@ -56,6 +56,21 @@ export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOp
   // Health badge
   body += `${emoji} **Health Score: ${result.healthScore}/100**\n\n`
 
+  // Compute error / warning split up front (used in both sections below)
+  const errorFlags = result.staleFlags.filter((f) => f.signals.some((s) => s.severity === 'error'))
+  const warningFlags = result.staleFlags.filter((f) => !f.signals.some((s) => s.severity === 'error'))
+
+  // Production-risk section (before stats table so it appears at a higher position)
+  if (errorFlags.length > 0) {
+    body += `### 🚨 Production-risk: flags missing in platform\n\n`
+    body += '| Flag | File | Age | Why it looks stale |\n'
+    body += '|------|------|-----|--------------------|\n'
+    for (const flag of errorFlags) {
+      body += `| ${formatRow(flag, options.linkPrefix)} |\n`
+    }
+    body += '\n'
+  }
+
   // Stats table
   body += `| Metric | Value |\n`
   body += `|--------|-------|\n`
@@ -66,20 +81,21 @@ export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOp
   body += `| Scan mode | ${modeLabel} |\n`
   body += `| Scan time | ${result.scanDuration}ms |\n\n`
 
-  // Stale flags table
-  if (staleCount > 0) {
-    body += `<details${staleCount <= 5 ? ' open' : ''}>\n`
-    body += `<summary><strong>Stale flags (${staleCount})</strong></summary>\n\n`
+  // Warning-severity stale flags section
+  if (warningFlags.length > 0) {
+    const displayFlags = warningFlags.slice(0, maxStale)
+
+    body += `<details${warningFlags.length <= 5 ? ' open' : ''}>\n`
+    body += `<summary><strong>Stale flags (${warningFlags.length})</strong></summary>\n\n`
     body += '| Flag | File | Age | Why it looks stale |\n'
     body += '|------|------|-----|--------------------|\n'
 
-    const displayFlags = result.staleFlags.slice(0, maxStale)
     for (const flag of displayFlags) {
       body += `| ${formatRow(flag, options.linkPrefix)} |\n`
     }
 
-    if (result.staleFlags.length > maxStale) {
-      body += `\n*... and ${result.staleFlags.length - maxStale} more. Run \`npx flagshark scan --verbose\` locally for the full list.*\n`
+    if (warningFlags.length > maxStale) {
+      body += `\n*... and ${warningFlags.length - maxStale} more. Run \`npx flagshark scan --verbose\` locally for the full list.*\n`
     }
     body += '\n</details>\n\n'
   }
