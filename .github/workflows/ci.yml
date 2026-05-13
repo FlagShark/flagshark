@@ -16,8 +16,8 @@ jobs:
         with:
           bun-version: 1.2.5
       - run: bun install --frozen-lockfile
-      - run: bun run typecheck
       - run: bun run build
+      - run: bun run typecheck
       - run: bun run test:coverage
       - uses: actions/upload-artifact@v4
         if: always()
