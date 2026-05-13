@@ -24,7 +24,7 @@ V1 ships LaunchDarkly support. The abstraction is built so that adding Unleash /
 
 Add a `providers/` module under `@flagshark/core` that:
 
-1. Defines a `ProviderDefinition` interface (registry pattern — see Section 5)
+1. Defines a `PlatformDefinition` interface (registry pattern — see Section 5)
 2. Ships one concrete implementation: LaunchDarkly REST
 3. Wires into `scanRepo` after the detection phase, before staleness analysis
 4. Adds a disk-backed cache (XDG-spec location, 24h TTL by default)
@@ -39,8 +39,8 @@ Strict additivity: turning the integration on never makes a scan worse than the 
 packages/core/src/
   providers/                              # NEW
     index.ts                              # public exports
-    interface.ts                          # PlatformProvider + Flag types
-    registry.ts                           # static array of ProviderDefinition
+    interface.ts                          # PlatformClient + Flag types
+    registry.ts                           # static array of PlatformDefinition
     cache.ts                              # disk-backed cache (XDG)
     cross-reference.ts                    # joins detected × platform flags
     launchdarkly/
@@ -81,18 +81,18 @@ export interface PlatformFlag {
   lastModified: Date | null
 }
 
-export interface PlatformProvider {
+export interface PlatformClient {
   name: string                             // registry key
   displayName: string                      // 'LaunchDarkly'
   listFlags(opts?: { signal?: AbortSignal }): Promise<PlatformFlag[]>
 }
 
-export interface ProviderDefinition<TConfig = unknown> {
+export interface PlatformDefinition<TConfig = unknown> {
   name: string                             // YAML key + registry key
   displayName: string
   defaultTokenEnv: string                  // env var read for the secret
   configSchema: ZodType<TConfig>           // provider-specific config validation
-  createProvider: (config: TConfig, token: string) => PlatformProvider
+  createClient: (config: TConfig, token: string) => PlatformClient
 }
 ```
 
@@ -101,12 +101,12 @@ export interface ProviderDefinition<TConfig = unknown> {
 ```ts
 import { launchdarklyDefinition } from './launchdarkly/definition.js'
 
-export const providerRegistry: ReadonlyArray<ProviderDefinition> = [
+export const platformRegistry: ReadonlyArray<PlatformDefinition> = [
   launchdarklyDefinition,
 ]
 
-export function findProviderDefinition(name: string): ProviderDefinition | undefined {
-  return providerRegistry.find((p) => p.name === name)
+export function findPlatformDefinition(name: string): PlatformDefinition | undefined {
+  return platformRegistry.find((p) => p.name === name)
 }
 ```
 
@@ -145,12 +145,12 @@ const launchdarklyConfigSchema = z.object({
   token_env: z.string().optional(),
 })
 
-export const launchdarklyDefinition: ProviderDefinition<LdConfig> = {
+export const launchdarklyDefinition: PlatformDefinition<LdConfig> = {
   name: 'launchdarkly',
   displayName: 'LaunchDarkly',
   defaultTokenEnv: 'LAUNCHDARKLY_API_TOKEN',
   configSchema: launchdarklyConfigSchema,
-  createProvider: (cfg, token) => ({
+  createClient: (cfg, token) => ({
     name: 'launchdarkly',
     displayName: 'LaunchDarkly',
     listFlags: ({ signal } = {}) => fetchAllFlags({
@@ -221,7 +221,7 @@ After analyzer completes, before staleness:
 ```ts
 const allPlatformSignals = new Map<string, PlatformSignal[]>()
 for (const [name, rawConfig] of Object.entries(config.providers ?? {})) {
-  const def = findProviderDefinition(name)
+  const def = findPlatformDefinition(name)
   if (!def) {
     logger.warn(`Unknown provider '${name}' — skipping`)
     continue
@@ -237,7 +237,7 @@ for (const [name, rawConfig] of Object.entries(config.providers ?? {})) {
     logger.warn(`${def.displayName}: missing ${tokenEnv}; skipping`)
     continue
   }
-  const provider = def.createProvider(parsed.data, token)
+  const provider = def.createClient(parsed.data, token)
   try {
     const flags = await loadPlatformFlagsCached(provider, cacheKeyFor(name, parsed.data, token), { noCache: opts.noCache, signal: opts.signal })
     const signals = crossReference(analysisResult.totalFlags, flags, provider.displayName)
@@ -267,7 +267,7 @@ export interface PlatformSignal {
 export function crossReference(
   detectedFlags: Map<string, FeatureFlag[]>,
   platformFlags: PlatformFlag[],
-  providerDisplayName: string,
+  platformDisplayName: string,
 ): Map<string, PlatformSignal[]> {
   const platformByKey = new Map(platformFlags.map(f => [f.key, f]))
   const out = new Map<string, PlatformSignal[]>()
@@ -276,12 +276,12 @@ export function crossReference(
     if (!platform) {
       out.set(key, [{
         type: 'missing-in-platform', severity: 'error',
-        description: `referenced in code but not found in ${providerDisplayName}`,
+        description: `referenced in code but not found in ${platformDisplayName}`,
       }])
     } else if (platform.archived) {
       out.set(key, [{
         type: 'archived-in-platform', severity: 'warning',
-        description: `archived in ${providerDisplayName}`,
+        description: `archived in ${platformDisplayName}`,
       }])
     }
   }
@@ -406,7 +406,7 @@ Health-score math stays the same — no double-weighting. The action fails on er
 
 ### Backward compatibility
 
-- Existing scans without `providers:` configured produce identical output to v1.3
+- Existing scans without `platforms:` configured produce identical output to v1.3
 - Existing consumers reading `staleFlags[i].signals[j]` without checking `.severity` see no breaking change (new field is purely additive)
 - Existing `fail-threshold` behavior is unchanged
 
@@ -429,8 +429,8 @@ Health-score math stays the same — no double-weighting. The action fails on er
 
 ## 12. Acceptance criteria
 
-- [ ] User adds `providers.launchdarkly: { project, environment }` to `.flagshark.yml`, exports `LAUNCHDARKLY_API_TOKEN`, runs `flagshark scan`, sees platform signals in output
-- [ ] Scan without `providers:` configured produces identical output to v1.3 (no regression)
+- [ ] User adds `platforms.launchdarkly: { project, environment }` to `.flagshark.yml`, exports `LAUNCHDARKLY_API_TOKEN`, runs `flagshark scan`, sees platform signals in output
+- [ ] Scan without `platforms:` configured produces identical output to v1.3 (no regression)
 - [ ] All 4 API failure modes (missing token, network error, 401/403, malformed response) emit a clear warning and exit 0
 - [ ] Cache works: second consecutive scan against same project+env hits the cache (no network call)
 - [ ] `--no-cache` forces re-fetch
@@ -465,4 +465,4 @@ Health-score math stays the same — no double-weighting. The action fails on er
 - `flagshark scan` with provider config emits 0-many `missing-in-platform` errors and 0-many `archived-in-platform` warnings, in addition to existing `age` / `low-usage` signals
 - Adding Unleash support is a 3-file PR, no central-code changes
 - All test suites green, 100% coverage, threshold enforced in CI
-- Documentation update covers: env var setup, `.flagshark.yml` `providers:` block, `fail-on-error` behavior, the new signal types + severity, troubleshooting (cache flush, API failures)
+- Documentation update covers: env var setup, `.flagshark.yml` `platforms:` block, `fail-on-error` behavior, the new signal types + severity, troubleshooting (cache flush, API failures)
