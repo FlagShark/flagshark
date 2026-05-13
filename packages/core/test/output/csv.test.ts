@@ -33,7 +33,7 @@ describe('formatCsv', () => {
             lineNumber: 47,
             language: 'typescript',
             provider: 'launchdarkly',
-            signals: [{ type: 'age', description: 'Flag reference last modified 14 months ago' }],
+            signals: [{ type: 'age', severity: 'warning', description: 'Flag reference last modified 14 months ago' }],
             age: '14 months ago',
           },
         ],
@@ -51,8 +51,8 @@ describe('formatCsv', () => {
         staleFlags: [{
           name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'unleash',
           signals: [
-            { type: 'age', description: 'old' },
-            { type: 'low-usage', description: 'single file' },
+            { type: 'age', severity: 'warning', description: 'old' },
+            { type: 'low-usage', severity: 'warning', description: 'single file' },
           ],
           age: '12 months ago',
         }],
@@ -70,7 +70,7 @@ describe('formatCsv', () => {
           lineNumber: 1,
           language: 'typescript',
           provider: 'launchdarkly',
-          signals: [{ type: 'age', description: 'old' }],
+          signals: [{ type: 'age', severity: 'warning', description: 'old' }],
           age: '12 months ago',
         }],
       }),
@@ -84,7 +84,7 @@ describe('formatCsv', () => {
       makeResult({
         staleFlags: [{
           name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
-          signals: [{ type: 'age', description: 'old' }],
+          signals: [{ type: 'age', severity: 'warning', description: 'old' }],
           // age omitted
         }],
       }),
@@ -97,7 +97,7 @@ describe('formatCsv', () => {
       makeResult({
         staleFlags: [{
           name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
-          signals: [{ type: 'age', description: 'old' }],
+          signals: [{ type: 'age', severity: 'warning', description: 'old' }],
           age: '12 months ago',
         }],
       }),

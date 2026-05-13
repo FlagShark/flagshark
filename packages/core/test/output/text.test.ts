@@ -49,7 +49,7 @@ describe('formatText', () => {
           lineNumber: 42,
           language: 'typescript',
           provider: 'LaunchDarkly',
-          signals: [{ type: 'age', description: 'Added 8 months ago' }],
+          signals: [{ type: 'age', severity: 'warning', description: 'Added 8 months ago' }],
           age: '8 months ago',
         },
       ],
@@ -66,7 +66,7 @@ describe('formatText', () => {
       lineNumber: i + 1,
       language: 'typescript',
       provider: 'LaunchDarkly',
-      signals: [{ type: 'age' as const, description: 'old' }],
+      signals: [{ type: 'age' as const, severity: 'warning' as const, description: 'old' }],
       age: '8 months ago',
     }))
     const result = makeScanResult({ totalFlags: 5, healthScore: 50, staleFlags })
@@ -82,7 +82,7 @@ describe('formatText', () => {
       lineNumber: i + 1,
       language: 'typescript',
       provider: 'LaunchDarkly',
-      signals: [{ type: 'age' as const, description: 'old' }],
+      signals: [{ type: 'age' as const, severity: 'warning' as const, description: 'old' }],
       age: '8 months ago',
     }))
     const result = makeScanResult({ totalFlags: 5, healthScore: 50, staleFlags })
@@ -119,7 +119,7 @@ describe('formatText', () => {
         lineNumber: 42,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'age', description: 'Added 8 months ago' }],
+        signals: [{ type: 'age', severity: 'warning', description: 'Added 8 months ago' }],
         age: '8 months ago',
       }],
     })
@@ -137,7 +137,7 @@ describe('formatText', () => {
         lineNumber: 10,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'low-usage', description: 'Single file usage' }],
+        signals: [{ type: 'low-usage', severity: 'warning', description: 'Single file usage' }],
       }],
     })
     const output = formatText(result, { verbose: false, maxDisplay: 10 })
@@ -155,7 +155,7 @@ describe('formatText', () => {
         lineNumber: 5,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'hardcoded', description: 'Hardcoded value detected' }],
+        signals: [{ type: 'hardcoded', severity: 'warning', description: 'Hardcoded value detected' }],
       }],
     })
     const output = formatText(result, { verbose: false, maxDisplay: 10 })
@@ -173,7 +173,7 @@ describe('formatText', () => {
         lineNumber: 1,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'age', description: 'old' }],
+        signals: [{ type: 'age', severity: 'warning', description: 'old' }],
         age: '8 months ago',
       }],
     })
@@ -202,7 +202,7 @@ describe('formatJson', () => {
           lineNumber: 10,
           language: 'typescript',
           provider: 'LaunchDarkly',
-          signals: [{ type: 'low-usage', description: 'Single file' }],
+          signals: [{ type: 'low-usage', severity: 'warning', description: 'Single file' }],
         },
       ],
     })

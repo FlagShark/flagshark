@@ -48,7 +48,7 @@ describe('formatSarif', () => {
             lineNumber: 47,
             language: 'typescript',
             provider: 'launchdarkly',
-            signals: [{ type: 'age', description: 'Flag reference last modified 14 months ago' }],
+            signals: [{ type: 'age', severity: 'warning', description: 'Flag reference last modified 14 months ago' }],
             age: '14 months ago',
           },
         ],
@@ -72,13 +72,13 @@ describe('formatSarif', () => {
         staleFlags: [
           {
             name: 'ONE', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
-            signals: [{ type: 'age', description: 'old' }], age: '12 months ago',
+            signals: [{ type: 'age', severity: 'warning', description: 'old' }], age: '12 months ago',
           },
           {
             name: 'TWO', filePath: 'b.ts', lineNumber: 2, language: 'typescript', provider: 'launchdarkly',
             signals: [
-              { type: 'age', description: 'old' },
-              { type: 'low-usage', description: 'single' },
+              { type: 'age', severity: 'warning', description: 'old' },
+              { type: 'low-usage', severity: 'warning', description: 'single' },
             ],
             age: '12 months ago',
           },
@@ -96,8 +96,8 @@ describe('formatSarif', () => {
         staleFlags: [{
           name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
           signals: [
-            { type: 'low-usage', description: 'single' },
-            { type: 'age', description: 'old' },
+            { type: 'low-usage', severity: 'warning', description: 'single' },
+            { type: 'age', severity: 'warning', description: 'old' },
           ],
           age: '12 months ago',
         }],
@@ -113,7 +113,7 @@ describe('formatSarif', () => {
       makeResult({
         staleFlags: [{
           name: 'X', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly',
-          signals: [{ type: 'hardcoded', description: 'hardcoded default' }],
+          signals: [{ type: 'hardcoded', severity: 'warning', description: 'hardcoded default' }],
         }],
       }),
       { version: '1.4.0' },
