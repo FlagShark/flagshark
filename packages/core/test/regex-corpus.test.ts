@@ -39,11 +39,6 @@ const LANGUAGES: LangSpec[] = [
   { dir: 'swift',  language: 'swift',   providers: defaultSwiftProviders },
 ]
 
-// Sentinel: keeps vitest happy before any fixture directories exist (Tasks 2.2-2.7).
-describe('regex corpus', () => {
-  it.todo('fixtures added in Tasks 2.2-2.7')
-})
-
 for (const { dir, language, providers } of LANGUAGES) {
   const langRoot = join(FIXTURES_ROOT, dir)
   if (!existsSync(langRoot)) continue
