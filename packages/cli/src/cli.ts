@@ -8,6 +8,13 @@ import { readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { parse as parseYaml } from 'yaml'
 import { scanRepo, FlagsharkConfigSchema, type FlagsharkConfig, selectFormatter } from '@flagshark/core'
 
+// ── Helpers ───────────────────────────────────────────────────────
+
+/** Safely extract a readable message from a thrown value (may not be an Error). */
+export function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 // ── Constants ─────────────────────────────────────────────────────
 
 const VERSION = '1.3.1'
@@ -153,7 +160,7 @@ export function parseArgs(argv: string[]): CliArgs {
 
 // ── Logger ────────────────────────────────────────────────────────
 
-function createLogger(verbose: boolean) {
+export function createLogger(verbose: boolean) {
   return {
     debug: (...args: unknown[]) => {
       if (verbose) {
@@ -179,7 +186,7 @@ export async function runCli(argv: string[], io: RunCliIO): Promise<number> {
   try {
     args = parseArgs(argv)
   } catch (err) {
-    io.stderr.write(`[error] ${err instanceof Error ? err.message : String(err)}\n`)
+    io.stderr.write(`[error] ${toErrorMessage(err)}\n`)
     return 2
   }
 
@@ -212,7 +219,7 @@ export async function runCli(argv: string[], io: RunCliIO): Promise<number> {
     try {
       parsed = parseYaml(raw)
     } catch (err) {
-      io.stderr.write(`Error: invalid YAML at ${args.configPath}: ${err instanceof Error ? err.message : String(err)}\n`)
+      io.stderr.write(`Error: invalid YAML at ${args.configPath}: ${toErrorMessage(err)}\n`)
       return 2
     }
     const configResult = FlagsharkConfigSchema.safeParse(parsed)
