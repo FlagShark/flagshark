@@ -1,0 +1,18 @@
+[
+  {
+    "file": "positive/basic.swift",
+    "flags": [
+      {
+        "name": "CHECKOUT_V2",
+        "filePath": "positive/basic.swift",
+        "lineNumber": 11,
+        "language": "swift",
+        "provider": "LaunchDarkly"
+      }
+    ]
+  },
+  {
+    "file": "negative/no-import.swift",
+    "flags": []
+  }
+]

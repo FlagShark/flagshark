@@ -67,7 +67,14 @@ export function extractStringArgument(callText: string, paramIndex: number): str
     return null
   }
 
-  const arg = args[paramIndex].trim()
+  let arg = args[paramIndex].trim()
+
+  // Strip Swift/Kotlin labeled argument prefix (e.g. "forKey: " or "name: ")
+  // before attempting to extract the string value.
+  const labelMatch = arg.match(/^\w+\s*:\s*(.+)$/)
+  if (labelMatch) {
+    arg = labelMatch[1].trim()
+  }
 
   // Match quoted strings: "value", 'value', or `value`
   const match = arg.match(/^["'`](.*)["'`]$/)
