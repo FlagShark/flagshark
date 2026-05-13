@@ -15,21 +15,28 @@ export interface JsonFormatOptions {
 export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): string {
   const languages: Record<string, number> = { ...result.languageBreakdown }
 
-  const flags = result.staleFlags.map((sf) => ({
-    name: sf.name,
-    file: sf.filePath,
-    line: sf.lineNumber,
-    language: sf.language,
-    provider: sf.provider,
-    stale: true,
-    signals: sf.signals.map((s) => ({ type: s.type, description: s.description })),
-    age: sf.age ?? null,
-  }))
+  const flags = result.staleFlags.map((sf) => {
+    const flagSeverity: 'error' | 'warning' = sf.signals.some((s) => s.severity === 'error') ? 'error' : 'warning'
+    return {
+      name: sf.name,
+      file: sf.filePath,
+      line: sf.lineNumber,
+      language: sf.language,
+      provider: sf.provider,
+      stale: true,
+      severity: flagSeverity,
+      signals: sf.signals.map((s) => ({ type: s.type, severity: s.severity, description: s.description })),
+      age: sf.age ?? null,
+    }
+  })
+
+  const errorCount = result.staleFlags.filter((sf) => sf.signals.some((s) => s.severity === 'error')).length
 
   const output = {
     version: options.version,
     totalFlags: result.totalFlags,
     staleFlags: new Set(result.staleFlags.map((f) => f.name)).size,
+    errorCount,
     healthScore: result.healthScore,
     detectedProviders: result.detectedProviders,
     languages,

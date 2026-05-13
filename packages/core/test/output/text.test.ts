@@ -255,3 +255,40 @@ describe('formatJson', () => {
     expect(parsed.flags[0].stale).toBe(true)
   })
 })
+
+describe('json formatter — severity + errorCount', () => {
+  function staleFlag(name: string, severity: 'error' | 'warning') {
+    return {
+      name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type: 'missing-in-platform' as const, severity, description: 'desc' }],
+      age: '12 months ago',
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length, filesScanned: 1, staleFlags,
+      detectedProviders: [], languageBreakdown: {},
+      healthScore: 50, scanDuration: 1,
+    }
+  }
+
+  it('includes errorCount at top level', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error'), staleFlag('W', 'warning')]), { version: 'v1' }))
+    expect(out.errorCount).toBe(1)
+  })
+
+  it('errorCount is 0 when no error-severity flags', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('W', 'warning')]), { version: 'v1' }))
+    expect(out.errorCount).toBe(0)
+  })
+
+  it('preserves severity field on each signal', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error')]), { version: 'v1' }))
+    expect(out.flags[0].signals[0].severity).toBe('error')
+  })
+
+  it('adds severity field to each staleFlag (max across signals)', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error')]), { version: 'v1' }))
+    expect(out.flags[0].severity).toBe('error')
+  })
+})
