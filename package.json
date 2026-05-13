@@ -10,6 +10,7 @@
   "scripts": {
     "build": "bun run --filter '@flagshark/core' build && bun run --filter 'flagshark' --filter '@flagshark/action' build",
     "test": "bun run --filter '*' test",
+    "test:coverage": "bun run --filter '*' test:coverage",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {

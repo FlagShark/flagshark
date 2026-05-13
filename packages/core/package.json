@@ -23,6 +23,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json && bun run copy-queries",
     "copy-queries": "mkdir -p dist/detection/tree-sitter/queries && cp src/detection/tree-sitter/queries/*.scm dist/detection/tree-sitter/queries/",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
