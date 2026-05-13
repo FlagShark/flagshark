@@ -5,12 +5,18 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],
-    passWithNoTests: true,
+    passWithNoTests: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       include: ['src/**/*.ts'],
-      // thresholds intentionally omitted — set in Phase 3
+      exclude: ['src/main.ts'],
+      thresholds: {
+        lines: 100,
+        branches: 100,
+        functions: 100,
+        statements: 100,
+      },
     },
   },
 })
