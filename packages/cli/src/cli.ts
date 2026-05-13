@@ -37,7 +37,7 @@ Output:
 
 // ── Arg parsing ───────────────────────────────────────────────────
 
-interface CliArgs {
+export interface CliArgs {
   json: boolean
   format: 'text' | 'json' | 'markdown' | 'csv' | 'sarif'
   output?: string
@@ -53,7 +53,7 @@ interface CliArgs {
   showExcluded?: boolean
 }
 
-function parseArgs(argv: string[]): CliArgs {
+export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     json: false,
     format: 'text',
