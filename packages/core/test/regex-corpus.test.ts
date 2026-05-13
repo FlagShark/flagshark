@@ -1,4 +1,4 @@
-import { describe, it, expect, test } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
@@ -20,7 +20,9 @@ import type { FeatureFlagProvider, Language } from '../src/detection/interface.j
 const FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/regex')
 
 interface LangSpec {
+  /** Subdirectory under fixtures/regex/ where this language's corpora live. */
   dir: string
+  /** Language discriminant passed to detectFlagsWithRegex (may differ from dir). */
   language: Language
   providers: () => FeatureFlagProvider[]
 }
@@ -39,7 +41,7 @@ const LANGUAGES: LangSpec[] = [
 
 // Sentinel: keeps vitest happy before any fixture directories exist (Tasks 2.2-2.7).
 describe('regex corpus', () => {
-  test.todo('fixtures added in Tasks 2.2-2.7')
+  it.todo('fixtures added in Tasks 2.2-2.7')
 })
 
 for (const { dir, language, providers } of LANGUAGES) {
