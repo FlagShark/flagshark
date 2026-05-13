@@ -20,7 +20,7 @@ export function makeTempRepo(): string {
  * Write a file inside the fixture repo, creating parent dirs as needed.
  * Path is repo-relative.
  */
-export function writeFlagFile(repoDir: string, relPath: string, content: string): void {
+export function writeFixtureFile(repoDir: string, relPath: string, content: string): void {
   const fullPath = join(repoDir, relPath)
   mkdirSync(dirname(fullPath), { recursive: true })
   writeFileSync(fullPath, content)

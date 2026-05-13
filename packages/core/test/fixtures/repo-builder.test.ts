@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { makeTempRepo, commitAll, writeFlagFile } from './repo-builder.js'
+import { makeTempRepo, commitAll, writeFixtureFile } from './repo-builder.js'
 
 const dirsToClean: string[] = []
 afterEach(() => {
@@ -18,10 +18,10 @@ describe('repo-builder', () => {
     expect(email).toBe('test@test')
   })
 
-  it('writeFlagFile creates missing directories and writes content', () => {
+  it('writeFixtureFile creates missing directories and writes content', () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'src/nested/deep.ts', 'export const x = 1\n')
+    writeFixtureFile(dir, 'src/nested/deep.ts', 'export const x = 1\n')
     const content = readFileSync(join(dir, 'src/nested/deep.ts'), 'utf-8')
     expect(content).toBe('export const x = 1\n')
   })
@@ -29,7 +29,7 @@ describe('repo-builder', () => {
   it('commitAll stages and commits everything', () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'a.ts', 'export const a = 1\n')
+    writeFixtureFile(dir, 'a.ts', 'export const a = 1\n')
     commitAll(dir, 'init')
     const log = execFileSync('git', ['log', '--oneline'], { cwd: dir, encoding: 'utf-8' })
     expect(log).toContain('init')
@@ -38,7 +38,7 @@ describe('repo-builder', () => {
   it('commitAll honors GIT_*_DATE for staleness control', () => {
     const dir = makeTempRepo()
     dirsToClean.push(dir)
-    writeFlagFile(dir, 'a.ts', 'export const a = 1\n')
+    writeFixtureFile(dir, 'a.ts', 'export const a = 1\n')
     commitAll(dir, 'old', '2024-01-01T00:00:00')
     const date = execFileSync('git', ['log', '-1', '--format=%aI'], { cwd: dir, encoding: 'utf-8' }).trim()
     expect(date.startsWith('2024-01-01')).toBe(true)
