@@ -22,6 +22,14 @@ inputs:
   sarif:
     description: 'Write SARIF v2.1.0 output to this path (default: do not write)'
     required: false
+  no-cache:
+    description: 'Skip platform-flag cache, force re-fetch'
+    required: false
+    default: 'false'
+  fail-on-error:
+    description: 'Fail the build when any missing-in-platform flag is detected (default: true)'
+    required: false
+    default: 'true'
 
 outputs:
   health-score:
@@ -32,6 +40,8 @@ outputs:
     description: 'Total number of flags detected'
   sarif-path:
     description: 'Absolute path to the SARIF file written (only set when sarif: input is provided)'
+  error-count:
+    description: 'Number of unique flag names with error-severity signals (e.g., missing-in-platform)'
 
 runs:
   using: 'node20'

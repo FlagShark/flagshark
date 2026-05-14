@@ -38,7 +38,7 @@ describe('formatMarkdown', () => {
             lineNumber: 47,
             language: 'typescript',
             provider: 'launchdarkly',
-            signals: [{ type: 'age', description: 'Flag reference last modified 14 months ago' }],
+            signals: [{ type: 'age', severity: 'warning', description: 'Flag reference last modified 14 months ago' }],
             age: '14 months ago',
           },
         ],
@@ -57,8 +57,8 @@ describe('formatMarkdown', () => {
         totalFlags: 10,
         healthScore: 50,
         staleFlags: [
-          { name: 'A', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly', signals: [{ type: 'age', description: 'old' }], age: '12 months ago' },
-          { name: 'B', filePath: 'b.ts', lineNumber: 2, language: 'typescript', provider: 'launchdarkly', signals: [{ type: 'age', description: 'old' }], age: '12 months ago' },
+          { name: 'A', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly', signals: [{ type: 'age', severity: 'warning', description: 'old' }], age: '12 months ago' },
+          { name: 'B', filePath: 'b.ts', lineNumber: 2, language: 'typescript', provider: 'launchdarkly', signals: [{ type: 'age', severity: 'warning', description: 'old' }], age: '12 months ago' },
         ],
       }),
       { scanMode: 'full' },
@@ -93,7 +93,7 @@ describe('formatMarkdown', () => {
         healthScore: 60,
         staleFlags: [{
           name: 'X', filePath: 'src/x.ts', lineNumber: 5, language: 'typescript',
-          provider: 'launchdarkly', signals: [{ type: 'age', description: 'old' }], age: '12 months ago',
+          provider: 'launchdarkly', signals: [{ type: 'age', severity: 'warning', description: 'old' }], age: '12 months ago',
         }],
       }),
       { scanMode: 'changed', linkPrefix: 'https://github.com/owner/repo/blob/abc123/' },
@@ -116,7 +116,7 @@ describe('formatMarkdown', () => {
       lineNumber: i + 1,
       language: 'typescript',
       provider: 'launchdarkly',
-      signals: [{ type: 'age' as const, description: 'old' }],
+      signals: [{ type: 'age' as const, severity: 'warning' as const, description: 'old' }],
       age: '12 months ago',
     }))
     const md = formatMarkdown(makeResult({ totalFlags: 25, staleFlags }), { scanMode: 'full' })
@@ -138,7 +138,7 @@ describe('formatMarkdown', () => {
         healthScore: 60,
         staleFlags: [{
           name: 'X', filePath: 'src/x.ts', lineNumber: 5, language: 'typescript',
-          provider: 'launchdarkly', signals: [{ type: 'age', description: 'old' }], age: '12 months ago',
+          provider: 'launchdarkly', signals: [{ type: 'age', severity: 'warning', description: 'old' }], age: '12 months ago',
         }],
       }),
       { scanMode: 'changed', linkPrefix: 'https://github.com/owner/repo/blob/abc123' },  // NO trailing slash
@@ -166,12 +166,50 @@ describe('formatMarkdown', () => {
         staleFlags: [{
           name: 'NO_AGE', filePath: 'src/x.ts', lineNumber: 1, language: 'typescript',
           provider: 'launchdarkly',
-          signals: [{ type: 'age', description: 'old' }],
+          signals: [{ type: 'age', severity: 'warning', description: 'old' }],
           // no age field
         }],
       }),
       { scanMode: 'full' },
     )
     expect(md).toContain('unknown')
+  })
+})
+
+describe('markdown formatter — severity sections', () => {
+  function staleFlag(name: string, type: 'missing-in-platform' | 'archived-in-platform' | 'age', severity: 'error' | 'warning') {
+    return {
+      name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type, severity, description: 'desc' }],
+      age: '12 months ago',
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length, filesScanned: 1, staleFlags,
+      detectedProviders: [], languageBreakdown: {},
+      healthScore: 50, scanDuration: 1,
+    }
+  }
+
+  it('renders Production-risk section above Stale section', () => {
+    const out = formatMarkdown(makeResult([
+      staleFlag('M', 'missing-in-platform', 'error'),
+      staleFlag('A', 'age', 'warning'),
+    ]), { scanMode: 'full' })
+    const errIdx = out.indexOf('Production-risk')
+    const staleIdx = out.indexOf('Stale flags')
+    expect(errIdx).toBeGreaterThanOrEqual(0)
+    expect(staleIdx).toBeGreaterThan(errIdx)
+  })
+
+  it('Production-risk section absent when no error-severity flags', () => {
+    const out = formatMarkdown(makeResult([staleFlag('A', 'age', 'warning')]), { scanMode: 'full' })
+    expect(out).not.toContain('Production-risk')
+  })
+
+  it('Production-risk section renders even when no warnings exist', () => {
+    const out = formatMarkdown(makeResult([staleFlag('M', 'missing-in-platform', 'error')]), { scanMode: 'full' })
+    expect(out).toContain('Production-risk')
   })
 })

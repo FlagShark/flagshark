@@ -11,6 +11,14 @@ export interface TextFormatOptions {
   maxDisplay: number
 }
 
+function maxSeverity(signals: Array<{ severity: 'error' | 'warning' }>): 'error' | 'warning' {
+  return signals.some((s) => s.severity === 'error') ? 'error' : 'warning'
+}
+
+function severityRank(s: 'error' | 'warning'): number {
+  return s === 'error' ? 0 : 1
+}
+
 /** Pad a string to a fixed width, truncating with ellipsis if necessary. */
 function pad(str: string, width: number): string {
   if (str.length > width) {
@@ -38,6 +46,8 @@ function buildTable(flags: StaleFlag[]): string {
       .map((s: StalenessSignal) => {
         if (s.type === 'age') return 'Age > threshold'
         if (s.type === 'low-usage') return 'Single file'
+        if (s.type === 'missing-in-platform') return 'missing-in-platform'
+        if (s.type === 'archived-in-platform') return 'archived-in-platform'
         return s.description
       })
       .join(', ')
@@ -81,8 +91,14 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
   if (staleCount > 0) {
     lines.push('')
     lines.push('Stale flags:')
+    const sorted = [...result.staleFlags].sort((a, b) => {
+      const sevA = severityRank(maxSeverity(a.signals))
+      const sevB = severityRank(maxSeverity(b.signals))
+      if (sevA !== sevB) return sevA - sevB
+      return 0
+    })
     const displayCount = options.verbose ? staleCount : Math.min(staleCount, options.maxDisplay)
-    const displayFlags = result.staleFlags.slice(0, displayCount)
+    const displayFlags = sorted.slice(0, displayCount)
     lines.push(buildTable(displayFlags))
     const remaining = staleCount - displayCount
     if (remaining > 0) {

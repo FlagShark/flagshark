@@ -18,3 +18,6 @@ export * from './config/index.js'
 
 // Output formatters
 export * from './output/index.js'
+
+// Platform integration providers
+export * from './providers/index.js'

@@ -36,7 +36,7 @@ describe('uniqueStaleCount', () => {
     lineNumber: 1,
     language: 'typescript',
     provider: 'launchdarkly',
-    signals: [{ type: 'age', description: 'old' }],
+    signals: [{ type: 'age', severity: 'warning' as const, description: 'old' }],
   })
 
   it('counts unique names across multiple occurrences', () => {

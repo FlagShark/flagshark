@@ -5,7 +5,8 @@ import { type FeatureFlag } from './detection/feature-flag.js'
 // ── Public interfaces ──────────────────────────────────────────────
 
 export interface StalenessSignal {
-  type: 'age' | 'hardcoded' | 'low-usage'
+  type: 'age' | 'hardcoded' | 'low-usage' | 'missing-in-platform' | 'archived-in-platform'
+  severity: 'error' | 'warning'
   description: string
 }
 
@@ -25,6 +26,8 @@ export interface StalenessOptions {
   thresholdMonths: number
   /** Absolute path to the git repository root. */
   repoRoot: string
+  /** Optional: pre-computed platform signals keyed by flag name. */
+  platformSignals?: Map<string, import('./providers/interface.js').PlatformSignal[]>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -163,6 +166,7 @@ function checkAgeSignal(
   return {
     signal: {
       type: 'age' as const,
+      severity: 'warning' as const,
       description: `Flag reference last modified ${age} (threshold: ${thresholdMonths} months)`,
     },
     age,
@@ -180,6 +184,7 @@ function checkLowUsageSignal(flagName: string, occurrences: FeatureFlag[]): Stal
 
   return {
     type: 'low-usage' as const,
+    severity: 'warning' as const,
     description: `Flag "${flagName}" only appears in 1 file — may have been fully rolled out`,
   }
 }
@@ -250,6 +255,18 @@ export async function analyzeStaleness(
       // Hardcoded signal (v2 placeholder — always null for regex v1)
       // checkHardcodedSignal returns null unconditionally; kept for structural symmetry
       // with the other signal detectors. No branch emitted here.
+
+      // Platform signals (from provider API cross-reference)
+      const platformSigs = options.platformSignals?.get(flagName)
+      if (platformSigs) {
+        for (const ps of platformSigs) {
+          signals.push({
+            type: ps.type,
+            severity: ps.severity,
+            description: ps.description,
+          })
+        }
+      }
 
       // Only include flags that have at least one signal.
       if (signals.length > 0) {

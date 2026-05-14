@@ -49,7 +49,7 @@ describe('formatText', () => {
           lineNumber: 42,
           language: 'typescript',
           provider: 'LaunchDarkly',
-          signals: [{ type: 'age', description: 'Added 8 months ago' }],
+          signals: [{ type: 'age', severity: 'warning', description: 'Added 8 months ago' }],
           age: '8 months ago',
         },
       ],
@@ -66,7 +66,7 @@ describe('formatText', () => {
       lineNumber: i + 1,
       language: 'typescript',
       provider: 'LaunchDarkly',
-      signals: [{ type: 'age' as const, description: 'old' }],
+      signals: [{ type: 'age' as const, severity: 'warning' as const, description: 'old' }],
       age: '8 months ago',
     }))
     const result = makeScanResult({ totalFlags: 5, healthScore: 50, staleFlags })
@@ -82,7 +82,7 @@ describe('formatText', () => {
       lineNumber: i + 1,
       language: 'typescript',
       provider: 'LaunchDarkly',
-      signals: [{ type: 'age' as const, description: 'old' }],
+      signals: [{ type: 'age' as const, severity: 'warning' as const, description: 'old' }],
       age: '8 months ago',
     }))
     const result = makeScanResult({ totalFlags: 5, healthScore: 50, staleFlags })
@@ -119,7 +119,7 @@ describe('formatText', () => {
         lineNumber: 42,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'age', description: 'Added 8 months ago' }],
+        signals: [{ type: 'age', severity: 'warning', description: 'Added 8 months ago' }],
         age: '8 months ago',
       }],
     })
@@ -137,7 +137,7 @@ describe('formatText', () => {
         lineNumber: 10,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'low-usage', description: 'Single file usage' }],
+        signals: [{ type: 'low-usage', severity: 'warning', description: 'Single file usage' }],
       }],
     })
     const output = formatText(result, { verbose: false, maxDisplay: 10 })
@@ -155,7 +155,7 @@ describe('formatText', () => {
         lineNumber: 5,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'hardcoded', description: 'Hardcoded value detected' }],
+        signals: [{ type: 'hardcoded', severity: 'warning', description: 'Hardcoded value detected' }],
       }],
     })
     const output = formatText(result, { verbose: false, maxDisplay: 10 })
@@ -173,13 +173,55 @@ describe('formatText', () => {
         lineNumber: 1,
         language: 'typescript',
         provider: 'LaunchDarkly',
-        signals: [{ type: 'age', description: 'old' }],
+        signals: [{ type: 'age', severity: 'warning', description: 'old' }],
         age: '8 months ago',
       }],
     })
     const output = formatText(result, { verbose: false, maxDisplay: 10 })
     // Truncated name should contain '…' ellipsis
     expect(output).toContain('…')
+  })
+})
+
+describe('text formatter — severity + new signals', () => {
+  function staleFlag(name: string, signalType: 'missing-in-platform' | 'archived-in-platform' | 'age', severity: 'error' | 'warning') {
+    return {
+      name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type: signalType, severity, description: 'desc' }],
+      age: '12 months ago',
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length,
+      filesScanned: 1,
+      staleFlags,
+      detectedProviders: [],
+      languageBreakdown: {},
+      healthScore: 50,
+      scanDuration: 1,
+    }
+  }
+
+  it('sorts error-severity flags before warning-severity', () => {
+    const result = makeResult([
+      staleFlag('OLD', 'age', 'warning'),
+      staleFlag('MISSING', 'missing-in-platform', 'error'),
+    ])
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out.indexOf('MISSING')).toBeLessThan(out.indexOf('OLD'))
+  })
+
+  it('shows missing-in-platform signal in the output', () => {
+    const result = makeResult([staleFlag('M', 'missing-in-platform', 'error')])
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toMatch(/missing-in-platform/)
+  })
+
+  it('shows archived-in-platform signal in the output', () => {
+    const result = makeResult([staleFlag('A', 'archived-in-platform', 'warning')])
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toMatch(/archived-in-platform/)
   })
 })
 
@@ -202,7 +244,7 @@ describe('formatJson', () => {
           lineNumber: 10,
           language: 'typescript',
           provider: 'LaunchDarkly',
-          signals: [{ type: 'low-usage', description: 'Single file' }],
+          signals: [{ type: 'low-usage', severity: 'warning', description: 'Single file' }],
         },
       ],
     })
@@ -211,5 +253,42 @@ describe('formatJson', () => {
     expect(parsed.flags).toHaveLength(1)
     expect(parsed.flags[0].name).toBe('MY_FLAG')
     expect(parsed.flags[0].stale).toBe(true)
+  })
+})
+
+describe('json formatter — severity + errorCount', () => {
+  function staleFlag(name: string, severity: 'error' | 'warning') {
+    return {
+      name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk',
+      signals: [{ type: 'missing-in-platform' as const, severity, description: 'desc' }],
+      age: '12 months ago',
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length, filesScanned: 1, staleFlags,
+      detectedProviders: [], languageBreakdown: {},
+      healthScore: 50, scanDuration: 1,
+    }
+  }
+
+  it('includes errorCount at top level', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error'), staleFlag('W', 'warning')]), { version: 'v1' }))
+    expect(out.errorCount).toBe(1)
+  })
+
+  it('errorCount is 0 when no error-severity flags', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('W', 'warning')]), { version: 'v1' }))
+    expect(out.errorCount).toBe(0)
+  })
+
+  it('preserves severity field on each signal', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error')]), { version: 'v1' }))
+    expect(out.flags[0].signals[0].severity).toBe('error')
+  })
+
+  it('adds severity field to each staleFlag (max across signals)', () => {
+    const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error')]), { version: 'v1' }))
+    expect(out.flags[0].severity).toBe('error')
   })
 })

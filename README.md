@@ -177,6 +177,49 @@ Opt-in via `excludes.presets`. Each preset expands to a curated list of common p
 | `fixtures` | `__fixtures__/**`, `fixtures/**` |
 | `generated` | `*.generated.{ts,js}`, `*.gen.go`, `generated/**` |
 
+## Platform integration (cross-reference against your flag platform)
+
+FlagShark can cross-reference detected flag keys against your flag-management platform's API to surface two extra signals:
+
+- **`missing-in-platform`** — flag is referenced in code but doesn't exist in the platform → production-risk bug (SDK falls back to defaults)
+- **`archived-in-platform`** — flag exists but is archived → safe to remove
+
+### LaunchDarkly setup
+
+1. Create a read-only API access token in LaunchDarkly: Account settings → Authorization → Access tokens. Recommended permissions: `flag:read` on the project + environment you'll scan.
+
+2. Add to `.flagshark.yml`:
+
+    ```yaml
+    platforms:
+      launchdarkly:
+        project: my-project-key
+        environment: production
+    ```
+
+3. Export the token (CI: secrets; local: shell env or `.envrc`):
+
+    ```bash
+    export LAUNCHDARKLY_API_TOKEN="api-..."
+    ```
+
+4. Run `flagshark scan`. The result now includes platform signals.
+
+### Behavior on errors
+
+If the LaunchDarkly API is unreachable, the token is missing, or the request fails, the scan continues with **code-only signals** and prints a warning. Platform integration is strictly additive — it never makes a scan worse.
+
+### Caching
+
+Platform flag lists are cached locally for 24h at `$XDG_CACHE_HOME/flagshark/` (default `~/.cache/flagshark/`). Pass `--no-cache` to force a fresh fetch.
+
+### GitHub Action inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `no-cache` | `false` | Skip the platform-flag cache |
+| `fail-on-error` | `true` | Fail the build on any `missing-in-platform` flag |
+
 ## CLI reference
 
 ```bash
@@ -195,6 +238,10 @@ Configuration:
   --no-config              Skip .flagshark.yml discovery
   --no-ignore-file         Skip .flagsharkignore discovery
   --show-excluded          List excluded files in the output
+
+Platform:
+  --no-cache               Skip the local platform-flag cache (force fresh API fetch)
+  --fail-on-error          Exit code 1 if any missing-in-platform flags are found
 ```
 
 ### Exit codes
