@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 
 import { Language as TreeSitterLanguage, Parser } from 'web-tree-sitter'
 
-import { tryGetModuleUrl } from './module-url.js'
+import { getModuleUrl } from './module-url.js'
 
 import type { Language } from '../interface.js'
 
@@ -25,19 +25,28 @@ function getRequire(): ReturnType<typeof createRequire> {
   // output stubs `import.meta` to `{}` but preserves `__filename` -- without
   // that fallback every grammar lookup throws.
   const metaUrl = (import.meta as unknown as Record<string, unknown>).url
+  // The truthy branch of this ternary is unreachable under vitest (always
+  // ESM, so `__filename` is undeclared and `typeof` returns 'undefined').
+  // End-to-end coverage of the CJS-bundle path lives in
+  // parser-cache-cjs-bundle.test.ts, which actually bundles the source
+  // ESM->CJS and exercises the result.
+  /* c8 ignore next */
   const cjsFilename = typeof __filename !== 'undefined' ? __filename : undefined
-  const moduleUrl = tryGetModuleUrl(metaUrl, cjsFilename)
-  if (!moduleUrl) {
-    throw new Error(
-      'parser-cache: cannot resolve tree-sitter grammars. Neither import.meta.url ' +
-        'nor __filename is available -- this usually means @flagshark/core is being ' +
-        'bundled into a non-Node target. Set the FLAGSHARK_WASM_DIR environment ' +
-        'variable to a directory containing tree-sitter-{typescript,javascript,' +
-        'go,python}.wasm.',
-    )
-  }
-  require_ = createRequire(moduleUrl)
+  require_ = createRequire(getModuleUrl(metaUrl, cjsFilename, noResolutionBase))
   return require_
+}
+
+/** @internal Factored out for direct unit testing -- inline `throw` blocks
+ * inside `getRequire` are unreachable in any normal vitest context (both
+ * `import.meta.url` and `__filename` are always defined). */
+export function noResolutionBase(): Error {
+  return new Error(
+    'parser-cache: cannot resolve tree-sitter grammars. Neither import.meta.url ' +
+      'nor __filename is available -- this usually means @flagshark/core is being ' +
+      'bundled into a non-Node target. Set the FLAGSHARK_WASM_DIR environment ' +
+      'variable to a directory containing tree-sitter-{typescript,javascript,' +
+      'go,python}.wasm.',
+  )
 }
 
 const WASM_RESOLUTION: Partial<Record<Language, string>> = {

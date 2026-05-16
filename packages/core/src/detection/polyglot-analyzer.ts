@@ -185,16 +185,14 @@ export class PolyglotAnalyzer {
         languages: Object.fromEntries(result.languages),
       })
     }
-    // When detection fails on any file, surface a deduplicated sample of the
-    // underlying errors. Without this, a packaging regression (missing WASM,
-    // bundler resolution bug, native binary mismatch) looks identical to "this
-    // codebase has no flags" in the log -- which is how a real production
-    // regression went undiagnosed for a week. The per-file try/catch in
-    // `analyzeFile` stays (one bad file shouldn't fail the whole scan), but
-    // the errors no longer disappear into a counter.
-    if (errorCount > 0) {
-      logParseErrorSample(result, this.logger)
-    }
+    // Surface a deduplicated sample of any per-file parse errors. Without this
+    // log line, a packaging regression (missing WASM, bundler resolution bug,
+    // native binary mismatch) looks identical to "this codebase has no flags"
+    // -- which is how a real production regression went undiagnosed for a
+    // week. The per-file try/catch in `analyzeFile` stays (one bad file
+    // shouldn't fail the whole scan), but the errors no longer disappear into
+    // a counter. The helper is a no-op on clean runs.
+    logParseErrorSample(result, this.logger)
 
     return result
   }

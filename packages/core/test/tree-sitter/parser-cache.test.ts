@@ -2,9 +2,10 @@ import { pathToFileURL } from 'node:url'
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
-import { tryGetModuleUrl } from '../../src/detection/tree-sitter/module-url.js'
+import { getModuleUrl, tryGetModuleUrl } from '../../src/detection/tree-sitter/module-url.js'
 import {
   getParser,
+  noResolutionBase,
   _resetParserCacheForTests,
 } from '../../src/detection/tree-sitter/parser-cache.js'
 
@@ -113,5 +114,26 @@ describe('module-url — tryGetModuleUrl (bundler-shape selection)', () => {
 
   it('returns undefined when neither base is available', () => {
     expect(tryGetModuleUrl(undefined, undefined)).toBeUndefined()
+  })
+
+  it('getModuleUrl passes through when a base is available', () => {
+    expect(getModuleUrl('file:///foo.js', undefined, () => new Error('unused'))).toBe(
+      'file:///foo.js',
+    )
+  })
+
+  it('getModuleUrl throws the caller-provided error when both bases are missing', () => {
+    expect(() => getModuleUrl(undefined, undefined, () => new Error('NO BASES'))).toThrow(
+      /NO BASES/,
+    )
+  })
+
+  it('noResolutionBase error message points at FLAGSHARK_WASM_DIR and names the four grammars', () => {
+    const err = noResolutionBase()
+    expect(err.message).toContain('FLAGSHARK_WASM_DIR')
+    expect(err.message).toContain('typescript')
+    expect(err.message).toContain('javascript')
+    expect(err.message).toContain('go')
+    expect(err.message).toContain('python')
   })
 })
