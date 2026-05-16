@@ -2,9 +2,9 @@ import { pathToFileURL } from 'node:url'
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
+import { tryGetModuleUrl } from '../../src/detection/tree-sitter/module-url.js'
 import {
   getParser,
-  pickModuleUrl,
   _resetParserCacheForTests,
 } from '../../src/detection/tree-sitter/parser-cache.js'
 
@@ -85,36 +85,33 @@ describe('parser-cache — FLAGSHARK_WASM_DIR branch (lines 41-43)', () => {
 // `createRequire(undefined)` throws on every detection call and PolyglotAnalyzer
 // silently buries the errors in its per-file try/catch. This is exactly how a
 // week-long production regression went undiagnosed.
-describe('parser-cache — pickModuleUrl (bundler-shape selection)', () => {
+describe('module-url — tryGetModuleUrl (bundler-shape selection)', () => {
   it('prefers import.meta.url when it is a usable string', () => {
-    expect(pickModuleUrl('file:///foo/bar.js', '/var/task/index.js')).toBe('file:///foo/bar.js')
+    expect(tryGetModuleUrl('file:///foo/bar.js', '/var/task/index.js')).toBe('file:///foo/bar.js')
   })
 
   it('falls back to pathToFileURL(__filename) when import.meta.url is undefined', () => {
     // This is the esbuild ESM->CJS case: import.meta got stubbed to {}.
-    const result = pickModuleUrl(undefined, '/var/task/index.js')
+    const result = tryGetModuleUrl(undefined, '/var/task/index.js')
     expect(result).toBe(pathToFileURL('/var/task/index.js').href)
   })
 
   it('treats an empty-string meta.url as missing (defensive)', () => {
-    const result = pickModuleUrl('', '/var/task/index.js')
+    const result = tryGetModuleUrl('', '/var/task/index.js')
     expect(result).toBe(pathToFileURL('/var/task/index.js').href)
   })
 
-  it('throws with a FLAGSHARK_WASM_DIR pointer when neither base is available', () => {
-    expect(() => pickModuleUrl(undefined, undefined)).toThrow(/FLAGSHARK_WASM_DIR/)
+  it('treats non-string meta.url as missing (defensive against bundler shimming)', () => {
+    // Some shims set import.meta.url to a non-string sentinel (e.g. null, {}).
+    expect(tryGetModuleUrl(null, '/var/task/index.js')).toBe(
+      pathToFileURL('/var/task/index.js').href,
+    )
+    expect(tryGetModuleUrl({}, '/var/task/index.js')).toBe(
+      pathToFileURL('/var/task/index.js').href,
+    )
   })
 
-  it('error message names the four grammars users must place in the dir', () => {
-    try {
-      pickModuleUrl(undefined, undefined)
-      expect.fail('expected pickModuleUrl to throw')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      expect(message).toContain('typescript')
-      expect(message).toContain('javascript')
-      expect(message).toContain('go')
-      expect(message).toContain('python')
-    }
+  it('returns undefined when neither base is available', () => {
+    expect(tryGetModuleUrl(undefined, undefined)).toBeUndefined()
   })
 })

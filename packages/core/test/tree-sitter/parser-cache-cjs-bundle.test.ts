@@ -100,3 +100,79 @@ describe('parser-cache — ESM->CJS bundle regression', () => {
     expect(parser).toBeDefined()
   })
 })
+
+// Catches future `import.meta.url` regressions anywhere in the public API
+// surface, not just parser-cache. If someone adds a `createRequire(import.meta.url)`
+// to detector loading, the registry, scan-repo, etc., this test will fail when
+// the bundled CJS tries to exercise that code path.
+describe('@flagshark/core public entry — ESM->CJS bundle regression', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const entryBundleDir = resolve(here, '.tmp-entry-bundle')
+  const entryBundlePath = join(entryBundleDir, 'core.cjs')
+  let entryBundle: {
+    createDefaultRegistry: () => unknown
+    PolyglotAnalyzer: new (registry: unknown, logger: unknown) => {
+      analyzeFiles: (files: Map<string, string>) => Promise<{ totalFlags: Map<string, unknown[]> }>
+    }
+  }
+
+  beforeAll(async () => {
+    rmSync(entryBundleDir, { recursive: true, force: true })
+    mkdirSync(entryBundleDir, { recursive: true })
+    const publicEntry = resolve(here, '..', '..', 'src', 'index.ts')
+    await esbuild.build({
+      entryPoints: [publicEntry],
+      bundle: true,
+      format: 'cjs',
+      platform: 'node',
+      target: 'node20',
+      outfile: entryBundlePath,
+      // Match the SaaS Lambda configuration: only the WASM-loading packages
+      // are external (resolved at runtime), everything else bundles inline.
+      // This is the exact bundling shape that took down production.
+      external: [
+        'web-tree-sitter',
+        'tree-sitter-typescript',
+        'tree-sitter-javascript',
+        'tree-sitter-go',
+        'tree-sitter-python',
+      ],
+      logLevel: 'silent',
+    })
+    const require_ = createRequire(entryBundlePath)
+    entryBundle = require_(entryBundlePath) as typeof entryBundle
+  })
+
+  afterAll(() => {
+    rmSync(entryBundleDir, { recursive: true, force: true })
+  })
+
+  it('bundled public entry exposes createDefaultRegistry and PolyglotAnalyzer', () => {
+    expect(typeof entryBundle.createDefaultRegistry).toBe('function')
+    expect(typeof entryBundle.PolyglotAnalyzer).toBe('function')
+  })
+
+  it('bundled public entry detects a TypeScript flag without FLAGSHARK_WASM_DIR', async () => {
+    // Capture warn logs -- if grammar resolution fails, the upstream auto-log
+    // helper surfaces a sample, which is the smoking gun we want to see if
+    // this test ever regresses.
+    const warns: unknown[] = []
+    const captureLogger = {
+      debug: () => {},
+      info: () => {},
+      warn: (...args: unknown[]) => warns.push(args),
+      error: () => {},
+    }
+    const registry = entryBundle.createDefaultRegistry()
+    const analyzer = new entryBundle.PolyglotAnalyzer(registry, captureLogger)
+    const source =
+      "import { init, LDClient } from '@launchdarkly/js-client-sdk'\n" +
+      "const client = init('sdk-key')\n" +
+      "const showBanner = client.variation('show-banner', false)\n" +
+      "const enableChat = client.boolVariation('enable-chat', true)\n"
+    const result = await analyzer.analyzeFiles(new Map([['app.ts', source]]))
+    expect(warns).toEqual([])
+    expect(result.totalFlags.size).toBeGreaterThanOrEqual(1)
+    expect(Array.from(result.totalFlags.keys())).toContain('show-banner')
+  })
+})

@@ -1,22 +1,40 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 import { Query } from 'web-tree-sitter'
 import type { Node, Tree } from 'web-tree-sitter'
 
 import type { Language } from '../interface.js'
 import { getParser } from './parser-cache.js'
+import { INLINE_QUERIES } from './queries-inline.js'
 
-/** Loads the .scm query text for a language, relative to this module. */
+/**
+ * Loads the .scm query text for a language.
+ *
+ * Default path returns the inlined query strings shipped with the package.
+ * Inlining removes the filesystem dependency that broke under ESM->CJS
+ * bundling (the prior implementation called `new URL('./queries/...',
+ * import.meta.url)` which silently threw `Invalid URL` once bundlers stubbed
+ * `import.meta` to `{}` -- see parser-cache.ts retrospective).
+ *
+ * `FLAGSHARK_QUERIES_DIR` stays as an escape hatch for consumers who need to
+ * override the bundled queries at runtime (custom detection rules, vendored
+ * variants). When set, it reads `${dir}/${lang}.scm` and skips the inline
+ * lookup entirely.
+ */
 export function loadQueryText(lang: Language): string {
-  // In an Action bundle context, queries are vendored alongside the WASM grammars.
-  // FLAGSHARK_QUERIES_DIR (set by the action entry) points at dist/queries/.
   const queriesDir = process.env.FLAGSHARK_QUERIES_DIR
   if (queriesDir) {
     return readFileSync(`${queriesDir}/${lang}.scm`, 'utf-8')
   }
-  const url = new URL(`./queries/${lang}.scm`, import.meta.url)
-  return readFileSync(fileURLToPath(url), 'utf-8')
+  const inline = INLINE_QUERIES[lang]
+  if (inline === undefined) {
+    throw new Error(
+      `query-runner: no inlined query for language "${lang}". This language ` +
+        `is not registered as a tier-1 tree-sitter detector. Did you mean to use ` +
+        `regex-based detection? See createDefaultRegistry().`,
+    )
+  }
+  return inline
 }
 
 const queryCache = new Map<Language, Query>()

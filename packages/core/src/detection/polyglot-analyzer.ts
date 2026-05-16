@@ -185,6 +185,16 @@ export class PolyglotAnalyzer {
         languages: Object.fromEntries(result.languages),
       })
     }
+    // When detection fails on any file, surface a deduplicated sample of the
+    // underlying errors. Without this, a packaging regression (missing WASM,
+    // bundler resolution bug, native binary mismatch) looks identical to "this
+    // codebase has no flags" in the log -- which is how a real production
+    // regression went undiagnosed for a week. The per-file try/catch in
+    // `analyzeFile` stays (one bad file shouldn't fail the whole scan), but
+    // the errors no longer disappear into a counter.
+    if (errorCount > 0) {
+      logParseErrorSample(result, this.logger)
+    }
 
     return result
   }
@@ -267,6 +277,48 @@ export class PolyglotAnalyzer {
 
     return result
   }
+}
+
+/**
+ * Surface a deduplicated sample of per-file parse errors at WARN.
+ *
+ * The per-file try/catch in `analyzeFile` is load-bearing -- a single bad file
+ * shouldn't fail an entire scan -- but the prior implementation collapsed every
+ * detector throw into a `filesWithErrors` counter. The error text never left
+ * the function, so a packaging regression (missing WASM grammar, bundler
+ * resolution bug, etc.) looked identical to "this codebase has no flags" in
+ * the log. That is exactly how the post-1.3.x scan regression went unfixed
+ * for a week in production.
+ *
+ * This helper runs after every analysis where errors occurred and dumps:
+ *   - count of unique error messages
+ *   - top 5 most frequent error messages, each with up to 3 example file paths
+ *
+ * Capped to keep noisy days from filling logs. If a consumer wants richer
+ * context (scanId, PR number, request correlation), it can read
+ * `result.files[*].parseErrors` directly and log with its own logger.
+ */
+function logParseErrorSample(result: RepositoryAnalysisResult, logger: Logger): void {
+  const samples = new Map<string, { count: number; files: string[] }>()
+  for (const [filePath, file] of result.files) {
+    for (const err of file.parseErrors) {
+      const key = err.message
+      const entry = samples.get(key) ?? { count: 0, files: [] }
+      entry.count++
+      if (entry.files.length < 3) {
+        entry.files.push(filePath)
+      }
+      samples.set(key, entry)
+    }
+  }
+  if (samples.size === 0) return
+  logger.warn('Parse errors during analysis', {
+    uniqueErrors: samples.size,
+    sample: [...samples.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 5)
+      .map(([message, { count, files }]) => ({ message, count, sampleFiles: files })),
+  })
 }
 
 // -- Comparison helper --

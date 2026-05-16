@@ -35,7 +35,9 @@ The engine is a runtime concern, not a public API surface. Consumers calling `sc
 
 ## Bundling and WASM resolution
 
-At runtime, the tree-sitter engine loads four grammar WASMs (`tree-sitter-typescript.wasm`, `tree-sitter-javascript.wasm`, `tree-sitter-go.wasm`, `tree-sitter-python.wasm`) via `createRequire(...).resolve(...)`. The four grammar packages are declared as runtime dependencies of `@flagshark/core` — under normal `npm install` / `bun install` use you don't need to do anything; the grammars are next to your `node_modules` copy of `@flagshark/core` and resolution Just Works.
+Detection has two runtime asset dependencies: the four tree-sitter grammar WASMs (~2.5 MB total, binary, must be external) and the four `.scm` query files (~1.4 KB total, text, **inlined into the JS bundle**). The `.scm` files come along for free because we ship them as TypeScript string constants — there is nothing for you to copy, no env var to set, no resolution path that can break. Only the WASMs need attention.
+
+For the WASM grammars (`tree-sitter-typescript.wasm`, `tree-sitter-javascript.wasm`, `tree-sitter-go.wasm`, `tree-sitter-python.wasm`), `parser-cache` calls `createRequire(...).resolve(...)` against `node_modules/tree-sitter-*`. The four grammar packages are declared as runtime dependencies of `@flagshark/core` — under normal `npm install` / `bun install` use you don't need to do anything; the grammars sit next to your `node_modules` copy of `@flagshark/core` and resolution Just Works.
 
 If you're bundling `@flagshark/core` into a Lambda, container, edge function, or any other distributable artifact, three resolution paths exist:
 
@@ -46,6 +48,14 @@ If you're bundling `@flagshark/core` into a Lambda, container, edge function, or
 **3. Non-Node target (edge runtimes, browsers).** Same as path 2: ship the four WASM files alongside your bundle and set `FLAGSHARK_WASM_DIR` to that directory. There is no working "do nothing" path here — `createRequire` doesn't exist on Workers/Deno/browsers, and the tree-sitter engine has to find the grammars somehow.
 
 If neither `import.meta.url` nor `__filename` is available and `FLAGSHARK_WASM_DIR` is unset, `parser-cache` throws with a pointer at this section.
+
+`FLAGSHARK_QUERIES_DIR` also exists as an escape hatch for consumers who want to swap out the inlined queries at runtime (custom detection rules, vendored variants). When set, `loadQueryText` reads `${dir}/${lang}.scm` from disk instead of using the inlined string. Most consumers will never need this — the inlined defaults are the same `.scm` files we publish to `dist/detection/tree-sitter/queries/`.
+
+### Visibility into detection failures
+
+Every analysis run that produces parse errors emits a deduplicated sample at WARN, alongside the existing `Polyglot analysis completed` summary. If grammar resolution breaks, a WASM file is missing, or a detector throws, you see the underlying error message in the log — not just a `filesWithErrors: N` counter. The per-file `try/catch` in `analyzeFile` stays (one bad file shouldn't fail an entire scan), but the errors no longer disappear into a counter.
+
+Pass any `ScanLogger` to `new PolyglotAnalyzer(registry, logger)` and the sample lands on `logger.warn('Parse errors during analysis', { uniqueErrors, sample })`. The top 5 unique error messages are reported with up to 3 example file paths each.
 
 ## API
 

@@ -20,8 +20,9 @@
   },
   "files": ["dist/"],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && bun run copy-queries",
+    "build": "bun run generate:queries && rm -rf dist && tsc -p tsconfig.build.json && bun run copy-queries",
     "copy-queries": "mkdir -p dist/detection/tree-sitter/queries && cp src/detection/tree-sitter/queries/*.scm dist/detection/tree-sitter/queries/",
+    "generate:queries": "node scripts/generate-inline-queries.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

@@ -214,6 +214,115 @@ describe('PolyglotAnalyzer.analyzeFiles', () => {
     expect(result.skippedFiles).toContain('b.go')
   })
 
+  // Regression guard for the silent-error-swallowing bug. Without an automatic
+  // sample log, a packaging regression (missing WASM, broken bundle, native
+  // binary mismatch) looks identical to "this codebase has no flags" because
+  // analyzeFile's try/catch buries the throws into a counter. Real production
+  // incident: scanner reported 799 of 815 errored files for five days while
+  // every error message was discarded.
+  describe('error visibility (auto-log)', () => {
+    function makeWarnCapturingLogger() {
+      const warns: Array<{ message: string; extra?: unknown }> = []
+      return {
+        warns,
+        logger: {
+          debug: () => {},
+          info: () => {},
+          warn: (message: string, extra?: unknown) => {
+            warns.push({ message, extra })
+          },
+          error: () => {},
+        },
+      }
+    }
+
+    it('logs a sample of parse errors at WARN when any file fails detection', async () => {
+      const errorDetector: FlagDetector = {
+        language: () => 'typescript',
+        detectFlags: () => {
+          throw new Error('missing WASM grammar')
+        },
+      }
+      const registry = makeRegistry({ '.ts': errorDetector })
+      const { warns, logger } = makeWarnCapturingLogger()
+      const analyzer = new PolyglotAnalyzer(registry, logger)
+
+      await analyzer.analyzeFiles(new Map([['a.ts', 'x'], ['b.ts', 'y']]))
+
+      const sampleWarn = warns.find((w) => w.message === 'Parse errors during analysis')
+      expect(sampleWarn).toBeDefined()
+      const extra = sampleWarn!.extra as {
+        uniqueErrors: number
+        sample: Array<{ message: string; count: number; sampleFiles: string[] }>
+      }
+      expect(extra.uniqueErrors).toBe(1)
+      expect(extra.sample[0].message).toBe('missing WASM grammar')
+      expect(extra.sample[0].count).toBe(2)
+      expect(extra.sample[0].sampleFiles.sort()).toEqual(['a.ts', 'b.ts'])
+    })
+
+    it('does NOT log a warn when every file analyzed cleanly', async () => {
+      const detector = makeDetector('typescript', [])
+      const registry = makeRegistry({ '.ts': detector })
+      const { warns, logger } = makeWarnCapturingLogger()
+      const analyzer = new PolyglotAnalyzer(registry, logger)
+
+      await analyzer.analyzeFiles(new Map([['a.ts', 'x']]))
+
+      expect(warns.find((w) => w.message === 'Parse errors during analysis')).toBeUndefined()
+    })
+
+    it('deduplicates by error message and ranks by frequency (top-5 cap)', async () => {
+      let i = 0
+      const detector: FlagDetector = {
+        language: () => 'typescript',
+        detectFlags: () => {
+          // Three distinct error messages spread across many files so we can
+          // verify ordering by frequency.
+          i++
+          if (i <= 5) throw new Error('error-a')
+          if (i <= 8) throw new Error('error-b')
+          throw new Error('error-c')
+        },
+      }
+      const registry = makeRegistry({ '.ts': detector })
+      const { warns, logger } = makeWarnCapturingLogger()
+      const analyzer = new PolyglotAnalyzer(registry, logger)
+
+      const files = new Map<string, string>()
+      for (let n = 0; n < 10; n++) files.set(`f${n}.ts`, 'x')
+      await analyzer.analyzeFiles(files)
+
+      const warn = warns.find((w) => w.message === 'Parse errors during analysis')!
+      const extra = warn.extra as { sample: Array<{ message: string; count: number }> }
+      expect(extra.sample[0].message).toBe('error-a')
+      expect(extra.sample[0].count).toBe(5)
+      expect(extra.sample[1].message).toBe('error-b')
+      expect(extra.sample[2].message).toBe('error-c')
+    })
+
+    it('caps sample files at 3 per unique error message', async () => {
+      const detector: FlagDetector = {
+        language: () => 'typescript',
+        detectFlags: () => {
+          throw new Error('same message everywhere')
+        },
+      }
+      const registry = makeRegistry({ '.ts': detector })
+      const { warns, logger } = makeWarnCapturingLogger()
+      const analyzer = new PolyglotAnalyzer(registry, logger)
+
+      const files = new Map<string, string>()
+      for (let n = 0; n < 20; n++) files.set(`f${n}.ts`, 'x')
+      await analyzer.analyzeFiles(files)
+
+      const warn = warns.find((w) => w.message === 'Parse errors during analysis')!
+      const extra = warn.extra as { sample: Array<{ count: number; sampleFiles: string[] }> }
+      expect(extra.sample[0].count).toBe(20)
+      expect(extra.sample[0].sampleFiles.length).toBe(3)
+    })
+  })
+
   it('calls progress callback on each analyzed file', async () => {
     const detector = makeDetector('typescript', [])
     const registry = makeRegistry({ '.ts': detector })
