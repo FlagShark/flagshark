@@ -33,6 +33,20 @@ The remaining 9 languages currently use regex-based detection; each migrates to 
 
 The engine is a runtime concern, not a public API surface. Consumers calling `scanRepo()` or `createDefaultRegistry()` get the right engine per-language automatically. Override per-detector if needed (see below).
 
+## Bundling and WASM resolution
+
+At runtime, the tree-sitter engine loads four grammar WASMs (`tree-sitter-typescript.wasm`, `tree-sitter-javascript.wasm`, `tree-sitter-go.wasm`, `tree-sitter-python.wasm`) via `createRequire(...).resolve(...)`. The four grammar packages are declared as runtime dependencies of `@flagshark/core` — under normal `npm install` / `bun install` use you don't need to do anything; the grammars are next to your `node_modules` copy of `@flagshark/core` and resolution Just Works.
+
+If you're bundling `@flagshark/core` into a Lambda, container, edge function, or any other distributable artifact, three resolution paths exist:
+
+**1. Node target, grammars external (recommended).** Mark the four `tree-sitter-*` packages as external in your bundler and install them next to the bundle. AWS CDK's `lambdaNodejs.NodejsFunction` does this via `nodeModules: ['tree-sitter-typescript', …]`; esbuild does it via `external: [...]` plus a side-by-side `package.json`. The grammars stay on disk in `node_modules/tree-sitter-*` and `parser-cache` resolves them through `__filename` (CJS bundles) or `import.meta.url` (ESM bundles).
+
+**2. Node target, grammars flattened.** If your bundling pipeline puts grammars in a custom location, set `FLAGSHARK_WASM_DIR` to that directory and `parser-cache` will read `${FLAGSHARK_WASM_DIR}/<basename>.wasm` directly — bypassing `require.resolve` entirely. The four files must be there with their exact `tree-sitter-<lang>.wasm` names. This is what the GitHub Action uses (`packages/action/scripts/build.mjs` copies them at build time and the entry point exports `FLAGSHARK_WASM_DIR` before importing the engine).
+
+**3. Non-Node target (edge runtimes, browsers).** Same as path 2: ship the four WASM files alongside your bundle and set `FLAGSHARK_WASM_DIR` to that directory. There is no working "do nothing" path here — `createRequire` doesn't exist on Workers/Deno/browsers, and the tree-sitter engine has to find the grammars somehow.
+
+If neither `import.meta.url` nor `__filename` is available and `FLAGSHARK_WASM_DIR` is unset, `parser-cache` throws with a pointer at this section.
+
 ## API
 
 ### `scanRepo(options) → Promise<ScanRepoResult>`

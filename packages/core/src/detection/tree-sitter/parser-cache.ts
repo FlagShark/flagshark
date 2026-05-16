@@ -5,18 +5,27 @@ import { Language as TreeSitterLanguage, Parser } from 'web-tree-sitter'
 
 import type { Language } from '../interface.js'
 
-// Lazily created so that bundled CJS environments (where neither import.meta.url
-// nor __filename is available) don't crash at module initialisation — we only
-// need require_ when FLAGSHARK_WASM_DIR is NOT set (i.e. normal npm / dev usage).
+// `__filename` is a CJS module-scoped variable injected by Node's CJS wrapper
+// (NOT on globalThis). In ESM contexts it doesn't exist at all -- the `typeof`
+// guard below makes the reference safe in ESM (V8 returns 'undefined' for
+// `typeof <undeclared>` without throwing). Declaring the type here keeps tsc
+// happy when compiling ESM source.
+declare const __filename: string | undefined
+
+// Lazily created so that bundled environments where neither import.meta.url
+// nor __filename is available (edge runtimes, browser bundles) don't crash at
+// module initialisation -- we only call createRequire when FLAGSHARK_WASM_DIR
+// is NOT set (i.e. normal npm / dev usage and standard Node bundles).
 let require_: ReturnType<typeof createRequire> | null = null
 function getRequire(): ReturnType<typeof createRequire> {
   if (require_) return require_
   // Read both potential bases defensively. Native ESM under Node has
-  // `import.meta.url`. Native CJS has `__filename`. esbuild's ESM->CJS output
-  // stubs `import.meta` to `{}` (so `.url` is undefined) but `__filename`
-  // exists -- without that fallback every grammar lookup throws.
+  // `import.meta.url`. Native CJS has `__filename` (as a module-scoped local,
+  // hence the `typeof` access). esbuild's ESM->CJS output stubs `import.meta`
+  // to `{}` (so `.url` is undefined) but preserves `__filename` -- without
+  // that fallback every grammar lookup throws.
   const metaUrl: unknown = (import.meta as unknown as Record<string, unknown>).url
-  const cjsFilename: unknown = (globalThis as unknown as Record<string, unknown>).__filename
+  const cjsFilename: unknown = typeof __filename !== 'undefined' ? __filename : undefined
   require_ = createRequire(
     pickModuleUrl(
       typeof metaUrl === 'string' ? metaUrl : undefined,
