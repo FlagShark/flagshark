@@ -1,18 +1,57 @@
 import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 
 import { Language as TreeSitterLanguage, Parser } from 'web-tree-sitter'
 
 import type { Language } from '../interface.js'
 
-// Lazily created so that bundled CJS environments (where import.meta.url is
-// unavailable) don't crash at module initialisation — we only need require_
-// when FLAGSHARK_WASM_DIR is NOT set (i.e. normal npm / dev usage).
+// Lazily created so that bundled CJS environments (where neither import.meta.url
+// nor __filename is available) don't crash at module initialisation — we only
+// need require_ when FLAGSHARK_WASM_DIR is NOT set (i.e. normal npm / dev usage).
 let require_: ReturnType<typeof createRequire> | null = null
 function getRequire(): ReturnType<typeof createRequire> {
-  if (!require_) {
-    require_ = createRequire(import.meta.url)
-  }
+  if (require_) return require_
+  // Read both potential bases defensively. Native ESM under Node has
+  // `import.meta.url`. Native CJS has `__filename`. esbuild's ESM->CJS output
+  // stubs `import.meta` to `{}` (so `.url` is undefined) but `__filename`
+  // exists -- without that fallback every grammar lookup throws.
+  const metaUrl: unknown = (import.meta as unknown as Record<string, unknown>).url
+  const cjsFilename: unknown = (globalThis as unknown as Record<string, unknown>).__filename
+  require_ = createRequire(
+    pickModuleUrl(
+      typeof metaUrl === 'string' ? metaUrl : undefined,
+      typeof cjsFilename === 'string' ? cjsFilename : undefined,
+    ),
+  )
   return require_
+}
+
+/**
+ * @internal Pick a base URL for `createRequire`. Extracted from `getRequire` so
+ * the runtime-shape logic is testable without spinning up a real bundler.
+ *
+ * Order:
+ *   1. `metaUrl` -- normal ESM (`import.meta.url`).
+ *   2. `pathToFileURL(filename)` -- CJS or ESM->CJS bundles (esbuild stubs
+ *      `import.meta` to `{}` but keeps `__filename`).
+ *   3. Throw with a `FLAGSHARK_WASM_DIR` pointer for non-Node bundles
+ *      (edge runtimes, browsers) where neither base is available.
+ */
+export function pickModuleUrl(
+  metaUrl: string | undefined,
+  filename: string | undefined,
+): string {
+  if (typeof metaUrl === 'string' && metaUrl.length > 0) return metaUrl
+  if (typeof filename === 'string' && filename.length > 0) {
+    return pathToFileURL(filename).href
+  }
+  throw new Error(
+    'parser-cache: cannot resolve tree-sitter grammars. Neither import.meta.url ' +
+      'nor __filename is available -- this usually means @flagshark/core is being ' +
+      'bundled into a non-Node target. Set the FLAGSHARK_WASM_DIR environment ' +
+      'variable to a directory containing tree-sitter-{typescript,javascript,' +
+      'go,python}.wasm.',
+  )
 }
 
 const WASM_RESOLUTION: Partial<Record<Language, string>> = {

@@ -1,6 +1,12 @@
+import { pathToFileURL } from 'node:url'
+
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
-import { getParser, _resetParserCacheForTests } from '../../src/detection/tree-sitter/parser-cache.js'
+import {
+  getParser,
+  pickModuleUrl,
+  _resetParserCacheForTests,
+} from '../../src/detection/tree-sitter/parser-cache.js'
 
 describe('parser-cache', () => {
   beforeEach(() => {
@@ -70,5 +76,45 @@ describe('parser-cache — FLAGSHARK_WASM_DIR branch (lines 41-43)', () => {
     expect(parser).toBeDefined()
     const tree = parser.parse('const x = 1')
     expect(tree).not.toBeNull()
+  })
+})
+
+// Regression coverage for the bundler-shape selection logic. The bug we are
+// guarding against: when esbuild emits ESM->CJS, `import.meta` is stubbed to
+// `{}` so `import.meta.url` is undefined. Without the __filename fallback,
+// `createRequire(undefined)` throws on every detection call and PolyglotAnalyzer
+// silently buries the errors in its per-file try/catch. This is exactly how a
+// week-long production regression went undiagnosed.
+describe('parser-cache — pickModuleUrl (bundler-shape selection)', () => {
+  it('prefers import.meta.url when it is a usable string', () => {
+    expect(pickModuleUrl('file:///foo/bar.js', '/var/task/index.js')).toBe('file:///foo/bar.js')
+  })
+
+  it('falls back to pathToFileURL(__filename) when import.meta.url is undefined', () => {
+    // This is the esbuild ESM->CJS case: import.meta got stubbed to {}.
+    const result = pickModuleUrl(undefined, '/var/task/index.js')
+    expect(result).toBe(pathToFileURL('/var/task/index.js').href)
+  })
+
+  it('treats an empty-string meta.url as missing (defensive)', () => {
+    const result = pickModuleUrl('', '/var/task/index.js')
+    expect(result).toBe(pathToFileURL('/var/task/index.js').href)
+  })
+
+  it('throws with a FLAGSHARK_WASM_DIR pointer when neither base is available', () => {
+    expect(() => pickModuleUrl(undefined, undefined)).toThrow(/FLAGSHARK_WASM_DIR/)
+  })
+
+  it('error message names the four grammars users must place in the dir', () => {
+    try {
+      pickModuleUrl(undefined, undefined)
+      expect.fail('expected pickModuleUrl to throw')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      expect(message).toContain('typescript')
+      expect(message).toContain('javascript')
+      expect(message).toContain('go')
+      expect(message).toContain('python')
+    }
   })
 })
