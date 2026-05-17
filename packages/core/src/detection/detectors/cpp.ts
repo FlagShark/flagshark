@@ -44,8 +44,18 @@ export class CPPDetector implements LanguageDetector {
 export function defaultCPPProviders(): FeatureFlagProvider[] {
   return [
     {
-      name: 'LaunchDarkly C++ SDK',
-      importPattern: 'launchdarkly',
+      // Server SDK takes a Context as the first argument, then the flag key:
+      //   client->BoolVariation(context, "flag-key", false)
+      // Client SDK omits the context (one client = one context), so the flag
+      // is at index 0:
+      //   client->BoolVariation("flag-key", false)
+      // The two have to be separate providers with distinct importPattern
+      // values, otherwise a single `flagKeyIndex` would silently extract the
+      // wrong arg for whichever SDK didn't match. Pre-split, customers using
+      // the Client SDK got the default-value string reported as a flag (a
+      // false positive that polluted staleness output).
+      name: 'LaunchDarkly C++ Server SDK',
+      importPattern: 'launchdarkly/server_side',
       description: 'LaunchDarkly C/C++ Server SDK',
       enabled: true,
       methods: [
@@ -68,6 +78,69 @@ export function defaultCPPProviders(): FeatureFlagProvider[] {
           name: 'DoubleVariation',
           flagKeyIndex: 1,
           examples: ['client->DoubleVariation(context, "flag-key", 0.0)'],
+        },
+        {
+          name: 'JsonVariation',
+          flagKeyIndex: 1,
+          examples: ['client->JsonVariation(context, "flag-key", Value::Null())'],
+        },
+      ],
+    },
+    {
+      name: 'LaunchDarkly C++ Client SDK',
+      importPattern: 'launchdarkly/client_side',
+      description: 'LaunchDarkly C/C++ Client SDK (single-context)',
+      enabled: true,
+      methods: [
+        {
+          name: 'BoolVariation',
+          flagKeyIndex: 0,
+          examples: ['client->BoolVariation("flag-key", false)'],
+        },
+        {
+          name: 'StringVariation',
+          flagKeyIndex: 0,
+          examples: ['client->StringVariation("flag-key", "default")'],
+        },
+        {
+          name: 'IntVariation',
+          flagKeyIndex: 0,
+          examples: ['client->IntVariation("flag-key", 0)'],
+        },
+        {
+          name: 'DoubleVariation',
+          flagKeyIndex: 0,
+          examples: ['client->DoubleVariation("flag-key", 0.0)'],
+        },
+        {
+          name: 'JsonVariation',
+          flagKeyIndex: 0,
+          examples: ['client->JsonVariation("flag-key", Value::Null())'],
+        },
+        {
+          name: 'BoolVariationDetail',
+          flagKeyIndex: 0,
+          examples: ['client->BoolVariationDetail("flag-key", false)'],
+        },
+        {
+          name: 'StringVariationDetail',
+          flagKeyIndex: 0,
+          examples: ['client->StringVariationDetail("flag-key", "default")'],
+        },
+        {
+          name: 'IntVariationDetail',
+          flagKeyIndex: 0,
+          examples: ['client->IntVariationDetail("flag-key", 0)'],
+        },
+        {
+          name: 'DoubleVariationDetail',
+          flagKeyIndex: 0,
+          examples: ['client->DoubleVariationDetail("flag-key", 0.0)'],
+        },
+        {
+          name: 'JsonVariationDetail',
+          flagKeyIndex: 0,
+          examples: ['client->JsonVariationDetail("flag-key", Value::Null())'],
         },
       ],
     },
