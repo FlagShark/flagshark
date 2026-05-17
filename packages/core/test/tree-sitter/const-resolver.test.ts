@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 
 import { getParser, _resetParserCacheForTests } from '../../src/detection/tree-sitter/parser-cache.js'
-import { resolveConstStringTS } from '../../src/detection/tree-sitter/const-resolver.js'
+import {
+  resolveConstStringGo,
+  resolveConstStringTS,
+} from '../../src/detection/tree-sitter/const-resolver.js'
 
 describe('const-resolver / typescript', () => {
   beforeEach(() => _resetParserCacheForTests())
@@ -122,5 +125,95 @@ describe('const-resolver / typescript', () => {
     const flagArg = args.namedChildren[0]!
     // `let` declaration → not resolved (line 17 branch)
     expect(resolveConstStringTS(flagArg, tree!.rootNode)).toBeNull()
+  })
+})
+
+// Mirror of the TS suite for Go. Added in the 1.5 detection-quality sweep
+// after `examples/go/launchdarkly_example.go:120` silently lost its
+// const-extracted flag (`BoolVariation(newDashboardFlag, ...)`).
+describe('const-resolver / go', () => {
+  beforeEach(() => _resetParserCacheForTests())
+
+  // Helper -- finds the call_expression's args[0] in a small Go snippet.
+  async function firstCallArg(source: string) {
+    const parser = await getParser('go')
+    const tree = parser.parse(source)
+    expect(tree).not.toBeNull()
+    const call = tree!.rootNode.descendantsOfType('call_expression')[0]!
+    const args = call.namedChildren.find((c) => c && c.type === 'argument_list')!
+    const flagArg = args.namedChildren[0]!
+    return { tree: tree!, flagArg }
+  }
+
+  it('resolves a top-level `const FLAG = "X"` reference (untyped)', async () => {
+    const { tree, flagArg } = await firstCallArg(
+      `package main
+const newDashboardFlag = "go-new-dashboard-layout"
+func main() { client.BoolVariation(newDashboardFlag, ctx, false) }`,
+    )
+    expect(resolveConstStringGo(flagArg, tree.rootNode)).toBe('go-new-dashboard-layout')
+  })
+
+  it('resolves a typed `const FLAG string = "X"` reference', async () => {
+    const { tree, flagArg } = await firstCallArg(
+      `package main
+const typedFlag string = "typed-flag-key"
+func main() { client.BoolVariation(typedFlag, ctx, false) }`,
+    )
+    expect(resolveConstStringGo(flagArg, tree.rootNode)).toBe('typed-flag-key')
+  })
+
+  it('resolves grouped `const ( A = "x"; B = "y" )` references', async () => {
+    const { tree, flagArg } = await firstCallArg(
+      `package main
+const (
+  AnotherFlag = "another-flag-key"
+  groupedFlag = "grouped-flag-key"
+)
+func main() { client.BoolVariation(groupedFlag, ctx, false) }`,
+    )
+    expect(resolveConstStringGo(flagArg, tree.rootNode)).toBe('grouped-flag-key')
+  })
+
+  it('returns null when the identifier is undefined in the file', async () => {
+    const { tree, flagArg } = await firstCallArg(
+      `package main
+func main() { client.BoolVariation(undefinedConst, ctx, false) }`,
+    )
+    expect(resolveConstStringGo(flagArg, tree.rootNode)).toBeNull()
+  })
+
+  it('returns null when the const value is a non-string literal (numeric)', async () => {
+    const { tree, flagArg } = await firstCallArg(
+      `package main
+const FlagNumber = 42
+func main() { client.BoolVariation(FlagNumber, ctx, false) }`,
+    )
+    expect(resolveConstStringGo(flagArg, tree.rootNode)).toBeNull()
+  })
+
+  it('returns null when node is not an identifier (e.g. direct string literal)', async () => {
+    const parser = await getParser('go')
+    const tree = parser.parse(
+      `package main
+func main() { client.BoolVariation("DIRECT_STRING", ctx, false) }`,
+    )
+    expect(tree).not.toBeNull()
+    const call = tree!.rootNode.descendantsOfType('call_expression')[0]!
+    const args = call.namedChildren.find((c) => c && c.type === 'argument_list')!
+    const flagArg = args.namedChildren[0]!
+    expect(flagArg.type).not.toBe('identifier')
+    expect(resolveConstStringGo(flagArg, tree!.rootNode)).toBeNull()
+  })
+
+  it('returns null when the binding is a `var` declaration, not `const`', async () => {
+    // Go `var X = "y"` is a separate top-level node type from const_declaration
+    // and must not be picked up as a const binding.
+    const { tree, flagArg } = await firstCallArg(
+      `package main
+var someFlag = "var-flag-key"
+func main() { client.BoolVariation(someFlag, ctx, false) }`,
+    )
+    expect(resolveConstStringGo(flagArg, tree.rootNode)).toBeNull()
   })
 })

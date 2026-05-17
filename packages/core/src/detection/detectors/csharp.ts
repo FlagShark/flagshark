@@ -66,6 +66,11 @@ export function defaultCSharpProviders(): FeatureFlagProvider[] {
           flagKeyIndex: 0,
           examples: ['client.DoubleVariation("flag-key", context, 0.0)'],
         },
+        {
+          name: 'JsonVariation',
+          flagKeyIndex: 0,
+          examples: ['client.JsonVariation("flag-key", context, LdValue.Null)'],
+        },
       ],
     },
     {

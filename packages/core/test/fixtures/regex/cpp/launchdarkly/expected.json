@@ -7,7 +7,33 @@
         "filePath": "positive/basic.cpp",
         "lineNumber": 4,
         "language": "cpp",
-        "provider": "launchdarkly"
+        "provider": "launchdarkly/server_side"
+      }
+    ]
+  },
+  {
+    "file": "positive/client_sdk.cpp",
+    "flags": [
+      {
+        "name": "client-feature-enabled",
+        "filePath": "positive/client_sdk.cpp",
+        "lineNumber": 10,
+        "language": "cpp",
+        "provider": "launchdarkly/client_side"
+      },
+      {
+        "name": "client-api-version",
+        "filePath": "positive/client_sdk.cpp",
+        "lineNumber": 15,
+        "language": "cpp",
+        "provider": "launchdarkly/client_side"
+      },
+      {
+        "name": "client-rollout-detail",
+        "filePath": "positive/client_sdk.cpp",
+        "lineNumber": 16,
+        "language": "cpp",
+        "provider": "launchdarkly/client_side"
       }
     ]
   },

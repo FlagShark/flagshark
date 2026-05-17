@@ -12,6 +12,32 @@
     ]
   },
   {
+    "file": "positive/conditional.cs",
+    "flags": [
+      {
+        "name": "flag-in-if",
+        "filePath": "positive/conditional.cs",
+        "lineNumber": 22,
+        "language": "csharp",
+        "provider": "LaunchDarkly.Sdk"
+      },
+      {
+        "name": "flag-in-while",
+        "filePath": "positive/conditional.cs",
+        "lineNumber": 27,
+        "language": "csharp",
+        "provider": "LaunchDarkly.Sdk"
+      },
+      {
+        "name": "flag-json-config",
+        "filePath": "positive/conditional.cs",
+        "lineNumber": 33,
+        "language": "csharp",
+        "provider": "LaunchDarkly.Sdk"
+      }
+    ]
+  },
+  {
     "file": "negative/no-import.cs",
     "flags": []
   }
