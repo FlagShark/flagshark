@@ -216,8 +216,15 @@ export function detectFlagsWithRegex(
         let match: RegExpExecArray | null
 
         while ((match = pattern.exec(line)) !== null) {
-          const callStart = match.index
-          // Extract the full call from this position
+          // The regex consumes a leading non-word character (typically a
+          // space, but a `(` for calls inside `if (client.Method(...))`),
+          // so `match.index` can be one char before the receiver. Anchor
+          // the walk at the method's own `(` -- the LAST char of the match
+          // -- so `getCallExpression` doesn't mistake a wrapping paren for
+          // the call's opening paren. Without this, every C# (and other
+          // regex-language) call inside `if (...)` returned the entire
+          // wrapped expression as arg 0 and the flag-key extraction failed.
+          const callStart = match.index + match[0].length - 1
           const restOfContent = getCallExpression(lines, lineIdx, callStart)
           /* v8 ignore next 3 -- defensive; getCallExpression only returns null when no '(' is ever found, which the matching regex guarantees */
           if (!restOfContent) {
