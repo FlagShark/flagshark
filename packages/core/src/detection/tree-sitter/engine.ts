@@ -6,7 +6,7 @@ import type { FeatureFlagProvider, Language, MethodConfig } from '../interface.j
 
 import { getParser } from './parser-cache.js'
 import { getQuery, iterateCalls, getArgument, extractStringLiteral } from './query-runner.js'
-import { resolveConstStringTS } from './const-resolver.js'
+import { resolveConstStringGo, resolveConstStringTS } from './const-resolver.js'
 
 /**
  * Detect feature flags via tree-sitter. Mirrors detectFlagsWithRegex's contract.
@@ -61,9 +61,18 @@ export async function detectFlagsWithTreeSitter(
 
       let flagKey = extractStringLiteral(arg)
 
-      // Goal C: const-extraction for TypeScript/JavaScript
-      if (flagKey === null && (language === 'typescript' || language === 'javascript')) {
-        flagKey = resolveConstStringTS(arg, tree.rootNode)
+      // Const-extraction for tier-1 languages where the resolver is wired up.
+      // Resolves file-scope `const NAME = "literal"` references when a method
+      // call uses the identifier instead of a string literal. Go added in the
+      // 1.5 detection-quality sweep -- prior to that, Go consumers like
+      // `examples/go/launchdarkly_example.go:120` (BoolVariation(newDashboardFlag, ...))
+      // had their const-extracted flag silently dropped.
+      if (flagKey === null) {
+        if (language === 'typescript' || language === 'javascript') {
+          flagKey = resolveConstStringTS(arg, tree.rootNode)
+        } else if (language === 'go') {
+          flagKey = resolveConstStringGo(arg, tree.rootNode)
+        }
       }
 
       if (!flagKey || !isValidFlagKey(flagKey)) continue
