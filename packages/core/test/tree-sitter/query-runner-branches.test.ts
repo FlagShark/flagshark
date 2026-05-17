@@ -49,3 +49,13 @@ describe('loadQueryText — FLAGSHARK_QUERIES_DIR branch (lines 16-17)', () => {
     expect(bundleText).toBe(defaultText)
   })
 })
+
+describe('loadQueryText — unknown language', () => {
+  it('throws an actionable error when no inlined query exists for the language', () => {
+    // Tier-2 languages (java, ruby, etc.) use regex detection and have no .scm
+    // query, but if a caller mistakenly asks for one we want a clear error
+    // pointing them at the registry, not a cryptic `undefined.length` crash.
+    expect(() => loadQueryText('cobol' as never)).toThrow(/no inlined query/)
+    expect(() => loadQueryText('cobol' as never)).toThrow(/createDefaultRegistry/)
+  })
+})

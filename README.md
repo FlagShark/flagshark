@@ -308,7 +308,7 @@ const result = await scanRepo({
 console.log(`${result.totalFlags} flags, ${result.staleFlags.length} stale`)
 ```
 
-See [`@flagshark/core`](packages/core/README.md) for the full API including custom providers and lower-level primitives.
+See [`@flagshark/core`](packages/core/README.md) for the full API including custom providers and lower-level primitives. If you're **bundling** `@flagshark/core` into a Lambda, container, or edge function, the [Bundling and WASM resolution](packages/core/README.md#bundling-and-wasm-resolution) section covers the three deployment shapes (Node + external grammars, flattened-WASM-dir, non-Node target) and which one you want.
 
 ## License
 
