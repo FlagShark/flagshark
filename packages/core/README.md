@@ -17,7 +17,7 @@ import { scanRepo } from '@flagshark/core'
 
 const result = await scanRepo({
   cwd: process.cwd(),
-  threshold: 6, // months — flag is stale if older than this
+  threshold: 30, // days — flag is stale if older than this
 })
 
 console.log(`${result.totalFlags} flags, ${result.staleFlags.length} stale`)
@@ -68,7 +68,7 @@ interface ScanRepoOptions {
   /** Absolute path to the repository being scanned. */
   cwd: string
 
-  /** Staleness threshold in months. Overridden by `config.threshold` if config is supplied. */
+  /** Staleness threshold in days. Overridden by `config.threshold` if config is supplied. */
   threshold?: number
 
   /** If set, only scan files changed since this git ref (e.g. `origin/main`). */
@@ -147,7 +147,7 @@ excluder.shouldExclude('examples/demo.ts')  // true
 The schema accepts:
 
 ```yaml
-threshold: 6
+threshold: 30
 excludes:
   paths: []        # gitignore-style globs
   files: []        # same — split is purely organizational
@@ -156,7 +156,7 @@ suppress:
   flags: []        # flag-name globs (post-detection filter)
 paths:
   - match: 'src/critical/**'
-    threshold: 3
+    threshold: 90
 providers: []      # custom provider definitions (see Custom Detectors)
 ```
 
@@ -182,7 +182,7 @@ For staleness analysis with a local checkout:
 import { analyzeStaleness } from '@flagshark/core'
 
 const stale = await analyzeStaleness(result.totalFlags, {
-  thresholdMonths: 6,
+  thresholdDays: 30,
   repoRoot: '/path/to/repo',
 })
 ```
@@ -233,7 +233,7 @@ Once a file qualifies, the engine (tree-sitter for tier-1, regex for the rest) w
 
 A flag is marked stale if **any** signal fires:
 
-1. **`age`** — `git blame` shows the flag's line was last modified more than `threshold` months ago.
+1. **`age`** — `git blame` shows the flag's line was last modified more than `threshold` days ago.
 2. **`low-usage`** — The flag name appears in only one file across the repo, suggesting a completed rollout.
 
 ## License
