@@ -8,9 +8,9 @@ inputs:
     required: false
     default: 'changed'
   threshold:
-    description: 'Staleness threshold in months'
+    description: 'Staleness threshold in days'
     required: false
-    default: '6'
+    default: '30'
   fail-threshold:
     description: 'Health score below which the check fails (0 = never fail)'
     required: false

@@ -25,7 +25,7 @@ flagshark scan [options]
 Options:
   --json            Output as JSON
   --diff <ref>      Only scan files changed since <ref> (e.g., HEAD~1, main)
-  --threshold <n>   Staleness threshold in months (default: 6)
+  --threshold <n>   Staleness threshold in days (default: 30)
   --verbose         Show all stale flags (not just top 10)
   --help            Show help
   --version         Show version
@@ -116,7 +116,7 @@ export function parseArgs(argv: string[]): CliArgs {
         i++
         args.threshold = parseInt(argv[i], 10)
         if (isNaN(args.threshold) || args.threshold < 1) {
-          throw new Error('--threshold requires a positive integer (months)')
+          throw new Error('--threshold requires a positive integer (days)')
         }
         break
       case '--verbose':
