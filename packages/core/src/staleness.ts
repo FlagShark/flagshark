@@ -22,8 +22,8 @@ export interface StaleFlag {
 }
 
 export interface StalenessOptions {
-  /** Flag lines older than this are considered stale. Default: 6. */
-  thresholdMonths: number
+  /** Flag lines older than this are considered stale. Default: 30. */
+  thresholdDays: number
   /** Absolute path to the git repository root. */
   repoRoot: string
   /** Optional: pre-computed platform signals keyed by flag name. */
@@ -149,13 +149,13 @@ function formatAge(unixSeconds: number): string {
  */
 function checkAgeSignal(
   authorTime: number | undefined,
-  thresholdMonths: number,
+  thresholdDays: number,
 ): { signal: StalenessSignal; age: string } | null {
   if (authorTime === undefined) {
     return null
   }
 
-  const thresholdMs = thresholdMonths * 30.44 * 24 * 60 * 60 * 1000
+  const thresholdMs = thresholdDays * 24 * 60 * 60 * 1000
   const ageMs = Date.now() - authorTime * 1000
 
   if (ageMs < thresholdMs) {
@@ -167,7 +167,7 @@ function checkAgeSignal(
     signal: {
       type: 'age' as const,
       severity: 'warning' as const,
-      description: `Flag reference last modified ${age} (threshold: ${thresholdMonths} months)`,
+      description: `Flag reference last modified ${age} (threshold: ${thresholdDays} days)`,
     },
     age,
   }
@@ -202,7 +202,7 @@ export async function analyzeStaleness(
   flags: Map<string, FeatureFlag[]>,
   options: StalenessOptions,
 ): Promise<StaleFlag[]> {
-  const { thresholdMonths = 6, repoRoot } = options
+  const { thresholdDays = 30, repoRoot } = options
 
   // ── 1. Determine whether we can use git blame at all ──
   const shallow = isShallowRepo(repoRoot)
@@ -238,7 +238,7 @@ export async function analyzeStaleness(
       if (!shallow) {
         const blame = fileBlames.get(flag.filePath)
         const authorTime = blame?.get(flag.lineNumber)
-        const ageResult = checkAgeSignal(authorTime, thresholdMonths)
+        const ageResult = checkAgeSignal(authorTime, thresholdDays)
         if (ageResult) {
           signals.push(ageResult.signal)
           age = ageResult.age

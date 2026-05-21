@@ -29,7 +29,7 @@ describe('analyzeStaleness — severity on existing signals', () => {
       { name: 'OLD_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
       { name: 'OLD_FLAG', filePath: 'b.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
     ]
-    const result = await analyzeStaleness(detectedMap(flags), { thresholdMonths: 6, repoRoot: dir })
+    const result = await analyzeStaleness(detectedMap(flags), { thresholdDays: 6, repoRoot: dir })
     const stale = result.find((s) => s.name === 'OLD_FLAG')
     const ageSignal = stale?.signals.find((s) => s.type === 'age')
     expect(ageSignal?.severity).toBe('warning')
@@ -44,7 +44,7 @@ describe('analyzeStaleness — severity on existing signals', () => {
     const flags: FeatureFlag[] = [
       { name: 'SOLO_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
     ]
-    const result = await analyzeStaleness(detectedMap(flags), { thresholdMonths: 6, repoRoot: dir })
+    const result = await analyzeStaleness(detectedMap(flags), { thresholdDays: 6, repoRoot: dir })
     const stale = result.find((s) => s.name === 'SOLO_FLAG')
     const lowUsage = stale?.signals.find((s) => s.type === 'low-usage')
     expect(lowUsage?.severity).toBe('warning')
@@ -71,7 +71,7 @@ describe('analyzeStaleness — platform signals', () => {
 
     const result = await analyzeStaleness(
       detectedMap(flags),
-      { thresholdMonths: 6, repoRoot: dir, platformSignals },
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
     )
     const stale = result.find((s) => s.name === 'PRESENT')
     expect(stale).toBeDefined()
@@ -98,7 +98,7 @@ describe('analyzeStaleness — platform signals', () => {
 
     const result = await analyzeStaleness(
       detectedMap(flags),
-      { thresholdMonths: 6, repoRoot: dir, platformSignals },
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
     )
     const stale = result.find((s) => s.name === 'OLD_AND_ARCHIVED')
     const types = stale?.signals.map((s) => s.type) ?? []
@@ -119,7 +119,7 @@ describe('analyzeStaleness — platform signals', () => {
     ]
     const result = await analyzeStaleness(
       detectedMap(flags),
-      { thresholdMonths: 6, repoRoot: dir, platformSignals: new Map() },
+      { thresholdDays: 6, repoRoot: dir, platformSignals: new Map() },
     )
     expect(result.find((s) => s.name === 'FRESH')).toBeUndefined()
   })

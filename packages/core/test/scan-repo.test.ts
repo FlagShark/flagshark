@@ -204,7 +204,7 @@ describe('scanRepo', () => {
     const result = await scanRepo({ cwd: dir, noConfig: true })
     expect(result.totalFlags).toBe(1)
     // If config was loaded, threshold 999 would suppress stale flags by age;
-    // noConfig defaults to 6 months (default) + single-file signal fires anyway.
+    // noConfig defaults to 30 days (default) + single-file signal fires anyway.
 
     rmSync(dir, { recursive: true, force: true })
   })

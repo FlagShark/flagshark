@@ -34,8 +34,8 @@ export interface ScanRepoOptions {
   cwd: string
 
   /**
-   * Staleness threshold in months. A flag is considered stale if its
-   * git-blame age exceeds this value. Default: 6.
+   * Staleness threshold in days. A flag is considered stale if its
+   * git-blame age exceeds this value. Default: 30.
    */
   threshold?: number
 
@@ -185,7 +185,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
 
   const staleFlags = await analyzeStaleness(
     analysisResult.totalFlags,
-    { thresholdMonths: threshold, repoRoot: opts.cwd, platformSignals },
+    { thresholdDays: threshold, repoRoot: opts.cwd, platformSignals },
   )
 
   const totalFlags = analysisResult.totalFlags.size
