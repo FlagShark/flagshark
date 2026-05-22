@@ -31738,7 +31738,7 @@ function detectFlagsWithRegex(filename, content, language, providers) {
         const line = lines[lineIdx];
         let match;
         while ((match = pattern.exec(line)) !== null) {
-          const callStart = match.index;
+          const callStart = match.index + match[0].length - 1;
           const restOfContent = getCallExpression(lines, lineIdx, callStart);
           if (!restOfContent) {
             continue;
@@ -31839,8 +31839,18 @@ var CPPDetector = class {
 function defaultCPPProviders() {
   return [
     {
-      name: "LaunchDarkly C++ SDK",
-      importPattern: "launchdarkly",
+      // Server SDK takes a Context as the first argument, then the flag key:
+      //   client->BoolVariation(context, "flag-key", false)
+      // Client SDK omits the context (one client = one context), so the flag
+      // is at index 0:
+      //   client->BoolVariation("flag-key", false)
+      // The two have to be separate providers with distinct importPattern
+      // values, otherwise a single `flagKeyIndex` would silently extract the
+      // wrong arg for whichever SDK didn't match. Pre-split, customers using
+      // the Client SDK got the default-value string reported as a flag (a
+      // false positive that polluted staleness output).
+      name: "LaunchDarkly C++ Server SDK",
+      importPattern: "launchdarkly/server_side",
       description: "LaunchDarkly C/C++ Server SDK",
       enabled: true,
       methods: [
@@ -31863,6 +31873,69 @@ function defaultCPPProviders() {
           name: "DoubleVariation",
           flagKeyIndex: 1,
           examples: ['client->DoubleVariation(context, "flag-key", 0.0)']
+        },
+        {
+          name: "JsonVariation",
+          flagKeyIndex: 1,
+          examples: ['client->JsonVariation(context, "flag-key", Value::Null())']
+        }
+      ]
+    },
+    {
+      name: "LaunchDarkly C++ Client SDK",
+      importPattern: "launchdarkly/client_side",
+      description: "LaunchDarkly C/C++ Client SDK (single-context)",
+      enabled: true,
+      methods: [
+        {
+          name: "BoolVariation",
+          flagKeyIndex: 0,
+          examples: ['client->BoolVariation("flag-key", false)']
+        },
+        {
+          name: "StringVariation",
+          flagKeyIndex: 0,
+          examples: ['client->StringVariation("flag-key", "default")']
+        },
+        {
+          name: "IntVariation",
+          flagKeyIndex: 0,
+          examples: ['client->IntVariation("flag-key", 0)']
+        },
+        {
+          name: "DoubleVariation",
+          flagKeyIndex: 0,
+          examples: ['client->DoubleVariation("flag-key", 0.0)']
+        },
+        {
+          name: "JsonVariation",
+          flagKeyIndex: 0,
+          examples: ['client->JsonVariation("flag-key", Value::Null())']
+        },
+        {
+          name: "BoolVariationDetail",
+          flagKeyIndex: 0,
+          examples: ['client->BoolVariationDetail("flag-key", false)']
+        },
+        {
+          name: "StringVariationDetail",
+          flagKeyIndex: 0,
+          examples: ['client->StringVariationDetail("flag-key", "default")']
+        },
+        {
+          name: "IntVariationDetail",
+          flagKeyIndex: 0,
+          examples: ['client->IntVariationDetail("flag-key", 0)']
+        },
+        {
+          name: "DoubleVariationDetail",
+          flagKeyIndex: 0,
+          examples: ['client->DoubleVariationDetail("flag-key", 0.0)']
+        },
+        {
+          name: "JsonVariationDetail",
+          flagKeyIndex: 0,
+          examples: ['client->JsonVariationDetail("flag-key", Value::Null())']
         }
       ]
     },
@@ -31971,6 +32044,11 @@ function defaultCSharpProviders() {
           name: "DoubleVariation",
           flagKeyIndex: 0,
           examples: ['client.DoubleVariation("flag-key", context, 0.0)']
+        },
+        {
+          name: "JsonVariation",
+          flagKeyIndex: 0,
+          examples: ['client.JsonVariation("flag-key", context, LdValue.Null)']
         }
       ]
     },
@@ -36125,14 +36203,36 @@ var Parser = class {
   }
 };
 
+// ../core/dist/detection/tree-sitter/module-url.js
+var import_node_url = require("node:url");
+function tryGetModuleUrl(metaUrl, filename) {
+  if (typeof metaUrl === "string" && metaUrl.length > 0)
+    return metaUrl;
+  if (typeof filename === "string" && filename.length > 0) {
+    return (0, import_node_url.pathToFileURL)(filename).href;
+  }
+  return void 0;
+}
+function getModuleUrl(metaUrl, filename, errorFactory) {
+  const url = tryGetModuleUrl(metaUrl, filename);
+  if (!url)
+    throw errorFactory();
+  return url;
+}
+
 // ../core/dist/detection/tree-sitter/parser-cache.js
 var import_meta2 = {};
 var require_ = null;
 function getRequire() {
-  if (!require_) {
-    require_ = (0, import_node_module.createRequire)(import_meta2.url);
-  }
+  if (require_)
+    return require_;
+  const metaUrl = import_meta2.url;
+  const cjsFilename = typeof __filename !== "undefined" ? __filename : void 0;
+  require_ = (0, import_node_module.createRequire)(getModuleUrl(metaUrl, cjsFilename, noResolutionBase));
   return require_;
+}
+function noResolutionBase() {
+  return new Error("parser-cache: cannot resolve tree-sitter grammars. Neither import.meta.url nor __filename is available -- this usually means @flagshark/core is being bundled into a non-Node target. Set the FLAGSHARK_WASM_DIR environment variable to a directory containing tree-sitter-{typescript,javascript,go,python}.wasm.");
 }
 var WASM_RESOLUTION = {
   typescript: "tree-sitter-typescript/tree-sitter-typescript.wasm",
@@ -36184,15 +36284,26 @@ async function getParser(lang) {
 
 // ../core/dist/detection/tree-sitter/query-runner.js
 var import_node_fs = require("node:fs");
-var import_node_url = require("node:url");
-var import_meta3 = {};
+
+// ../core/dist/detection/tree-sitter/queries-inline.js
+var INLINE_QUERIES = {
+  "go": "; Method call on a receiver: client.BoolVariation(...)\n(call_expression\n  function: (selector_expression\n    operand: (_) @receiver\n    field: (field_identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: BoolVariation(...)\n(call_expression\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
+  "javascript": "; tree-sitter-javascript's grammar uses identical node names to typescript\n; for these call shapes \u2014 we duplicate the file for clarity even though the\n; content is identical.\n\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n",
+  "python": "; Method call: client.variation(...)\n(call\n  function: (attribute\n    object: (_) @receiver\n    attribute: (identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: variation(...)\n(call\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
+  "typescript": "; Match method-style calls: <receiver>.<method>(<args>)\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n; Match free-function calls: <method>(<args>)\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n"
+};
+
+// ../core/dist/detection/tree-sitter/query-runner.js
 function loadQueryText(lang) {
   const queriesDir = process.env.FLAGSHARK_QUERIES_DIR;
   if (queriesDir) {
     return (0, import_node_fs.readFileSync)(`${queriesDir}/${lang}.scm`, "utf-8");
   }
-  const url = new URL(`./queries/${lang}.scm`, import_meta3.url);
-  return (0, import_node_fs.readFileSync)((0, import_node_url.fileURLToPath)(url), "utf-8");
+  const inline = INLINE_QUERIES[lang];
+  if (inline === void 0) {
+    throw new Error(`query-runner: no inlined query for language "${lang}". This language is not registered as a tier-1 tree-sitter detector. Did you mean to use regex-based detection? See createDefaultRegistry().`);
+  }
+  return inline;
 }
 var queryCache = /* @__PURE__ */ new Map();
 var inFlightQueries = /* @__PURE__ */ new Map();
@@ -36275,6 +36386,44 @@ function resolveConstStringTS(node, fileRoot) {
   }
   return null;
 }
+function resolveConstStringGo(node, fileRoot) {
+  if (node.type !== "identifier")
+    return null;
+  const name2 = node.text;
+  for (const child of fileRoot.namedChildren) {
+    if (!child)
+      continue;
+    if (child.type !== "const_declaration")
+      continue;
+    for (const spec of child.namedChildren) {
+      if (!spec)
+        continue;
+      if (spec.type !== "const_spec")
+        continue;
+      let nameNode = null;
+      let valueNode = null;
+      for (const c of spec.children) {
+        if (!c)
+          continue;
+        if (!nameNode && c.type === "identifier")
+          nameNode = c;
+        else if (!valueNode && c.type === "expression_list")
+          valueNode = c;
+      }
+      if (!nameNode || !valueNode)
+        continue;
+      if (nameNode.text !== name2)
+        continue;
+      const literalNode = valueNode.namedChildren[0];
+      if (!literalNode)
+        continue;
+      const literal = extractStringLiteral(literalNode);
+      if (literal !== null)
+        return literal;
+    }
+  }
+  return null;
+}
 
 // ../core/dist/detection/tree-sitter/engine.js
 async function detectFlagsWithTreeSitter(filename, content, language, providers) {
@@ -36315,8 +36464,12 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
       if (!arg)
         continue;
       let flagKey = extractStringLiteral(arg);
-      if (flagKey === null && (language === "typescript" || language === "javascript")) {
-        flagKey = resolveConstStringTS(arg, tree.rootNode);
+      if (flagKey === null) {
+        if (language === "typescript" || language === "javascript") {
+          flagKey = resolveConstStringTS(arg, tree.rootNode);
+        } else if (language === "go") {
+          flagKey = resolveConstStringGo(arg, tree.rootNode);
+        }
       }
       if (!flagKey || !isValidFlagKey(flagKey))
         continue;
@@ -39149,6 +39302,7 @@ var PolyglotAnalyzer = class {
         languages: Object.fromEntries(result.languages)
       });
     }
+    logParseErrorSample(result, this.logger);
     return result;
   }
   /** Analyzes a single file using the appropriate language detector. */
@@ -39217,6 +39371,26 @@ var PolyglotAnalyzer = class {
     return result;
   }
 };
+function logParseErrorSample(result, logger) {
+  const samples = /* @__PURE__ */ new Map();
+  for (const [filePath, file] of result.files) {
+    for (const err2 of file.parseErrors) {
+      const key = err2.message;
+      const entry = samples.get(key) ?? { count: 0, files: [] };
+      entry.count++;
+      if (entry.files.length < 3) {
+        entry.files.push(filePath);
+      }
+      samples.set(key, entry);
+    }
+  }
+  if (samples.size === 0)
+    return;
+  logger.warn("Parse errors during analysis", {
+    uniqueErrors: samples.size,
+    sample: [...samples.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 5).map(([message, { count, files }]) => ({ message, count, sampleFiles: files }))
+  });
+}
 
 // ../../node_modules/.bun/zod@3.25.76/node_modules/zod/v3/external.js
 var external_exports = {};
@@ -43418,11 +43592,11 @@ function formatAge(unixSeconds) {
   }
   return "less than a day ago";
 }
-function checkAgeSignal(authorTime, thresholdMonths) {
+function checkAgeSignal(authorTime, thresholdDays) {
   if (authorTime === void 0) {
     return null;
   }
-  const thresholdMs = thresholdMonths * 30.44 * 24 * 60 * 60 * 1e3;
+  const thresholdMs = thresholdDays * 24 * 60 * 60 * 1e3;
   const ageMs = Date.now() - authorTime * 1e3;
   if (ageMs < thresholdMs) {
     return null;
@@ -43432,7 +43606,7 @@ function checkAgeSignal(authorTime, thresholdMonths) {
     signal: {
       type: "age",
       severity: "warning",
-      description: `Flag reference last modified ${age} (threshold: ${thresholdMonths} months)`
+      description: `Flag reference last modified ${age} (threshold: ${thresholdDays} days)`
     },
     age
   };
@@ -43449,7 +43623,7 @@ function checkLowUsageSignal(flagName, occurrences) {
   };
 }
 async function analyzeStaleness(flags2, options) {
-  const { thresholdMonths = 6, repoRoot } = options;
+  const { thresholdDays = 30, repoRoot } = options;
   const shallow = isShallowRepo(repoRoot);
   const fileBlames = /* @__PURE__ */ new Map();
   if (!shallow) {
@@ -43472,7 +43646,7 @@ async function analyzeStaleness(flags2, options) {
       if (!shallow) {
         const blame = fileBlames.get(flag.filePath);
         const authorTime = blame?.get(flag.lineNumber);
-        const ageResult = checkAgeSignal(authorTime, thresholdMonths);
+        const ageResult = checkAgeSignal(authorTime, thresholdDays);
         if (ageResult) {
           signals.push(ageResult.signal);
           age = ageResult.age;
@@ -43666,7 +43840,7 @@ var HealthScoreSchema = external_exports.object({
 }).default({});
 var EngineSchema = external_exports.record(external_exports.string(), external_exports.enum(["regex", "tree-sitter"])).default({});
 var FlagsharkConfigSchema = external_exports.object({
-  threshold: external_exports.number().int().positive().default(6),
+  threshold: external_exports.number().int().positive().default(30),
   excludes: ExcludesSchema,
   suppress: SuppressSchema,
   paths: external_exports.array(PathRuleSchema).default([]),
@@ -44155,7 +44329,7 @@ async function scanRepo(opts) {
     noCache: opts.noCache,
     signal: opts.signal
   });
-  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdMonths: threshold, repoRoot: opts.cwd, platformSignals });
+  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdDays: threshold, repoRoot: opts.cwd, platformSignals });
   const totalFlags = analysisResult.totalFlags.size;
   const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
   const healthScore = totalFlags === 0 ? 100 : Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100);
@@ -44401,7 +44575,7 @@ async function run2(deps) {
   };
   try {
     const scanMode = core2.getInput("scan") || "changed";
-    const threshold = parseInt(core2.getInput("threshold") || "6", 10);
+    const threshold = parseInt(core2.getInput("threshold") || "30", 10);
     const failThreshold = parseInt(core2.getInput("fail-threshold") || "0", 10);
     const outputFormat = core2.getInput("output-format") || "markdown";
     const noCache = core2.getInput("no-cache") === "true";
