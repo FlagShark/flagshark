@@ -2,7 +2,7 @@
 
 **Find stale feature flags in your codebase.** Free CLI + GitHub Action. Works with 13 languages and 13 flag providers. Zero config.
 
-📚 **Full documentation: [flagshark.com/docs](https://flagshark.com/docs/)**
+📚 **Full documentation: [flagshark.com/docs](https://flagshark.com/docs/getting-started/introduction/)**
 
 ```bash
 npx flagshark scan

@@ -4,7 +4,7 @@ The detection engine behind [FlagShark](https://github.com/FlagShark/flagshark) 
 
 This is the **library**. For a CLI or GitHub Action, install [`flagshark`](https://www.npmjs.com/package/flagshark) instead.
 
-📚 **Full documentation: [flagshark.com/docs](https://flagshark.com/docs/)**
+📚 **Library documentation: [flagshark.com/docs/getting-started/library](https://flagshark.com/docs/getting-started/library/)**
 
 ## Install
 
