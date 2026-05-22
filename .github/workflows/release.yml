@@ -18,7 +18,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
+      # Publish via npm's OIDC trusted publisher (configured on npm.com), NOT a token.
+      # Two requirements that the previous setup missed:
+      #   1. OIDC trusted publishing needs npm >= 11.5.1 — Node 22 ships npm 10, so
+      #      we upgrade npm here.
+      #   2. No token in .npmrc. We deliberately drop `registry-url` (which would make
+      #      setup-node write `//registry.npmjs.org/:_authToken=...`) and NODE_AUTH_TOKEN.
+      #      If a token is present, npm uses token auth and trips the account's 2FA
+      #      requirement (EOTP). With no token + id-token:write + a trusted publisher,
+      #      `npm publish` authenticates via OIDC and attaches provenance automatically.
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
       # NOTE: do NOT use --frozen-lockfile here. We need bun install to sync the
       # lockfile to whatever versions the bumped package.json files declare, so
       # that `bun pm pack` rewrites workspace:* to the current release version
@@ -28,16 +38,11 @@ jobs:
       - run: bun install
       - run: bun run build
       - run: bun run test
-      # bun pm pack rewrites workspace:* in the tarball; npm publishes the tarball
-      # with OIDC-based provenance (trusted publisher must be configured on npm.com).
-      # bun publish doesn't read NODE_AUTH_TOKEN; npm does.
+      # bun pm pack rewrites workspace:* in the tarball; npm publishes it via the
+      # OIDC trusted publisher. Provenance is generated automatically (no --provenance).
       - name: Pack and publish @flagshark/core
-        run: bun pm pack && npm publish *.tgz --access public --provenance
+        run: bun pm pack && npm publish *.tgz --access public
         working-directory: packages/core
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Pack and publish flagshark
-        run: bun pm pack && npm publish *.tgz --access public --provenance
+        run: bun pm pack && npm publish *.tgz --access public
         working-directory: packages/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
