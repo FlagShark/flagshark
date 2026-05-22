@@ -2,7 +2,7 @@
 
 **Find stale feature flags in your codebase.** Polyglot CLI + GitHub Action. 13 languages, 13 providers, zero config.
 
-📚 **Full documentation: [flagshark.com/docs](https://flagshark.com/docs/)**
+📚 **CLI documentation: [flagshark.com/docs/getting-started/cli](https://flagshark.com/docs/getting-started/cli/)**
 
 ```bash
 npx flagshark scan
