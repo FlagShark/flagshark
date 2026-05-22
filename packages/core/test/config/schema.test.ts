@@ -79,7 +79,7 @@ describe('FlagsharkConfigSchema — platforms field', () => {
 describe('buildDefaultConfig', () => {
   it('returns an empty-but-valid config', () => {
     const cfg = buildDefaultConfig()
-    expect(cfg.threshold).toBe(6)
+    expect(cfg.threshold).toBe(30)
     expect(cfg.excludes.paths).toEqual([])
     expect(cfg.excludes.files).toEqual([])
     expect(cfg.excludes.presets).toEqual([])

@@ -29,7 +29,7 @@ describe('analyzeStaleness', () => {
     ])
 
     const result = await analyzeStaleness(flags, {
-      thresholdMonths: 6,
+      thresholdDays: 6,
       repoRoot: process.cwd(),
     })
 
@@ -42,7 +42,7 @@ describe('analyzeStaleness', () => {
   it('returns empty array when no flags are provided', async () => {
     const flags = new Map<string, FeatureFlag[]>()
     const result = await analyzeStaleness(flags, {
-      thresholdMonths: 6,
+      thresholdDays: 6,
       repoRoot: process.cwd(),
     })
     expect(result).toEqual([])
@@ -53,7 +53,7 @@ describe('analyzeStaleness', () => {
     flags.set('lonely-flag', [makeFlag('lonely-flag', 'src/x.ts', 5)])
 
     const result = await analyzeStaleness(flags, {
-      thresholdMonths: 6,
+      thresholdDays: 6,
       repoRoot: process.cwd(),
     })
 
@@ -92,7 +92,7 @@ describe('analyzeStaleness', () => {
 
     // With 0 threshold months, every flag older than now is "stale by age"
     const result = await analyzeStaleness(flags, {
-      thresholdMonths: 0,
+      thresholdDays: 0,
       repoRoot: dir,
     })
 
@@ -131,7 +131,7 @@ describe('analyzeStaleness', () => {
       provider: 'launchdarkly',
     }])
 
-    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    const result = await analyzeStaleness(flags, { thresholdDays: 0, repoRoot: dir })
     rmSync(dir, { recursive: true, force: true })
 
     const stale = result.find((f) => f.name === 'ONE_MONTH_FLAG')
@@ -166,7 +166,7 @@ describe('analyzeStaleness', () => {
       provider: 'launchdarkly',
     }])
 
-    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    const result = await analyzeStaleness(flags, { thresholdDays: 0, repoRoot: dir })
     rmSync(dir, { recursive: true, force: true })
 
     const stale = result.find((f) => f.name === 'MULTI_MONTH_FLAG')
@@ -201,7 +201,7 @@ describe('analyzeStaleness', () => {
       provider: 'launchdarkly',
     }])
 
-    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    const result = await analyzeStaleness(flags, { thresholdDays: 0, repoRoot: dir })
     rmSync(dir, { recursive: true, force: true })
 
     const stale = result.find((f) => f.name === 'ONE_DAY_FLAG')
@@ -236,7 +236,7 @@ describe('analyzeStaleness', () => {
       provider: 'launchdarkly',
     }])
 
-    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    const result = await analyzeStaleness(flags, { thresholdDays: 0, repoRoot: dir })
     rmSync(dir, { recursive: true, force: true })
 
     const stale = result.find((f) => f.name === 'ONE_YEAR_FLAG')
@@ -267,7 +267,7 @@ describe('analyzeStaleness', () => {
     }])
 
     // Low threshold and low-usage to ensure flag is stale
-    const result = await analyzeStaleness(flags, { thresholdMonths: 0, repoRoot: dir })
+    const result = await analyzeStaleness(flags, { thresholdDays: 0, repoRoot: dir })
     rmSync(dir, { recursive: true, force: true })
 
     const stale = result.find((f) => f.name === 'NO_PROVIDER_FLAG')
@@ -295,7 +295,7 @@ describe('analyzeStaleness', () => {
     let result: Awaited<ReturnType<typeof analyzeStaleness>> | undefined
     await expect(async () => {
       result = await analyzeStaleness(flags, {
-        thresholdMonths: 6,
+        thresholdDays: 6,
         repoRoot: tempDir,
       })
     }).not.toThrow()

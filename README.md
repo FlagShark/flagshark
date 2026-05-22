@@ -76,7 +76,7 @@ jobs:
 | Input | Default | Description |
 |-------|---------|-------------|
 | `scan` | `changed` | `changed` (PR files only — fast) or `full` (entire repo — full health score) |
-| `threshold` | `6` | Staleness threshold in months |
+| `threshold` | `30` | Staleness threshold in days |
 | `fail-threshold` | `0` | Fail the check if health drops below this score (0 = never fail) |
 | `output-format` | `markdown` | PR comment format: `markdown` or `none` |
 | `sarif` | (unset) | Write SARIF v2.1.0 to this path — pair with `codeql-action/upload-sarif` |
@@ -138,7 +138,7 @@ demo/
 ### `.flagshark.yml` — full config
 
 ```yaml
-threshold: 6                     # Staleness threshold in months
+threshold: 30                    # Staleness threshold in days
 
 excludes:                        # Files NOT scanned (input filter)
   paths:
@@ -157,9 +157,9 @@ suppress:                        # Flags hidden from results (output filter)
 
 paths:                           # Per-path threshold overrides
   - match: 'src/critical/**'
-    threshold: 3                 # stricter for critical code
+    threshold: 90                # stricter for critical code (days)
   - match: 'src/experimental/**'
-    threshold: 12                # looser for experiments
+    threshold: 365               # looser for experiments (days)
 ```
 
 The unconditional baseline — `node_modules`, `.git`, `dist`, `build`, `coverage`, `__pycache__`, `vendor`, `.next`, `.turbo` — is always skipped. You don't need to repeat those.
@@ -227,7 +227,7 @@ flagshark scan [options]
 
 Scan options:
   --diff <ref>             Only scan files changed since this git ref (e.g. main, HEAD~1)
-  --threshold <months>     Staleness age threshold (default: 6, or config.threshold)
+  --threshold <days>       Staleness age threshold (default: 30, or config.threshold)
   --verbose                Show all stale flags + effective exclude rules
 
 Output:
@@ -290,7 +290,7 @@ For the remaining 9 languages, regex-based detection is used today. Each languag
 
 A flag is marked stale if **any** signal fires:
 
-1. **`age`** — `git blame` shows the flag's line was last modified more than `threshold` months ago (configurable per-path).
+1. **`age`** — `git blame` shows the flag's line was last modified more than `threshold` days ago (configurable per-path).
 2. **`low-usage`** — The flag name appears in only one file across the repo, suggesting a completed rollout.
 
 ## Library usage
@@ -302,7 +302,7 @@ import { scanRepo } from '@flagshark/core'
 
 const result = await scanRepo({
   cwd: process.cwd(),
-  threshold: 6,
+  threshold: 30,
 })
 
 console.log(`${result.totalFlags} flags, ${result.staleFlags.length} stale`)

@@ -74,7 +74,7 @@ describe('loadConfigFile', () => {
     expect(result).not.toBeNull()
     expect(result?.config).toBeDefined()
     // Should use default schema (no threshold override)
-    expect(result?.config.threshold).toBe(6)
+    expect(result?.config.threshold).toBe(30)
   })
 
   it('returns default config for a file that parses to a non-object scalar', async () => {

@@ -65,7 +65,7 @@ describe('action E2E — summary', () => {
       language: 'typescript',
       provider: 'launchdarkly-node-server-sdk',
       age: '12 months ago',
-      signals: [{ type: 'age' as const, description: 'Flag reference last modified 12 months ago (threshold: 6 months)' }],
+      signals: [{ type: 'age' as const, description: 'Flag reference last modified 12 months ago (threshold: 30 days)' }],
     }))
     const fakeScan = async () => ({
       totalFlags: 20,

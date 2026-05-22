@@ -35,7 +35,7 @@ export async function run(deps: RunDeps): Promise<void> {
 
   try {
     const scanMode = core.getInput('scan') || 'changed'
-    const threshold = parseInt(core.getInput('threshold') || '6', 10)
+    const threshold = parseInt(core.getInput('threshold') || '30', 10)
     const failThreshold = parseInt(core.getInput('fail-threshold') || '0', 10)
     const outputFormat = core.getInput('output-format') || 'markdown'
     const noCache = core.getInput('no-cache') === 'true'

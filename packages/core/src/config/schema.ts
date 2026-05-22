@@ -66,7 +66,7 @@ export const EngineSchema = z.record(
 ).default({})
 
 export const FlagsharkConfigSchema = z.object({
-  threshold: z.number().int().positive().default(6),
+  threshold: z.number().int().positive().default(30),
   excludes: ExcludesSchema,
   suppress: SuppressSchema,
   paths: z.array(PathRuleSchema).default([]),

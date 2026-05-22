@@ -50,7 +50,7 @@ flagshark scan [options]
 
 Scan options:
   --diff <ref>             Only scan files changed since this git ref (e.g. main, HEAD~1)
-  --threshold <months>     Staleness age threshold (default: 6, or config.threshold)
+  --threshold <days>       Staleness age threshold (default: 30, or config.threshold)
   --verbose                Show all stale flags + effective exclude rules
 
 Output:
@@ -66,14 +66,14 @@ Configuration:
 Example invocations:
 
 ```bash
-# Scan current directory, default 6-month threshold
+# Scan current directory, default 30-day threshold
 flagshark scan
 
 # Scan only files changed since main
 flagshark scan --diff main
 
 # Stricter threshold + JSON for piping
-flagshark scan --threshold 3 --json | jq '.staleFlags'
+flagshark scan --threshold 7 --json | jq '.staleFlags'
 
 # Use a custom config file
 flagshark scan --config ./tooling/flagshark.yml
@@ -106,7 +106,7 @@ examples/
 ### `.flagshark.yml` — full config
 
 ```yaml
-threshold: 6
+threshold: 30
 
 excludes:
   paths:
@@ -124,9 +124,9 @@ suppress:
 
 paths:                           # Per-path threshold overrides
   - match: 'src/critical/**'
-    threshold: 3
+    threshold: 90                # stricter for critical code (days)
   - match: 'src/experimental/**'
-    threshold: 12
+    threshold: 365               # looser for experiments (days)
 ```
 
 The unconditional baseline — `node_modules`, `.git`, `dist`, `build`, `coverage`, `__pycache__`, `vendor`, `.next`, `.turbo` — is always skipped.
@@ -173,7 +173,7 @@ Building a tool on top of the engine? Use [`@flagshark/core`](https://www.npmjs.
 ```ts
 import { scanRepo } from '@flagshark/core'
 
-const result = await scanRepo({ cwd: process.cwd(), threshold: 6 })
+const result = await scanRepo({ cwd: process.cwd(), threshold: 30 })
 console.log(`${result.staleFlags.length} stale of ${result.totalFlags}`)
 ```
 
