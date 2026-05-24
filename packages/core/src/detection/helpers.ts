@@ -193,13 +193,30 @@ export function detectFlagsWithRegex(
     const providerName = provider.name
     const importPat = getImportPattern(provider)
 
-    // Import check: skip this provider if file doesn't import its SDK.
-    // Providers with no importPattern (e.g., "Custom Feature Flags") are kept as fallbacks.
+    // Import gate: skip this provider if the file doesn't import its SDK,
+    // UNLESS it carries a runtime-symbol that flags the SDK as present even
+    // without a static import. Providers with no importPattern (the legacy
+    // "Custom Feature Flags" catch-all) always run.
+    //
+    // Detected via runtimeSymbols are tagged below with `confidence: 'medium'`
+    // so downstream consumers can route them through review rather than
+    // auto-merge. See B2 design doc + the provider docstring for the
+    // false-positive trade-off.
+    let detectionConfidence: 'high' | 'medium' = 'high'
     if (importPat) {
       const hasImport =
         content.includes(importPat) || lines.some((line) => line.includes(importPat))
       if (!hasImport) {
-        continue
+        // Check whether the file matches any runtime-symbol pattern.
+        const runtimeHit = (provider.runtimeSymbols ?? []).some((sym) =>
+          content.includes(sym),
+        )
+        if (!runtimeHit) {
+          continue
+        }
+        // Gate passed via runtime symbol — downgrade confidence so the
+        // flag's downstream treatment reflects the weaker signal.
+        detectionConfidence = 'medium'
       }
     }
 
@@ -233,13 +250,19 @@ export function detectFlagsWithRegex(
 
           const flagKey = extractStringArgument(restOfContent, method.flagKeyIndex)
           if (flagKey && isValidFlagKey(flagKey)) {
-            flags.push({
+            const flag: FeatureFlag = {
               name: flagKey,
               filePath: filename,
               lineNumber: lineIdx + 1,
               language,
               provider: importPat || providerName,
-            })
+            }
+            // Only emit `confidence` when it's a non-default value. The
+            // FeatureFlag type documents `confidence` as optional with
+            // "absent = high", so omitting it for the common case keeps
+            // existing JSON consumers + test fixtures stable.
+            if (detectionConfidence !== 'high') flag.confidence = detectionConfidence
+            flags.push(flag)
           }
         }
       }
@@ -298,6 +321,21 @@ function getCallExpression(lines: string[], startLine: number, startCol: number)
   return foundOpen ? result : null
 }
 
+/**
+ * Characters that legitimate feature flag keys never contain. Real keys
+ * across LaunchDarkly, Unleash, PostHog, Statsig, Split.io, and the
+ * shakedown corpus are limited to letters, digits, underscores, dashes,
+ * dots, and colons. The chars below appear only when we've accidentally
+ * latched onto a regex literal, a URL fragment, or a string with parens.
+ *
+ * Surfaced by the PostHog shakedown: a TSX file contained the regex
+ * fragment `([^/]+)` which slipped through `isValidFlagKey` because the
+ * legacy check only rejected URL prefixes. The new key now reports as a
+ * false positive in flagshark's output — that's the bug this set guards
+ * against. See A2 in the shakedown bug inventory.
+ */
+const INVALID_FLAG_KEY_CHAR = /[()\[\]^$\\\s]/
+
 /** Checks whether a string looks like a valid feature flag key. */
 export function isValidFlagKey(key: string): boolean {
   if (key.length === 0 || key.length > 256) {
@@ -309,6 +347,14 @@ export function isValidFlagKey(key: string): boolean {
     if (key.startsWith(prefix)) {
       return false
     }
+  }
+
+  // Reject keys that look like regex literals, character classes, or contain
+  // whitespace — none of these are legitimate shapes for a feature flag key
+  // and they consistently indicate we've extracted the wrong string from a
+  // method call (e.g. `new RegExp('([^/]+)')` getting matched).
+  if (INVALID_FLAG_KEY_CHAR.test(key)) {
+    return false
   }
 
   return true

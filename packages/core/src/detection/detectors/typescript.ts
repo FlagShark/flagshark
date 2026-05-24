@@ -317,6 +317,20 @@ export function defaultTypeScriptProviders(): FeatureFlagProvider[] {
       importPattern: 'posthog-js',
       description: 'PostHog JavaScript/TypeScript SDK',
       enabled: true,
+      // Runtime-load symbols (B2). PostHog's canonical snippet attaches
+      // the SDK to `window.posthog` from a <script src=".../array.js">,
+      // so React/Vue/etc. consumer files never `import 'posthog-js'`
+      // directly. Without these symbols flagshark returns 0 on every
+      // PostHog frontend (n8n, PostHog's own dashboard, ...). The
+      // patterns are property-access shapes (with `.` separators) or
+      // call-shaped (with trailing `(`) so they don't match the bare
+      // string "posthog" in unrelated comments / docs.
+      runtimeSymbols: [
+        'window.posthog.',
+        'posthog.isFeatureEnabled(',
+        'posthog.getFeatureFlag(',
+        'posthog.getFeatureFlagPayload(',
+      ],
       methods: [
         {
           name: 'isFeatureEnabled',

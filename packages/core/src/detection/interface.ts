@@ -66,6 +66,30 @@ export interface FeatureFlagProvider {
   description?: string
   /** Whether detection is enabled for this provider */
   enabled: boolean
+  /**
+   * Optional list of runtime-global symbol patterns that, when present
+   * anywhere in a file's content, count as evidence that the file uses
+   * this provider's SDK — even when the SDK is never statically imported.
+   *
+   * This is the B2 gate-bypass mechanism: codebases that load the SDK via
+   * `<script>` snippet or tag manager (PostHog's canonical setup,
+   * LaunchDarkly's client snippet) have NO `import 'posthog-js'` to
+   * trigger the standard import gate. Without runtimeSymbols those
+   * codebases get 0 detections despite hundreds of real callsites. The
+   * n8n editor-ui shakedown case is the motivating reproduction.
+   *
+   * Patterns are matched as substrings (cheap and good enough for the
+   * canonical shapes we care about — `window.posthog`, `posthog.isFeatureEnabled(`,
+   * `useFeatureFlag(`). False-positive risk is bounded because:
+   *   1. The patterns are chosen to be uniquely SDK-shaped (a `(` at the
+   *      end means we're inside a call, not a string literal).
+   *   2. Detected flags from a runtime-symbol gate carry `confidence:
+   *      'medium'` so downstream tooling can route them through review
+   *      rather than auto-merging cleanup PRs.
+   *
+   * Empty / unset = behave exactly as before (import gate only).
+   */
+  runtimeSymbols?: string[]
 }
 
 /** Returns the effective import pattern, supporting backward compatibility. */

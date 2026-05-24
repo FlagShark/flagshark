@@ -56,6 +56,25 @@ export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOp
   // Health badge
   body += `${emoji} **Health Score: ${result.healthScore}/100**\n\n`
 
+  // Parse-error surfacing — mirrors text output. When a non-trivial slice of
+  // files failed to parse, the totals at the top of this comment are
+  // computed over an incomplete sample, and the cleanup PR reviewer needs
+  // to know. Pre-fix this was text-only, so the GitHub Action's PR comment
+  // — the most visible FlagShark surface — silently hid the "27% of files
+  // skipped" case the feature was originally designed to expose. See
+  // REPORT.md (PostHog 1.3.x repro) for the motivating scenario.
+  const parseErrorCount = result.parseErrorCount ?? 0
+  if (parseErrorCount > 0 && result.filesScanned > 0) {
+    const pct = (parseErrorCount / result.filesScanned) * 100
+    const rounded = Math.round(pct)
+    const pctStr = pct >= 1 ? ` (${rounded}%)` : ''
+    if (rounded > 5) {
+      body += `> ⚠️ **${parseErrorCount} of ${result.filesScanned} files${pctStr} couldn't be parsed** — results may be incomplete. The totals below are computed over the parseable subset only.\n\n`
+    } else {
+      body += `> _${parseErrorCount} file${parseErrorCount === 1 ? '' : 's'} couldn't be parsed — totals exclude them._\n\n`
+    }
+  }
+
   // Compute error / warning split up front (used in both sections below)
   const errorFlags = result.staleFlags.filter((f) => f.signals.some((s) => s.severity === 'error'))
   const warningFlags = result.staleFlags.filter((f) => !f.signals.some((s) => s.severity === 'error'))

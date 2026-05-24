@@ -171,6 +171,46 @@ describe('isValidFlagKey', () => {
     expect(isValidFlagKey('CHECKOUT_V2')).toBe(true)
     expect(isValidFlagKey('feature-flag.key')).toBe(true)
   })
+
+  // Regression coverage for the PostHog shakedown finding (bug A2): a TSX
+  // file's regex fragment `([^/]+)` was emitted as a "detected" flag.
+  // Legitimate flag keys never contain regex metacharacters, brackets,
+  // parens, or whitespace, so we reject those here.
+  describe('rejects regex literals and other non-flag shapes', () => {
+    it.each([
+      // PostHog shakedown: the actual false-positive that prompted this fix.
+      '([^/]+)',
+      // Plain character classes / anchored patterns.
+      '[a-z]+',
+      '^anchored$',
+      // Captured groups.
+      '(group)',
+      // Whitespace — most platforms reject these in their flag UI.
+      'flag with space',
+      'flag\twith\ttabs',
+      // Escape sequences indicate a regex or shell snippet.
+      'flag\\name',
+    ])('rejects %s', (input) => {
+      expect(isValidFlagKey(input)).toBe(false)
+    })
+  })
+
+  it('keeps accepting the shakedown-corpus legitimate keys', () => {
+    // Pin a representative sample from real production flag-management
+    // platforms — the rejection above mustn't sweep these up.
+    for (const real of [
+      'personalAccessTokensKillSwitch',
+      'phai-privacy-mode',
+      'sdk:dart',
+      'branding:large_logo',
+      'crm-iteration-one',
+      'posthog-ai-billing-free-tier-credits',
+      'CHECKOUT_V2',
+      'feature.flag.dotted',
+    ]) {
+      expect(isValidFlagKey(real), real).toBe(true)
+    }
+  })
 })
 
 describe('mergeProviders', () => {

@@ -21,22 +21,48 @@ export async function detectFlagsWithTreeSitter(
   language: Language,
   providers: FeatureFlagProvider[],
 ): Promise<FeatureFlag[]> {
-  const activeProviders = providers.filter((p) => {
-    if (!p.enabled) return false
-    if (p.methods.length === 0) return false
+  // Each provider gets one of:
+  //   - 'high'   — import gate passed (full-confidence SDK detection)
+  //   - 'medium' — import gate FAILED but a runtime-symbol matched, so we
+  //                still scan the file. The B2 gate-bypass mechanism — see
+  //                interface.ts:runtimeSymbols for the trade-off discussion.
+  //   - skip     — neither matched.
+  // Custom providers (no importPattern) always pass with 'high'; their
+  // recall is bounded by the method-name list, not the import gate.
+  type ActiveProvider = {
+    provider: FeatureFlagProvider
+    confidence: 'high' | 'medium'
+  }
+  const activeProviders: ActiveProvider[] = []
+  for (const p of providers) {
+    if (!p.enabled) continue
+    if (p.methods.length === 0) continue
     const importPat = getImportPattern(p)
-    if (!importPat) return true
-    return content.includes(importPat)
-  })
+    if (!importPat) {
+      activeProviders.push({ provider: p, confidence: 'high' })
+      continue
+    }
+    if (content.includes(importPat)) {
+      activeProviders.push({ provider: p, confidence: 'high' })
+      continue
+    }
+    const runtimeHit = (p.runtimeSymbols ?? []).some((sym) => content.includes(sym))
+    if (runtimeHit) {
+      activeProviders.push({ provider: p, confidence: 'medium' })
+    }
+  }
 
   if (activeProviders.length === 0) return []
 
-  const methodLookup = new Map<string, Array<{ provider: FeatureFlagProvider; method: MethodConfig }>>()
-  for (const provider of activeProviders) {
+  const methodLookup = new Map<
+    string,
+    Array<{ provider: FeatureFlagProvider; method: MethodConfig; confidence: 'high' | 'medium' }>
+  >()
+  for (const { provider, confidence } of activeProviders) {
     for (const method of provider.methods) {
       if (method.flagKeyIndex < 0) continue
       const list = methodLookup.get(method.name) ?? []
-      list.push({ provider, method })
+      list.push({ provider, method, confidence })
       methodLookup.set(method.name, list)
     }
   }
@@ -55,7 +81,7 @@ export async function detectFlagsWithTreeSitter(
     const matches = methodLookup.get(methodName)
     if (!matches) continue
 
-    for (const { provider, method } of matches) {
+    for (const { provider, method, confidence } of matches) {
       const arg = getArgument(argsNode, method.flagKeyIndex)
       if (!arg) continue
 
@@ -77,13 +103,15 @@ export async function detectFlagsWithTreeSitter(
 
       if (!flagKey || !isValidFlagKey(flagKey)) continue
 
-      flags.push({
+      const flag: FeatureFlag = {
         name: flagKey,
         filePath: filename,
         lineNumber: callNode.startPosition.row + 1,
         language,
         provider: getImportPattern(provider) || provider.name,
-      })
+      }
+      if (confidence !== 'high') flag.confidence = confidence
+      flags.push(flag)
     }
   }
 
