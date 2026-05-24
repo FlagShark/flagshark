@@ -244,4 +244,154 @@ describe('scanRepo', () => {
 
     rmSync(dir, { recursive: true, force: true })
   })
+
+  // Regression coverage for B3.B: custom_detectors escape hatch. The
+  // canonical reproducer is Mattermost-shaped Go where flags are typed
+  // struct fields rather than SDK call arguments. Pre-fix this codebase
+  // shape returned 0 detections; post-fix a user-declared regex matches.
+  it('runs user-declared custom_detectors over matching-language files', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'app'))
+    writeFileSync(
+      join(dir, 'app', 'features.go'),
+      [
+        'package main',
+        '',
+        'func main() {',
+        '  if server.Config().FeatureFlags.EnableSharedChannelsMemberSync {',
+        '    doShare()',
+        '  }',
+        '  if server.Config().FeatureFlags.EnableNewUploadFlow {',
+        '    doUpload()',
+        '  }',
+        '}',
+      ].join('\n'),
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({
+      cwd: dir,
+      threshold: 6,
+      config: {
+        threshold: 30,
+        excludes: { paths: [], files: [], presets: [] },
+        suppress: { flags: [] },
+        paths: [],
+        providers: [],
+        custom_detectors: [
+          {
+            type: 'struct-field-access',
+            language: 'go',
+            access_pattern: '\\.FeatureFlags\\.([A-Z]\\w+)',
+            name: 'Mattermost-style config struct',
+          },
+        ],
+        output: {
+          format: 'text',
+          groupBy: 'file',
+          sortBy: 'age',
+          color: 'auto',
+          maxDisplay: 10,
+        },
+        healthScore: { weights: { age: 1.0, lowUsage: 0.5, hardcoded: 2.0 } },
+        engine: {},
+      },
+    })
+
+    // Both struct fields should be detected as flags.
+    expect(result.totalFlags).toBe(2)
+    // The flags surface via the JSON output with confidence: 'low'
+    // (escape-hatch detections deserve manual review).
+    const detected = result.staleFlags.map((f) => f.name).sort()
+    // staleFlags requires a signal; with `low-usage` (single file) both
+    // should land here.
+    expect(detected).toEqual(['EnableNewUploadFlow', 'EnableSharedChannelsMemberSync'])
+    expect(result.staleFlags.every((f) => f.confidence === 'low')).toBe(true)
+    expect(result.staleFlags.every((f) => f.provider === 'Mattermost-style config struct')).toBe(
+      true,
+    )
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('precision-guards custom_detectors: only matches files of the declared language', async () => {
+    // A TS file containing the SAME shape as the Go regex shouldn't match,
+    // because the detector declared `language: 'go'`. Prevents one user's
+    // declared pattern from leaking to unrelated languages.
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.ts'),
+      'const x = config.FeatureFlags.LooksLikeAFlag\n',
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({
+      cwd: dir,
+      noConfig: false,
+      config: {
+        threshold: 30,
+        excludes: { paths: [], files: [], presets: [] },
+        suppress: { flags: [] },
+        paths: [],
+        providers: [],
+        custom_detectors: [
+          {
+            type: 'struct-field-access',
+            language: 'go',
+            access_pattern: '\\.FeatureFlags\\.([A-Z]\\w+)',
+          },
+        ],
+        output: { format: 'text', groupBy: 'file', sortBy: 'age', color: 'auto', maxDisplay: 10 },
+        healthScore: { weights: { age: 1.0, lowUsage: 0.5, hardcoded: 2.0 } },
+        engine: {},
+      },
+    })
+
+    expect(result.totalFlags).toBe(0)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // Regression coverage for C5: structured metrics emission. The metric line
+  // is what downstream dashboards key off; if it stops being emitted, the
+  // SaaS observability pipeline goes dark silently. Pin the contract.
+  it('emits a flagshark_scan_complete metric line via info-level logger', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(join(dir, 'src', 'a.ts'), 'export const x = 1\n')
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    // Record every info call so we can assert on the metric.
+    const infoCalls: Array<{ msg: unknown; extra: unknown }> = []
+    const noop = () => {}
+    const recordingLogger = {
+      debug: noop,
+      info: (msg: unknown, extra?: unknown) => {
+        infoCalls.push({ msg, extra })
+      },
+      warn: noop,
+      error: noop,
+    }
+
+    await scanRepo({ cwd: dir, noConfig: true, logger: recordingLogger })
+
+    const metricCall = infoCalls.find((c) => c.msg === 'flagshark_scan_complete')
+    expect(metricCall, 'expected flagshark_scan_complete metric line').toBeDefined()
+    const payload = metricCall!.extra as Record<string, unknown>
+    // Pin the load-bearing fields. If renames are intentional, this test
+    // forces them to be deliberate.
+    expect(payload.event).toBe('flagshark_scan_complete')
+    expect(typeof payload.durationMs).toBe('number')
+    expect(typeof payload.filesScanned).toBe('number')
+    expect(payload.totalFlags).toBe(0)
+    expect(payload.staleFlags).toBe(0)
+    expect(payload.healthScore).toBe(100)
+    expect(typeof payload.detectionEngine).toBe('string')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
 })

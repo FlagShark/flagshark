@@ -19,6 +19,14 @@ export interface StaleFlag {
   signals: StalenessSignal[]
   /** Human-readable age, e.g. "14 months ago" */
   age?: string
+  /**
+   * Detection-quality tier inherited from the underlying FeatureFlag.
+   * See FlagConfidence in detection/feature-flag.ts for what the values
+   * mean. Absent = `'high'`. Surfaced here so consumers of the stale-flag
+   * list (the JSON output, the GitHub Action's PR comment) can route
+   * medium-confidence flags to manual review rather than auto-cleanup.
+   */
+  confidence?: 'high' | 'medium' | 'low'
 }
 
 export interface StalenessOptions {
@@ -270,7 +278,7 @@ export async function analyzeStaleness(
 
       // Only include flags that have at least one signal.
       if (signals.length > 0) {
-        staleFlags.push({
+        const stale: StaleFlag = {
           name: flag.name,
           filePath: flag.filePath,
           lineNumber: flag.lineNumber,
@@ -278,7 +286,13 @@ export async function analyzeStaleness(
           provider: flag.provider ?? 'unknown',
           signals,
           age,
-        })
+        }
+        // Propagate the detection confidence only when it's non-default,
+        // matching the FeatureFlag emission contract (absent = 'high').
+        if (flag.confidence && flag.confidence !== 'high') {
+          stale.confidence = flag.confidence
+        }
+        staleFlags.push(stale)
       }
     }
   }

@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 import { getModuleUrl, tryGetModuleUrl } from '../../src/detection/tree-sitter/module-url.js'
 import {
+  getEmscriptenInitOptions,
   getParser,
   noResolutionBase,
   _resetParserCacheForTests,
@@ -135,5 +136,70 @@ describe('module-url — tryGetModuleUrl (bundler-shape selection)', () => {
     expect(err.message).toContain('javascript')
     expect(err.message).toContain('go')
     expect(err.message).toContain('python')
+  })
+})
+
+// Regression coverage: emscripten's default `printErr` is `console.error`, which
+// on a large polyglot scan spams `Aborted(<reason>)` lines to the user's terminal
+// every time the tree-sitter WASM gives up on a pathological file. The signal is
+// already preserved on the thrown WebAssembly.RuntimeError (caught upstream and
+// surfaced via logParseErrorSample), so the stderr writes are pure noise.
+describe('getEmscriptenInitOptions — silences WASM Aborted() spam', () => {
+  let origEnv: string | undefined
+
+  beforeEach(() => {
+    origEnv = process.env.FLAGSHARK_WASM_STDERR
+    delete process.env.FLAGSHARK_WASM_STDERR
+  })
+
+  afterEach(() => {
+    if (origEnv === undefined) {
+      delete process.env.FLAGSHARK_WASM_STDERR
+    } else {
+      process.env.FLAGSHARK_WASM_STDERR = origEnv
+    }
+  })
+
+  it('returns a printErr that does not write to stderr', () => {
+    const opts = getEmscriptenInitOptions()
+    expect(opts).toBeDefined()
+    expect(typeof opts!.printErr).toBe('function')
+
+    // Emscripten calls printErr with the full payload, e.g.
+    //   "Aborted(memory access out of bounds)"
+    // The override should silently drop it -- the same string is already on
+    // the WebAssembly.RuntimeError that's thrown synchronously by the same
+    // abort() codepath in web-tree-sitter's tree-sitter.cjs.
+    let stderrWritten = ''
+    const origWrite = process.stderr.write.bind(process.stderr)
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrWritten += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString()
+      return true
+    }) as typeof process.stderr.write
+
+    try {
+      opts!.printErr('Aborted(memory access out of bounds)')
+      opts!.printErr('Aborted(table index is out of bounds)')
+    } finally {
+      process.stderr.write = origWrite
+    }
+
+    expect(stderrWritten).toBe('')
+  })
+
+  it('returns undefined when FLAGSHARK_WASM_STDERR=1 so emscripten falls back to console.error', () => {
+    process.env.FLAGSHARK_WASM_STDERR = '1'
+    expect(getEmscriptenInitOptions()).toBeUndefined()
+  })
+
+  it('treats values other than "1" as off (override stays active)', () => {
+    process.env.FLAGSHARK_WASM_STDERR = '0'
+    expect(getEmscriptenInitOptions()).toBeDefined()
+
+    process.env.FLAGSHARK_WASM_STDERR = 'true'
+    expect(getEmscriptenInitOptions()).toBeDefined()
+
+    process.env.FLAGSHARK_WASM_STDERR = ''
+    expect(getEmscriptenInitOptions()).toBeDefined()
   })
 })
