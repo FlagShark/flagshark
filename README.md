@@ -2,7 +2,7 @@
 
 **Find stale feature flags in your codebase.** Free CLI + GitHub Action. Works with 13 languages and 13 flag providers. Zero config.
 
-📚 **Full documentation: [flagshark.com/docs](https://flagshark.com/docs/getting-started/introduction/)**
+📚 **Full documentation: [flagshark.com/docs/getting-started/introduction](https://flagshark.com/docs/getting-started/introduction/)**
 
 ```bash
 npx flagshark scan
@@ -233,7 +233,7 @@ Scan options:
   --verbose                Show all stale flags + effective exclude rules
 
 Output:
-  --json                   Emit JSON to stdout (stable schema for tooling)
+  --json                   Emit JSON to stdout (stable schema for tooling — see note below)
 
 Configuration:
   --config <path>          Use this config file (overrides .flagshark.yml discovery)
@@ -253,6 +253,19 @@ Platform:
 | 0 | No stale flags found |
 | 1 | Stale flags detected |
 | 2 | Runtime or configuration error |
+
+### JSON output — two superficially-similar count fields
+
+The JSON output exposes two fields whose names sound alike but mean very different things. They are NOT interchangeable:
+
+| Field | What it counts |
+|---|---|
+| `errorCount` | Stale flags carrying an **error-severity signal** (e.g. `missing-in-platform` — flag is referenced in code but not in the flag platform). Drives the CI gate when `--fail-on-error` is set. |
+| `parseErrorCount` | Source **files** where the parser failed (tree-sitter abort, syntax error, etc.). Surfaced so a quarter of your repo can't silently get skipped. |
+
+`errorCount` is about flag-level signals; `parseErrorCount` is about whether the file made it through the parser at all. CI scripts that gate on "any errors" usually want `errorCount`; observability dashboards usually want `parseErrorCount` to spot tree-sitter / language-coverage drift.
+
+Each entry in `flags[]` also carries a `confidence` field — see the "Detection confidence tiers" section below for what `high` / `medium` / `low` mean and which to auto-merge.
 
 ## Supported languages
 
@@ -294,6 +307,52 @@ A flag is marked stale if **any** signal fires:
 
 1. **`age`** — `git blame` shows the flag's line was last modified more than `threshold` days ago (configurable per-path).
 2. **`low-usage`** — The flag name appears in only one file across the repo, suggesting a completed rollout.
+
+## Detection confidence tiers
+
+The JSON output tags every detected flag with a `confidence` field that tells you how strict the gate that matched it was:
+
+| Tier | What it means | When to auto-merge cleanup PRs |
+|---|---|---|
+| `high` | File statically imports the SDK and the method call matches the provider's declared shape. False positives are very rare. | Safe to auto-merge in most pipelines. |
+| `medium` | The SDK wasn't statically imported but a runtime-load symbol (`window.posthog.X(`, etc.) was present — see "Runtime-loaded SDKs" below. Likely real, slightly wider gate. | Route through manual review; don't auto-merge by default. |
+| `low` | Detected via a user-declared `custom_detectors` regex (see "Custom detectors" below). Heuristic match. | Always review by hand. |
+
+Cleanup PR pipelines should gate on `confidence === 'high'` for auto-merge and surface lower tiers for review.
+
+## Runtime-loaded SDKs
+
+Some codebases load the flag SDK from a `<script>` tag rather than `import`-ing it. PostHog's canonical snippet attaches the SDK to `window.posthog`; n8n's editor-ui and PostHog's own dashboard work this way. Consumer files contain `window.posthog.isFeatureEnabled('flag')` but never `import 'posthog-js'`.
+
+FlagShark detects this automatically via per-provider runtime-symbol patterns. PostHog's TypeScript provider, for example, matches `window.posthog.`, `posthog.isFeatureEnabled(`, `posthog.getFeatureFlag(`, and `posthog.getFeatureFlagPayload(`. Matches go through the same flag-key extraction as static-import detection, but the resulting flags are tagged `confidence: 'medium'` so downstream tooling can route them appropriately.
+
+This is bypass-only — files with neither a static import nor a runtime-symbol match still get skipped, so the precision floor stays intact.
+
+## Custom detectors (config-struct flag systems)
+
+Some codebases don't use a flag SDK at all. Mattermost-shape Go code, for example, uses a typed config struct: `if server.Config().FeatureFlags.EnableX { ... }`. There's no SDK call to match.
+
+Declare an access pattern in `.flagshark.yml` and FlagShark will scan for it:
+
+```yaml
+custom_detectors:
+  - type: struct-field-access
+    language: go
+    access_pattern: '\.FeatureFlags\.([A-Z]\w+)'
+    name: "Internal feature-flag config"   # optional
+```
+
+The capture group `([A-Z]\w+)` is the flag name. Each match becomes a detected flag with `confidence: 'low'` (you opted in; precision is your call). The detector only runs against files of the declared language — same regex in a `.ts` file is ignored when `language: go` is declared.
+
+## Known limitations
+
+FlagShark trades recall for precision by default — when it reports a flag, the flag is real. A few real-world patterns currently get **under**-counted:
+
+- **Runtime-loaded SDKs we don't yet have built-in coverage for.** PostHog has runtime-symbol patterns shipped; LaunchDarkly's `window.LDClient` snippet, Statsig's `window.statsig.client`, etc. don't have them yet. Workaround: drop a thin module that does `import 'launchdarkly-js-client-sdk'` (or equivalent) for its side effects; transitive wrapper detection covers the rest.
+- **TypeScript path aliases that don't follow `tsconfig.json` compilerOptions.paths.** Aliases declared via the standard `paths` config ARE resolved (as of B1). Aliases via Vite/webpack aliasing without a matching tsconfig entry, or `extends`-chained tsconfigs, may still under-count.
+- **Auto-discovery of config-struct flags.** The `custom_detectors` escape hatch above covers the explicit case. We deliberately don't auto-discover (every codebase invents its own struct shape; chasing all of them doesn't scale). See [docs/superpowers/specs/2026-05-24-static-config-flag-detection.md](docs/superpowers/specs/2026-05-24-static-config-flag-detection.md) for the design discussion.
+
+Detection precision in tree-sitter mode is high — the gate is the recall ceiling, not noise. If you see a result that looks wrong in the other direction (false positive), [open an issue](https://github.com/FlagShark/flagshark/issues) with the source snippet.
 
 ## Library usage
 
