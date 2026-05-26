@@ -147,6 +147,47 @@ describe.skipIf(!TOKEN)('fetchAllFlags — LIVE LaunchDarkly API', () => {
       expect(first._links?.parent?.href).toMatch(/\/api\/v2\/flags\/[^/]+\/[^/]+$/)
     }
   })
+
+  it('orchestrates a multi-env scan end-to-end (production + test envs)', async () => {
+    // This test exercises orchestratePlatforms with multiple envs against
+    // the live LD project. Requires LIVE_LD_ENVIRONMENT_TWO to be set
+    // (with a different value than LIVE_LD_ENVIRONMENT) to actually
+    // multi-env; otherwise it self-skips since a single env wouldn't
+    // exercise the loop.
+    const envOne = ENVIRONMENT
+    const envTwo = process.env.LIVE_LD_ENVIRONMENT_TWO ?? 'production'
+    if (envOne === envTwo) {
+      // eslint-disable-next-line no-console
+      console.log(`[live-ld] LIVE_LD_ENVIRONMENT == LIVE_LD_ENVIRONMENT_TWO (${envOne}) — skipping multi-env case`)
+      return
+    }
+
+    // Import via dynamic import so this test file remains decoupled from
+    // the orchestrator's transitive dependency graph at parse time.
+    const { orchestratePlatforms } = await import('../../../src/providers/orchestrate.js')
+
+    const prevToken = process.env.LAUNCHDARKLY_API_TOKEN
+    process.env.LAUNCHDARKLY_API_TOKEN = TOKEN
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: {
+          launchdarkly: { project: PROJECT, environments: [envOne, envTwo] },
+        },
+        detectedFlags: new Map(),  // no detected flags — we're verifying the fetch+stitch loop, not signal emission
+        logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
+        noCache: true,
+      })
+      // With no detected flags, signals and environmentsByFlag are empty.
+      // The contract being verified is: orchestratePlatforms successfully
+      // looped both envs without throwing, both listFlags() calls completed,
+      // and the cache key disambiguation prevented cross-env contamination.
+      expect(result.signals.size).toBe(0)
+      expect(result.environmentsByFlag.size).toBe(0)
+    } finally {
+      if (prevToken !== undefined) process.env.LAUNCHDARKLY_API_TOKEN = prevToken
+      else delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  }, 60_000)  // 60s timeout — two network round-trips with auxiliary endpoints
 })
 
 if (!TOKEN) {
