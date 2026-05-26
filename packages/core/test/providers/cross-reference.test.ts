@@ -341,7 +341,7 @@ describe('crossReference', () => {
         evaluations30d: 1,
       }
       const result = crossReference(detected(['ONE']), singleEnv([justOne]), 'LaunchDarkly')
-      expect(result.get('ONE')?.[0].description).toContain('only 1 evaluation in')
+      expect(result.get('ONE')?.[0].description).toContain('only 1 evaluation')
     })
 
     it('honors a custom evaluationThreshold', () => {
@@ -502,6 +502,62 @@ describe('crossReference', () => {
     const signals = result.get('FOO') ?? []
     expect(signals.find((s) => s.type === 'platform-launched')).toBeDefined()
     expect(signals.find((s) => s.type === 'platform-inactive')).toBeUndefined()
+  })
+
+  it("emits platform-zero-evaluations 'in <env>' when one env reports 0 evals", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 5000 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const zero = result.get('FOO')?.find((s) => s.type === 'platform-zero-evaluations')
+    expect(zero).toBeDefined()
+    expect(zero!.description).toContain('in staging')
+  })
+
+  it("emits platform-zero-evaluations 'everywhere' when all envs are 0", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const zero = result.get('FOO')?.find((s) => s.type === 'platform-zero-evaluations')
+    expect(zero!.description).toContain('everywhere')
+  })
+
+  it('suppresses platform-low-evaluations when any env reports zero', () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const signals = result.get('FOO') ?? []
+    expect(signals.find((s) => s.type === 'platform-zero-evaluations')).toBeDefined()
+    expect(signals.find((s) => s.type === 'platform-low-evaluations')).toBeUndefined()
+  })
+
+  it("emits platform-low-evaluations 'in <env>' with the lowest count", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 50 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
+    const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
+    expect(low).toBeDefined()
+    expect(low!.description).toContain('in production')
+    expect(low!.description).toContain('9 evaluations')
+  })
+
+  it("emits platform-low-evaluations with 'as few as' when multiple envs are low", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 7 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
+    const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
+    expect(low).toBeDefined()
+    expect(low!.description).toContain('as few as 7')
+    expect(low!.description).toContain('everywhere')
   })
 
   // Audit-log signal (issue #21 item 1).

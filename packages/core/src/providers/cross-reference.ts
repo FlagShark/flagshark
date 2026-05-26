@@ -113,11 +113,11 @@ export function crossReference(
     }
 
     const signals: PlatformSignal[] = []
+    const allEnvs = Array.from(envMap.keys())
 
     // platform-launched: fire-on-any with env attribution. Inactive is
     // handled in a separate block below so we can suppress it when any
     // env is launched (they're contradictory states).
-    const allEnvs = Array.from(envMap.keys())
     const launchedEnvs = allEnvs.filter((e) => envMap.get(e)!.status === 'launched')
     if (launchedEnvs.length > 0) {
       const where = fmtEnvs(launchedEnvs, allEnvs)
@@ -183,27 +183,49 @@ export function crossReference(
     // (tier-gated / endpoint 404'd); `null` means available but no
     // window data yet. Both fall through to no signal.
     //
-    // Evaluation signals — single-env preservation
-    for (const platform of envMap.values()) {
-      if (!firstEntry.permanent && typeof platform.evaluations30d === 'number') {
-        if (platform.evaluations30d === 0) {
-          signals.push({
-            type: 'platform-zero-evaluations',
-            severity: 'error',
-            description: `0 evaluations in ${platformDisplayName} over the last 30 days — code path is unused`,
-          })
-        } else {
-          const threshold = options.evaluationThreshold ?? 10
-          if (platform.evaluations30d < threshold) {
-            signals.push({
-              type: 'platform-low-evaluations',
-              severity: 'warning',
-              description: `only ${platform.evaluations30d} evaluation${platform.evaluations30d === 1 ? '' : 's'} in ${platformDisplayName} over the last 30 days (below threshold ${threshold})`,
-            })
-          }
+    // platform-zero-evaluations: fire-on-any with env attribution.
+    // platform-low-evaluations: fire-on-any with env attribution, BUT
+    // suppress when any env reports zero (zero is the stronger signal;
+    // emitting both creates noise without adding information).
+    if (!firstEntry.permanent) {
+      const zeroEnvs: string[] = []
+      const lowByEnv: Array<{ env: string; count: number }> = []
+      const threshold = options.evaluationThreshold ?? 10
+      for (const env of allEnvs) {
+        const evals = envMap.get(env)!.evaluations30d
+        if (typeof evals !== 'number') continue
+        if (evals === 0) {
+          zeroEnvs.push(env)
+        } else if (evals < threshold) {
+          lowByEnv.push({ env, count: evals })
         }
       }
-      break  // single-env preservation
+      if (zeroEnvs.length > 0) {
+        const where = fmtEnvs(zeroEnvs, allEnvs)
+        signals.push({
+          type: 'platform-zero-evaluations',
+          severity: 'error',
+          description: `${platformDisplayName} reports 0 evaluations ${where} over the last 30 days — code path is unused`,
+        })
+      } else if (lowByEnv.length > 0) {
+        // Pick the env with the LOWEST count for the canonical
+        // description; render the env list when multiple envs are low.
+        const lowEnvs = lowByEnv.map((e) => e.env)
+        const lowest = lowByEnv.reduce((a, b) => (a.count <= b.count ? a : b))
+        const where = fmtEnvs(lowEnvs, allEnvs)
+        // When multiple envs are low with different counts, "only N" is
+        // ambiguous (reads as 'each env has N'). "as few as N" makes the
+        // minimum-across-envs framing explicit. With one low env, "only N"
+        // is the right phrasing — exactly N evaluations in exactly that env.
+        const countPhrase = lowByEnv.length > 1
+          ? `as few as ${lowest.count}`
+          : `only ${lowest.count}`
+        signals.push({
+          type: 'platform-low-evaluations',
+          severity: 'warning',
+          description: `${platformDisplayName} reports ${countPhrase} evaluation${lowest.count === 1 ? '' : 's'} ${where} over the last 30 days (below threshold ${threshold})`,
+        })
+      }
     }
 
     // platform-untouched-stale: the audit log confirmed no activity
