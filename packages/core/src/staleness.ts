@@ -338,8 +338,17 @@ export async function analyzeStaleness(
         }
       }
 
-      // Only include flags that have at least one signal.
-      if (signals.length > 0) {
+      // A flag is stale only if it has at least one PRIMARY signal —
+      // anything other than `low-usage`. The single-file/low-usage
+      // signal is contributing context, not a stale verdict on its own:
+      // plenty of legitimate flags ARE single-file (small isolated
+      // features, kill switches, A/B toggles for one screen) and
+      // surfacing them as stale floods the output with false positives.
+      // When a flag IS stale for another reason, low-usage stays in
+      // the signals list because "this is single-file → small cleanup
+      // scope" is useful diagnostic for the reviewer.
+      const hasPrimarySignal = signals.some((s) => s.type !== 'low-usage')
+      if (hasPrimarySignal) {
         const stale: StaleFlag = {
           name: flag.name,
           filePath: flag.filePath,

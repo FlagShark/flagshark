@@ -20,7 +20,14 @@ function makeFlag(name: string, filePath: string, lineNumber = 1): FeatureFlag {
 }
 
 describe('analyzeStaleness', () => {
-  it('flags with only 1 file reference are stale (low-usage signal)', async () => {
+  it('low-usage alone does NOT make a flag stale (contributing signal only)', async () => {
+    // Behavior change (2026-05-26): single-file flags are no longer
+    // stale on their own. Plenty of legitimate flags are single-file
+    // (small features, kill switches, A/B toggles for one screen);
+    // marking them stale floods the output with false positives. The
+    // low-usage signal is now CONTEXT: it appears alongside other
+    // stale signals to indicate "small cleanup scope", but it doesn't
+    // make a flag stale by itself.
     const flags = new Map<string, FeatureFlag[]>()
     flags.set('single-ref-flag', [makeFlag('single-ref-flag', 'src/a.ts', 10)])
     flags.set('multi-ref-flag', [
@@ -34,9 +41,10 @@ describe('analyzeStaleness', () => {
     })
 
     const staleNames = result.map((f) => f.name)
-    expect(staleNames).toContain('single-ref-flag')
-    // multi-ref-flag appears in 2 files, so low-usage signal should NOT fire
-    // (it may still be stale due to age, depending on git blame)
+    // Neither single-ref nor multi-ref makes the stale list here —
+    // single-ref no longer fires on low-usage alone; multi-ref never did.
+    expect(staleNames).not.toContain('single-ref-flag')
+    expect(staleNames).not.toContain('multi-ref-flag')
   })
 
   it('returns empty array when no flags are provided', async () => {
