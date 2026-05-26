@@ -108,6 +108,22 @@ describe('resolveImportPath', () => {
     expect(resolveImportPath('/repo/App.tsx', './Button.jsx', files)).toBe('/repo/Button.tsx')
   })
 
+  it('falls through to the SECOND extension replacement when the first does not exist', () => {
+    // For `.js` the replacement list is `['.ts', '.tsx']`. When only the
+    // `.tsx` source exists (no `.ts`), resolution must walk past the first
+    // candidate and pick the second. Coverage gate for the second loop
+    // iteration in resolveImportPath's emittedToSourceExt block.
+    const files = new Set(['/repo/foo.tsx'])
+    expect(resolveImportPath('/repo/b.ts', './foo.js', files)).toBe('/repo/foo.tsx')
+  })
+
+  it('returns null when no extension swap candidate exists', () => {
+    // `.cjs` import with no matching `.cts` / `.cjs` file in the set —
+    // walks the whole replacement list and returns null.
+    const files = new Set(['/repo/other.ts'])
+    expect(resolveImportPath('/repo/b.ts', './missing.cjs', files)).toBeNull()
+  })
+
   it('handles parent-directory relative paths', () => {
     const files = new Set(['/repo/src/utils/foo.ts'])
     expect(resolveImportPath('/repo/src/components/A.ts', '../utils/foo', files)).toBe(
@@ -390,6 +406,40 @@ describe('loadTsconfigAliases', () => {
     // No tsconfig in nestedDir; loader walks up to root.
     expect(loadTsconfigAliases(nestedDir)?.paths.get('@/*')).toEqual(['src/*'])
   })
+
+  it('returns null when tsconfig.json is malformed JSON', () => {
+    // JSONC stripper handles comments; everything else must still be valid
+    // JSON. A truly broken file (unclosed string, dangling comma in array)
+    // should yield null rather than throwing into the caller.
+    const root = setup(`{ "compilerOptions": { "paths": { "@/*": ["src/*",`)
+    expect(loadTsconfigAliases(root)).toBeNull()
+  })
+
+  it('returns null when tsconfig.json cannot be read', () => {
+    // Coverage gate for the fs.readFileSync error path. Setting up a path
+    // where the "tsconfig.json" is actually a directory makes fs throw EISDIR.
+    tmpRoot = mkdtempSync(join(tmpdir(), 'flagshark-tsconfig-test-'))
+    mkdirSync(join(tmpRoot, 'tsconfig.json'))
+    expect(loadTsconfigAliases(tmpRoot)).toBeNull()
+  })
+
+  it('preserves escaped characters inside string values when stripping comments', () => {
+    // The JSONC stripper steps over `\X` escape sequences when inside a
+    // string so that an escaped quote `\"` doesn't accidentally toggle the
+    // in-string flag. Pin that contract — without it `\"//\"` inside a
+    // value would terminate the string and the stripper would treat the
+    // remainder as a line comment.
+    const root = setup(`{
+      "compilerOptions": {
+        "paths": {
+          "@msg/*": ["src/quoted-\\"path\\"/*"]
+        }
+      }
+    }`)
+    expect(loadTsconfigAliases(root)?.paths.get('@msg/*')).toEqual([
+      'src/quoted-"path"/*',
+    ])
+  })
 })
 
 describe('resolveAliasedImport', () => {
@@ -417,6 +467,42 @@ describe('resolveAliasedImport', () => {
   it('resolves an exact (non-wildcard) alias', () => {
     const fileSet = new Set(['/repo/src/exact-target.ts'])
     expect(resolveAliasedImport('@exact', aliases, fileSet)).toBe('/repo/src/exact-target.ts')
+  })
+
+  it('returns null when exact alias matches but target file is absent from the set', () => {
+    // Coverage gate for the exact-match branch falling through the for-loop
+    // without finding a real file. The wildcard variant has its own test;
+    // this one nails the non-wildcard symmetry.
+    expect(resolveAliasedImport('@exact', aliases, new Set())).toBeNull()
+  })
+
+  it('skips wildcard-alias targets that are not themselves wildcards', () => {
+    // A wildcard alias like `@foo/*` whose target list contains a
+    // non-wildcard entry must skip that target and continue trying the
+    // remaining ones. Real tsconfigs occasionally mix the two shapes;
+    // we should tolerate them rather than producing a misleading match.
+    const mixed = {
+      baseUrl: '/repo',
+      paths: new Map([['@foo/*', ['src/single.ts', 'src/foo/*']]]),
+    }
+    const fileSet = new Set(['/repo/src/foo/bar.ts'])
+    // 'src/single.ts' is skipped (doesn't end with /*); 'src/foo/*' matches.
+    expect(resolveAliasedImport('@foo/bar', mixed, fileSet)).toBe('/repo/src/foo/bar.ts')
+  })
+
+  it('matches a wildcard-alias key on its bare prefix (`@` for `@/*`)', () => {
+    // The wildcard branch supports both `@/foo` (prefix + rest) and `@`
+    // alone (specifier === dotPrefix). Coverage gate for the second
+    // disjunct of `!specifier.startsWith(prefix) && specifier !== dotPrefix`.
+    const wildcardOnly = {
+      baseUrl: '/repo',
+      paths: new Map([['@/*', ['src/*']]]),
+    }
+    // Specifier is just `@` (the bare prefix). With `rest === ''`, the
+    // resolution lands at `<baseUrl>/<targetPrefix>` (i.e. /repo/src),
+    // which only resolves via /index.<ext> fallback inside tryResolveExisting.
+    const fileSet = new Set(['/repo/src/index.ts'])
+    expect(resolveAliasedImport('@', wildcardOnly, fileSet)).toBe('/repo/src/index.ts')
   })
 
   it('returns null for bare specifiers that do not match any alias', () => {
@@ -596,6 +682,12 @@ describe('resolvePythonImport', () => {
     )
   })
 
+  it('returns null for `from . import x` when no __init__.py exists', () => {
+    // Coverage gate for the `rest.length === 0 && !fileSet.has(candidate)`
+    // branch — a single-dot import with no package marker file.
+    expect(resolvePythonImport('/repo/pkg/consumer.py', '.', new Set())).toBeNull()
+  })
+
   it('resolves `from .utils import x` to sibling module', () => {
     const files = new Set(['/repo/pkg/utils.py'])
     expect(resolvePythonImport('/repo/pkg/consumer.py', '.utils', files)).toBe(
@@ -716,5 +808,22 @@ describe('buildImportGraph — Python wrapper detection (B4)', () => {
       isTsJs: isScannedSourceFile,
     })
     expect(transitiveSdks.get('/r/pkg/sub/consumer.py')).toEqual(new Set(['ldclient']))
+  })
+
+  it('counts Python relative imports that point to missing files as unresolved edges', () => {
+    // Coverage gate for the `else { edgesUnresolved++ }` branch in the
+    // Python resolver. A `from .nope import x` whose target file is not
+    // present in the scan set must surface in stats so operators can see
+    // when the wrapper graph has dead ends.
+    const files = new Map([
+      ['/r/pkg/__init__.py', ''],
+      ['/r/pkg/consumer.py', 'from .nope import is_on'],
+    ])
+    const { stats } = buildImportGraph(files, {
+      seedSdkPatterns: ['posthog'],
+      isTsJs: isScannedSourceFile,
+    })
+    // consumer.py points at a missing sibling; counted as 1 unresolved edge.
+    expect(stats.edgesUnresolved).toBeGreaterThanOrEqual(1)
   })
 })

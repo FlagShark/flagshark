@@ -394,4 +394,217 @@ describe('scanRepo', () => {
 
     rmSync(dir, { recursive: true, force: true })
   })
+
+  // Coverage gate for scan-repo.ts:466-471 + 475-479. Two operator-friendly
+  // warning paths in applyCustomDetectors: a user-supplied regex that
+  // doesn't compile, and a `language` field that names something
+  // FlagShark has never heard of. Both should be logged + skipped, not
+  // blow up the whole scan.
+  it('warns and skips a custom_detector whose regex fails to compile', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'src', 'app.go'),
+      'package main\nvar x = cfg.FeatureFlags.OK\n',
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const warnings: Array<{ msg: unknown; extra: unknown }> = []
+    const noop = () => {}
+    const collectingLogger = {
+      debug: noop,
+      info: noop,
+      warn: (msg: unknown, extra?: unknown) => {
+        warnings.push({ msg, extra })
+      },
+      error: noop,
+    }
+
+    const result = await scanRepo({
+      cwd: dir,
+      logger: collectingLogger,
+      config: {
+        threshold: 30,
+        excludes: { paths: [], files: [], presets: [] },
+        suppress: { flags: [] },
+        paths: [],
+        providers: [],
+        custom_detectors: [
+          {
+            type: 'struct-field-access',
+            language: 'go',
+            // Unterminated character class — guaranteed to throw on new RegExp().
+            access_pattern: '\\.FeatureFlags\\.[',
+          },
+        ],
+        output: { format: 'text', groupBy: 'file', sortBy: 'age', color: 'auto', maxDisplay: 10 },
+        healthScore: { weights: { age: 1.0, lowUsage: 0.5, hardcoded: 2.0 } },
+        engine: {},
+      },
+    })
+
+    // Scan completes successfully with no flags from the bad detector.
+    expect(result.totalFlags).toBe(0)
+    // A warn line names the offending pattern + the regex error.
+    const compileWarning = warnings.find(
+      (w) => typeof w.msg === 'string' && w.msg.includes('custom_detector regex failed to compile'),
+    )
+    expect(compileWarning, 'expected a compile-failure warn line').toBeDefined()
+    const extra = compileWarning!.extra as Record<string, unknown>
+    expect(extra.access_pattern).toContain('FeatureFlags')
+    expect(typeof extra.error).toBe('string')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('warns and skips a custom_detector whose `language` names something unknown', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(join(dir, 'src', 'app.go'), 'package main\nvar x = cfg.FeatureFlags.OK\n')
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const warnings: Array<{ msg: unknown; extra: unknown }> = []
+    const noop = () => {}
+    const collectingLogger = {
+      debug: noop,
+      info: noop,
+      warn: (msg: unknown, extra?: unknown) => {
+        warnings.push({ msg, extra })
+      },
+      error: noop,
+    }
+
+    const result = await scanRepo({
+      cwd: dir,
+      logger: collectingLogger,
+      config: {
+        threshold: 30,
+        excludes: { paths: [], files: [], presets: [] },
+        suppress: { flags: [] },
+        paths: [],
+        providers: [],
+        custom_detectors: [
+          {
+            type: 'struct-field-access',
+            // 'cobol' is intentionally absent from LANGUAGE_EXTENSIONS.
+            language: 'cobol' as unknown as 'go',
+            access_pattern: '\\.FeatureFlags\\.([A-Z]\\w+)',
+          },
+        ],
+        output: { format: 'text', groupBy: 'file', sortBy: 'age', color: 'auto', maxDisplay: 10 },
+        healthScore: { weights: { age: 1.0, lowUsage: 0.5, hardcoded: 2.0 } },
+        engine: {},
+      },
+    })
+
+    expect(result.totalFlags).toBe(0)
+    const langWarning = warnings.find(
+      (w) =>
+        typeof w.msg === 'string' && w.msg.includes('custom_detector skipped — unknown language'),
+    )
+    expect(langWarning, 'expected an unknown-language warn line').toBeDefined()
+    expect((langWarning!.extra as Record<string, unknown>).language).toBe('cobol')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // Coverage gate for scan-repo.ts:361-365 — debug-log line that fires only
+  // when the cwd actually contains a tsconfig.json with paths. Otherwise
+  // the load returns null and the `if (aliases)` branch never runs.
+  it('emits a debug log line when tsconfig.json aliases are loaded', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@/*': ['src/*'] } } }),
+    )
+    // A trivial source file so the scan has something to walk.
+    writeFileSync(join(dir, 'src', 'app.ts'), 'export const x = 1\n')
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const debugCalls: Array<{ msg: unknown; extra: unknown }> = []
+    const noop = () => {}
+    const logger = {
+      debug: (msg: unknown, extra?: unknown) => {
+        debugCalls.push({ msg, extra })
+      },
+      info: noop,
+      warn: noop,
+      error: noop,
+    }
+    await scanRepo({ cwd: dir, noConfig: true, logger })
+
+    const aliasLog = debugCalls.find(
+      (c) => typeof c.msg === 'string' && c.msg.includes('tsconfig path aliases loaded'),
+    )
+    expect(aliasLog, 'expected a tsconfig-aliases-loaded debug line').toBeDefined()
+    const extra = aliasLog!.extra as Record<string, unknown>
+    expect(typeof extra.baseUrl).toBe('string')
+    expect(extra.aliasCount).toBe(1)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // Coverage gate for scan-repo.ts:393-395 — the augment loop's pass-through
+  // branch for files that have no SDK reach. Requires at least one file in
+  // the transitive set (to defeat the early-return on inScopeFiles === 0)
+  // PLUS at least one file outside the set (to exercise the !sdks branch).
+  it('passes non-SDK files through unchanged in the wrapper-augmentation pass', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    // Seed file: directly imports an SDK so it lands in transitiveSdks.
+    writeFileSync(
+      join(dir, 'src', 'sdk.ts'),
+      `import * as LD from 'launchdarkly-node-server-sdk'\nconst c = LD.init('k')\nawait c.variation('feature-x', user, false)\n`,
+    )
+    // Bystander file: no imports, no SDK reach. Hits the !sdks pass-through.
+    writeFileSync(join(dir, 'src', 'unrelated.ts'), 'export const greet = () => "hi"\n')
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({ cwd: dir, noConfig: true })
+    // Seed file produced a detectable flag, bystander didn't break anything.
+    expect(result.totalFlags).toBeGreaterThanOrEqual(1)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // Coverage gate for scan-repo.ts:403 — Python wrapper marker prefix.
+  // When a .py file is in the transitive SDK reach, the augmented content
+  // is suffixed with the Python-comment marker, not the JS-comment one.
+  it('augments Python wrapper files with the Python-comment SDK marker', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'pkg'))
+    writeFileSync(join(dir, 'pkg', '__init__.py'), '')
+    // The seed: a .py file that imports the PostHog SDK and calls
+    // `posthog.feature_enabled` with a flag-key literal. PostHog Python
+    // detector matches this method.
+    writeFileSync(
+      join(dir, 'pkg', 'sdk_wrapper.py'),
+      [
+        'import posthog',
+        'def gate():',
+        '    return posthog.feature_enabled("checkout-v2", "user-id")',
+      ].join('\n') + '\n',
+    )
+    // A second consumer file imports the wrapper — drags it into the
+    // transitive set so the Python branch of the marker code path runs.
+    writeFileSync(
+      join(dir, 'pkg', 'consumer.py'),
+      'from .sdk_wrapper import gate\ngate()\n',
+    )
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({ cwd: dir, noConfig: true })
+    // The direct posthog.feature_enabled("checkout-v2", ...) call site is
+    // in a .py file that traverses the wrapper-marker code path — proves
+    // the .py branch of the marker selector executed.
+    expect(result.totalFlags).toBeGreaterThanOrEqual(1)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
 })

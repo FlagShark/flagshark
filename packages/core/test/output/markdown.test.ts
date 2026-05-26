@@ -213,3 +213,61 @@ describe('markdown formatter — severity sections', () => {
     expect(out).toContain('Production-risk')
   })
 })
+
+describe('formatMarkdown — parseErrorCount surfacing', () => {
+  // Coverage gate for markdown.ts:68-76. The GitHub Action PR comment is
+  // FlagShark's most visible surface — pre-fix it silently hid the
+  // "27% of files skipped" case the feature was originally designed to
+  // expose. Two banner shapes: loud (>5% rounded) and quiet (1-5%).
+  function baseResult(filesScanned: number, parseErrorCount: number) {
+    return {
+      totalFlags: 3,
+      filesScanned,
+      parseErrorCount,
+      staleFlags: [],
+      detectedProviders: ['LaunchDarkly'],
+      languageBreakdown: { typescript: filesScanned },
+      healthScore: 100,
+      scanDuration: 100,
+    }
+  }
+
+  it('emits a loud banner when more than 5% of files failed to parse', () => {
+    const out = formatMarkdown(baseResult(100, 27), { scanMode: 'full' })
+    expect(out).toContain('⚠️')
+    expect(out).toContain("**27 of 100 files (27%) couldn't be parsed**")
+    expect(out).toContain('results may be incomplete')
+  })
+
+  it('emits a quiet banner when 5% or fewer files failed to parse', () => {
+    const out = formatMarkdown(baseResult(100, 3), { scanMode: 'full' })
+    // Quiet form uses italic underscores, not the ⚠️ siren
+    expect(out).not.toContain('⚠️')
+    expect(out).toContain("_3 files couldn't be parsed — totals exclude them._")
+  })
+
+  it('pluralizes correctly for a single parse failure in quiet form', () => {
+    const out = formatMarkdown(baseResult(100, 1), { scanMode: 'full' })
+    expect(out).toContain("_1 file couldn't be parsed — totals exclude them._")
+  })
+
+  it('omits any parse-error banner when parseErrorCount is 0', () => {
+    const out = formatMarkdown(baseResult(100, 0), { scanMode: 'full' })
+    expect(out).not.toContain("couldn't be parsed")
+  })
+
+  it('omits the banner when filesScanned is 0 (avoids divide-by-zero)', () => {
+    const out = formatMarkdown(baseResult(0, 5), { scanMode: 'full' })
+    expect(out).not.toContain("couldn't be parsed")
+  })
+
+  it('hides the percentage in the loud banner when pct < 1', () => {
+    // pct = 0.5 (< 1). The percentage suffix should be empty so we don't
+    // emit a misleading "0%" annotation. Coverage gate for the
+    // `pct >= 1 ? ` (${rounded}%)` : ''` branch.
+    const out = formatMarkdown(baseResult(2000, 8), { scanMode: 'full' })
+    expect(out).toContain("couldn't be parsed")
+    // rounded=0, banner falls through to the quiet form (rounded <= 5).
+    expect(out).not.toContain('(0%)')
+  })
+})

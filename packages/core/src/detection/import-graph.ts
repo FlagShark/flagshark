@@ -179,16 +179,6 @@ export function extractPythonImports(content: string): string[] {
 }
 
 /**
- * True if `specifier` matches a known seed SDK package name. Handles both
- * exact (`posthog`) and subpath (`posthog.client`) cases — Python's
- * `from posthog.client import foo` should match a seed of `posthog`.
- */
-function pythonSpecifierMatchesSdk(specifier: string, sdkPattern: string): boolean {
-  if (specifier === sdkPattern) return true
-  return specifier.startsWith(sdkPattern + '.')
-}
-
-/**
  * Resolves a Python import specifier to a file path that exists in
  * `fileSet`. Python relative imports use dot notation rather than `./`:
  *   - `from . import x`     → same package as importer

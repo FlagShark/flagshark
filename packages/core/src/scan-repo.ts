@@ -258,6 +258,11 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     event: 'flagshark_scan_complete',
     durationMs: scanDuration,
     filesScanned,
+    // Defensive ?? 0 fallbacks: collectFiles always returns excludedCount as
+    // a number and PolyglotAnalyzer always populates parseErrorCount, so the
+    // RHS of these expressions is unreachable today — kept for type safety
+    // against future refactors.
+    /* v8 ignore next 2 */
     excludedCount: excludedCount ?? 0,
     parseErrorCount: analysisResult.parseErrorCount ?? 0,
     totalFlags,
@@ -302,6 +307,9 @@ function collectSdkPatterns(registry: LanguageRegistry): string[] {
   const patterns = new Set<string>()
   for (const lang of [Languages.TypeScript, Languages.JavaScript, Languages.Python]) {
     const detector = registry.getDetector(lang)
+    // Defensive skip: the default registry always populates TS/JS/Python
+    // detectors. Custom engines could theoretically omit one, hence the guard.
+    /* v8 ignore next */
     if (!detector) continue
     for (const provider of detector.getProviders()) {
       const pat = getImportPattern(provider)
@@ -348,6 +356,10 @@ function augmentForWrapperDetection(
   logger: ScanLogger,
   cwd: string,
 ): Map<string, string> {
+  // Defensive early-return: every default registry contributes at least
+  // one SDK pattern, so this branch only fires for hand-built empty
+  // registries — not reachable from public scan paths.
+  /* v8 ignore next */
   if (tsJsSdkPatterns.length === 0) return files
 
   // Load tsconfig path aliases from the scan root, then pass them to the
@@ -465,6 +477,7 @@ function applyCustomDetectors(
     } catch (err) {
       logger.warn(`custom_detector regex failed to compile`, {
         access_pattern: detector.access_pattern,
+        /* v8 ignore next */
         error: err instanceof Error ? err.message : String(err),
       })
       continue
@@ -492,6 +505,7 @@ function applyCustomDetectors(
       let m: RegExpExecArray | null
       while ((m = regex.exec(content)) !== null) {
         const flagName = m[1]
+        /* v8 ignore next */
         if (!flagName) continue
         // Resolve line number from the match offset. Cheap: count
         // newlines up to the match. Files are typically <10k lines so

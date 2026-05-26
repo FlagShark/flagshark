@@ -425,3 +425,24 @@ describe('json formatter — severity + errorCount', () => {
     expect(out.flags[0].severity).toBe('error')
   })
 })
+
+describe('formatText — zero-flags large-repo hint', () => {
+  // Coverage gate for text.ts:120-126. The SUSPICIOUS_THRESHOLD hint only
+  // fires when both totalFlags === 0 AND filesScanned >= 100 — small repos
+  // legitimately have no flags and don't deserve scolding.
+  it('emits the "three patterns we can\'t see" hint for large zero-flag repos', () => {
+    const result = makeScanResult({ totalFlags: 0, filesScanned: 250, staleFlags: [] })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('Expected results in this 250-file repo?')
+    expect(out).toContain('SDK loaded at runtime')
+    expect(out).toContain('TS path aliases')
+    expect(out).toContain('config-struct flag systems')
+    expect(out).toContain('known-limitations')
+  })
+
+  it('suppresses the hint on small zero-flag repos (< 100 files)', () => {
+    const result = makeScanResult({ totalFlags: 0, filesScanned: 50, staleFlags: [] })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).not.toContain('Expected results in this')
+  })
+})
