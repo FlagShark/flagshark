@@ -43813,7 +43813,8 @@ async function analyzeStaleness(flags2, options) {
           });
         }
       }
-      if (signals.length > 0) {
+      const hasPrimarySignal = signals.some((s) => s.type !== "low-usage");
+      if (hasPrimarySignal) {
         const stale = {
           name: flag.name,
           filePath: flag.filePath,

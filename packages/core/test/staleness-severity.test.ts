@@ -35,17 +35,22 @@ describe('analyzeStaleness — severity on existing signals', () => {
     expect(ageSignal?.severity).toBe('warning')
   })
 
-  it('low-usage signal has severity warning', async () => {
+  it('low-usage signal has severity warning when it appears as context', async () => {
+    // low-usage is no longer a primary stale signal — needs another
+    // signal to make the flag stale. Set the commit date old enough
+    // that the age signal fires; the low-usage signal then appears
+    // alongside it as contributing context.
     const dir = makeTempRepo()
     dirs.push(dir)
-    writeFixtureFile(dir, 'a.ts', `const x = 'SOLO_FLAG'\n`)
-    commitAll(dir, 'init')
+    writeFixtureFile(dir, 'a.ts', `const x = 'SOLO_OLD_FLAG'\n`)
+    commitAll(dir, 'init', '2022-01-01T00:00:00')
 
     const flags: FeatureFlag[] = [
-      { name: 'SOLO_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+      { name: 'SOLO_OLD_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
     ]
     const result = await analyzeStaleness(detectedMap(flags), { thresholdDays: 6, repoRoot: dir })
-    const stale = result.find((s) => s.name === 'SOLO_FLAG')
+    const stale = result.find((s) => s.name === 'SOLO_OLD_FLAG')
+    expect(stale).toBeDefined()
     const lowUsage = stale?.signals.find((s) => s.type === 'low-usage')
     expect(lowUsage?.severity).toBe('warning')
   })
@@ -263,6 +268,17 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
   // layer through to each emitted StaleFlag so output formatters can
   // surface them without re-querying the platform.
 
+  // These tests previously relied on low-usage to mark single-file
+  // flags stale; that's no longer enough on its own, so each fixture
+  // pairs the flag with a platform signal (missing-in-platform) so
+  // it IS genuinely stale, then asserts the metadata propagation we
+  // actually care about.
+  const missingSignal: import('../src/providers/interface.js').PlatformSignal = {
+    type: 'missing-in-platform',
+    severity: 'error',
+    description: 'referenced in code but not found in LaunchDarkly',
+  }
+
   it('attaches tags from platformMetadata to the emitted StaleFlag', async () => {
     const dir = makeTempRepo()
     dirs.push(dir)
@@ -275,6 +291,7 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
     const result = await analyzeStaleness(detectedMap(flags), {
       thresholdDays: 6,
       repoRoot: dir,
+      platformSignals: new Map([['TAGGED_FLAG', [missingSignal]]]),
       platformMetadata: new Map([
         ['TAGGED_FLAG', { tags: ['kill-switch', 'auth'] }],
       ]),
@@ -296,6 +313,7 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
     const result = await analyzeStaleness(detectedMap(flags), {
       thresholdDays: 6,
       repoRoot: dir,
+      platformSignals: new Map([['OWNED_FLAG', [missingSignal]]]),
       platformMetadata: new Map([
         ['OWNED_FLAG', { maintainer: 'Jane Doe <jane@example.com>' }],
       ]),
@@ -317,6 +335,7 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
     const result = await analyzeStaleness(detectedMap(flags), {
       thresholdDays: 6,
       repoRoot: dir,
+      platformSignals: new Map([['STATUS_FLAG', [missingSignal]]]),
       platformMetadata: new Map([['STATUS_FLAG', { status: 'launched' }]]),
     })
     expect(result.find((s) => s.name === 'STATUS_FLAG')!.platformStatus).toBe('launched')
@@ -334,6 +353,7 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
     const result = await analyzeStaleness(detectedMap(flags), {
       thresholdDays: 6,
       repoRoot: dir,
+      platformSignals: new Map([['NO_META', [missingSignal]]]),
       // No platformMetadata.
     })
     const stale = result.find((s) => s.name === 'NO_META')
@@ -355,6 +375,7 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
     const result = await analyzeStaleness(detectedMap(flags), {
       thresholdDays: 6,
       repoRoot: dir,
+      platformSignals: new Map([['EMPTY_TAGS', [missingSignal]]]),
       platformMetadata: new Map([['EMPTY_TAGS', { tags: [] }]]),
     })
     expect(result.find((s) => s.name === 'EMPTY_TAGS')!.tags).toBeUndefined()

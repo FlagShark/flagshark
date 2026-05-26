@@ -123,7 +123,11 @@ describe('scanRepo', () => {
   it('uses config.threshold when opts.threshold is undefined', async () => {
     const dir = makeTempRepo()
     mkdirSync(join(dir, 'src'))
-    // A flag in a single file — single-file signal will fire.
+    // A flag in a single file. We don't expect it to be stale anymore
+    // (the low-usage signal is no longer a primary stale signal), so
+    // the assertion targets totalFlags and the absence of a crash —
+    // the point of this test is that scanRepo accepted threshold from
+    // config without throwing and the config-loading path was hit.
     writeFileSync(join(dir, 'src', 'app.ts'),
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
@@ -132,14 +136,13 @@ describe('scanRepo', () => {
     execFileSync('git', ['add', '.'], { cwd: dir })
     execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
 
-    // With threshold from config (1 month), even a freshly-added flag with single-file usage triggers.
     const result = await scanRepo({ cwd: dir })
 
-    // Single-file signal fires regardless of threshold, so we expect at least one stale flag.
-    // The point of this test is that scanRepo accepted threshold from config without crashing
-    // and the config-loading path was hit (verified by the .flagshark.yml file).
     expect(result.totalFlags).toBe(1)
-    expect(result.staleFlags.length).toBeGreaterThanOrEqual(1)
+    // No platform integration → no platform-side stale signal. The
+    // single-file flag carries low-usage as context but isn't stale
+    // on that alone, so the stale list is empty.
+    expect(result.staleFlags.length).toBe(0)
   })
 
   it('CLI opts.threshold overrides config.threshold', async () => {
@@ -268,7 +271,14 @@ describe('scanRepo', () => {
       ].join('\n'),
     )
     execFileSync('git', ['add', '.'], { cwd: dir })
-    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+    // Commit with an old date so the age signal fires; low-usage alone
+    // doesn't make flags stale anymore, but age + low-usage does, and
+    // this test cares about the custom_detectors finding the flags +
+    // propagating confidence:'low' + provider name on the StaleFlag.
+    execFileSync('git', ['commit', '-qm', 'init', '--date=2022-01-01T00:00:00'], {
+      cwd: dir,
+      env: { ...process.env, GIT_COMMITTER_DATE: '2022-01-01T00:00:00' },
+    })
 
     const result = await scanRepo({
       cwd: dir,

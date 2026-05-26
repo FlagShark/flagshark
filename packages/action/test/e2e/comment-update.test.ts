@@ -14,7 +14,11 @@ describe('action E2E — comment lifecycle', () => {
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('FLAG_X', user, false)\n`)
-    commitAll(dir, 'init')
+    // Old commit date so the age signal fires; previously this test
+    // relied on the low-usage (single-file) signal to mark FLAG_X stale,
+    // but as of v2.1.1 low-usage is contributing-only — needs a primary
+    // signal to put the flag on the stale list. Age serves.
+    commitAll(dir, 'init', '2022-01-01T00:00:00')
     return dir
   }
 
