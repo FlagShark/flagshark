@@ -14,10 +14,13 @@ describe('CLI E2E — --diff', () => {
       `import * as LaunchDarkly from 'launchdarkly-node-server-sdk'\n` +
       `const client = LaunchDarkly.init('sdk-key')\n`
     writeFixtureFile(dir, 'src/old.ts', body + `client.variation('OLD', user, false)\n`)
-    commitAll(dir, 'first')
+    // Old commit date so single-file NEW flag (added in the second
+    // commit) has the age signal — v2.1.1's low-usage demotion means
+    // single-file alone no longer makes a flag stale.
+    commitAll(dir, 'first', '2022-01-01T00:00:00')
 
     writeFixtureFile(dir, 'src/new.ts', body + `client.variation('NEW', user, false)\n`)
-    commitAll(dir, 'second')
+    commitAll(dir, 'second', '2022-06-01T00:00:00')
 
     const r = runCli(['--diff', 'HEAD~1', '--format', 'json'], { cwd: dir })
     expect(r.stdout).toContain('"NEW"')

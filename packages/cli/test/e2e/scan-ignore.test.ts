@@ -19,7 +19,9 @@ describe('CLI E2E — ignore file', () => {
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('DEMO', user, false)\n`)
     writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
-    commitAll(dir, 'init')
+    // Old commit so the age signal fires for the single-file REAL flag
+    // (v2.1.1 demoted low-usage to contributing-only).
+    commitAll(dir, 'init', '2022-01-01T00:00:00')
 
     const r = runCli(['--format', 'json'], { cwd: dir })
     expect(r.stdout).toContain('"REAL"')
@@ -38,7 +40,9 @@ describe('CLI E2E — ignore file', () => {
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('DEMO', user, false)\n`)
     writeFixtureFile(dir, '.flagsharkignore', 'examples/\n')
-    commitAll(dir, 'init')
+    // Old commit so single-file REAL + DEMO have the age signal
+    // (v2.1.1 demoted low-usage to contributing-only).
+    commitAll(dir, 'init', '2022-01-01T00:00:00')
 
     const r = runCli(['--no-ignore-file', '--format', 'json'], { cwd: dir })
     expect(r.stdout).toContain('"REAL"')
