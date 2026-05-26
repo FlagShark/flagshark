@@ -2,10 +2,16 @@ import { describe, it, expect } from 'vitest'
 import { fetchAllFlags } from '../../../src/providers/launchdarkly/client.js'
 import { LdApiError } from '../../../src/providers/launchdarkly/errors.js'
 
+// Tests written before the archived-flag fix returned one fake response
+// per test, expecting fetchAllFlags to make one request. The fix added a
+// SECOND pagination pass (archived=true) so every call now makes at least
+// two requests. The helper auto-returns an empty page for any request
+// beyond the queued list, which keeps existing single-response tests
+// valid and lets new tests opt in to the second-pass shape explicitly.
 function makeFakeFetch(responses: Array<{ status: number; body: unknown } | Error>): typeof globalThis.fetch {
   let i = 0
   return async (_url: RequestInfo | URL, _init?: RequestInit) => {
-    const r = responses[i++]
+    const r = responses[i++] ?? { status: 200, body: { items: [], totalCount: 0 } }
     if (r instanceof Error) throw r
     return new Response(JSON.stringify(r.body), { status: r.status, statusText: `Code ${r.status}` })
   }
@@ -25,8 +31,30 @@ describe('fetchAllFlags', () => {
       { fetch: fakeFetch },
     )
     expect(flags).toEqual([
-      { key: 'A', archived: false, lastModified: null },
-      { key: 'B', archived: true, lastModified: null },
+      // `permanent` defaults to `false` because the LD schema defaults
+      // `temporary` to `true` (the field is set on every modern flag;
+      // when missing we treat the flag as temporary, i.e. NOT permanent).
+      // `tags` defaults to []; `createdAt` is null when LD didn't send
+      // `creationDate`; `maintainer` is undefined because no maintainerId
+      // was present in the mocked response.
+      {
+        key: 'A',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+        createdAt: null,
+        tags: [],
+        maintainer: undefined,
+      },
+      {
+        key: 'B',
+        archived: true,
+        lastModified: null,
+        permanent: false,
+        createdAt: null,
+        tags: [],
+        maintainer: undefined,
+      },
     ])
   })
 

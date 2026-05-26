@@ -124,3 +124,239 @@ describe('analyzeStaleness — platform signals', () => {
     expect(result.find((s) => s.name === 'FRESH')).toBeUndefined()
   })
 })
+
+describe('analyzeStaleness — platform-permanent suppression', () => {
+  // LD's `temporary: false` (mapped to PlatformFlag.permanent: true) means
+  // the user explicitly wants this flag preserved — kill-switches,
+  // long-lived experiment overrides, operational config. We should NOT
+  // surface age or low-usage signals for those, even when they look
+  // stale by the usual heuristics. We SHOULD still surface
+  // missing-in-platform / archived-in-platform — those represent real
+  // platform-vs-code mismatches the user needs to know about.
+
+  it('suppresses the age signal for a permanent flag committed years ago', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'PERM_KILL_SWITCH'\n`)
+    writeFixtureFile(dir, 'b.ts', `const x = 'PERM_KILL_SWITCH'\n`)
+    commitAll(dir, 'init', '2022-01-01T00:00:00') // ~4 years old
+
+    const flags: FeatureFlag[] = [
+      { name: 'PERM_KILL_SWITCH', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+      { name: 'PERM_KILL_SWITCH', filePath: 'b.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const platformSignals = new Map([['PERM_KILL_SWITCH', [{
+      type: 'platform-permanent' as const,
+      severity: 'info' as const,
+      description: 'marked permanent in LaunchDarkly',
+    }]]])
+
+    const result = await analyzeStaleness(
+      detectedMap(flags),
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
+    )
+    // Permanent flag with no other stale signals → not in stale list.
+    expect(result.find((s) => s.name === 'PERM_KILL_SWITCH')).toBeUndefined()
+  })
+
+  it('suppresses low-usage signal for a permanent flag in only one file', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'KILL_SWITCH_ONE_FILE'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'KILL_SWITCH_ONE_FILE', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const platformSignals = new Map([['KILL_SWITCH_ONE_FILE', [{
+      type: 'platform-permanent' as const,
+      severity: 'info' as const,
+      description: 'marked permanent in LaunchDarkly',
+    }]]])
+
+    const result = await analyzeStaleness(
+      detectedMap(flags),
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
+    )
+    // Without the permanent marker this would have a low-usage signal.
+    expect(result.find((s) => s.name === 'KILL_SWITCH_ONE_FILE')).toBeUndefined()
+  })
+
+  it('still emits archived-in-platform even for a permanent flag (archive wins)', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'ARCHIVED_PERMANENT'\n`)
+    writeFixtureFile(dir, 'b.ts', `const x = 'ARCHIVED_PERMANENT'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'ARCHIVED_PERMANENT', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+      { name: 'ARCHIVED_PERMANENT', filePath: 'b.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    // Cross-reference's archive-vs-permanent precedence resolves to
+    // archive (covered separately); here we simulate the cross-reference
+    // output where archive-in-platform is emitted alongside the
+    // permanent marker (e.g. across multiple platforms).
+    const platformSignals = new Map([['ARCHIVED_PERMANENT', [
+      {
+        type: 'archived-in-platform' as const,
+        severity: 'warning' as const,
+        description: 'archived in LaunchDarkly',
+      },
+      {
+        type: 'platform-permanent' as const,
+        severity: 'info' as const,
+        description: 'marked permanent in LaunchDarkly',
+      },
+    ]]])
+
+    const result = await analyzeStaleness(
+      detectedMap(flags),
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
+    )
+    const stale = result.find((s) => s.name === 'ARCHIVED_PERMANENT')
+    expect(stale).toBeDefined()
+    const types = stale!.signals.map((s) => s.type)
+    expect(types).toContain('archived-in-platform')
+    // platform-permanent MUST be filtered out of the user-facing signals.
+    expect(types).not.toContain('platform-permanent')
+  })
+
+  it('reports age in human-readable form even when the age signal is suppressed', async () => {
+    // Operators still want to know how old a permanent flag is when
+    // looking at the output, even though we don't shout about it. The
+    // `age` field on StaleFlag is populated independently of the age
+    // signal — but this flag has no other signals so it should not
+    // appear in the stale list at all. Instead, verify via a flag that
+    // has both permanent + a missing-in-platform (impossible in real
+    // life but useful for the assertion): permanent set, archived
+    // signal still fires, age string carries the human-readable form.
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'PERM_AND_ARCHIVED'\n`)
+    writeFixtureFile(dir, 'b.ts', `const x = 'PERM_AND_ARCHIVED'\n`)
+    commitAll(dir, 'init', '2022-01-01T00:00:00')
+
+    const flags: FeatureFlag[] = [
+      { name: 'PERM_AND_ARCHIVED', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+      { name: 'PERM_AND_ARCHIVED', filePath: 'b.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const platformSignals = new Map([['PERM_AND_ARCHIVED', [
+      { type: 'archived-in-platform' as const, severity: 'warning' as const, description: 'archived in LaunchDarkly' },
+      { type: 'platform-permanent' as const, severity: 'info' as const, description: 'marked permanent in LaunchDarkly' },
+    ]]])
+
+    const result = await analyzeStaleness(
+      detectedMap(flags),
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
+    )
+    const stale = result.find((s) => s.name === 'PERM_AND_ARCHIVED')
+    expect(stale).toBeDefined()
+    expect(stale!.age).toBeDefined()
+    // Age signal should be SUPPRESSED, but the age string is preserved.
+    expect(stale!.signals.map((s) => s.type)).not.toContain('age')
+  })
+})
+
+describe('analyzeStaleness — platform metadata propagation (P3)', () => {
+  // Tags, maintainer, and platform-status flow from the cross-reference
+  // layer through to each emitted StaleFlag so output formatters can
+  // surface them without re-querying the platform.
+
+  it('attaches tags from platformMetadata to the emitted StaleFlag', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'TAGGED_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'TAGGED_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([
+        ['TAGGED_FLAG', { tags: ['kill-switch', 'auth'] }],
+      ]),
+    })
+    const stale = result.find((s) => s.name === 'TAGGED_FLAG')
+    expect(stale).toBeDefined()
+    expect(stale!.tags).toEqual(['kill-switch', 'auth'])
+  })
+
+  it('attaches maintainer from platformMetadata to the emitted StaleFlag', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'OWNED_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'OWNED_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([
+        ['OWNED_FLAG', { maintainer: 'Jane Doe <jane@example.com>' }],
+      ]),
+    })
+    expect(result.find((s) => s.name === 'OWNED_FLAG')!.maintainer).toBe(
+      'Jane Doe <jane@example.com>',
+    )
+  })
+
+  it('attaches platformStatus from platformMetadata to the emitted StaleFlag', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'STATUS_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'STATUS_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([['STATUS_FLAG', { status: 'launched' }]]),
+    })
+    expect(result.find((s) => s.name === 'STATUS_FLAG')!.platformStatus).toBe('launched')
+  })
+
+  it('leaves tags/maintainer/platformStatus absent when no metadata is provided', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'NO_META'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'NO_META', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      // No platformMetadata.
+    })
+    const stale = result.find((s) => s.name === 'NO_META')
+    expect(stale).toBeDefined()
+    expect(stale!.tags).toBeUndefined()
+    expect(stale!.maintainer).toBeUndefined()
+    expect(stale!.platformStatus).toBeUndefined()
+  })
+
+  it('skips empty-array tags so output formatters don\'t render an empty cell', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'EMPTY_TAGS'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'EMPTY_TAGS', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([['EMPTY_TAGS', { tags: [] }]]),
+    })
+    expect(result.find((s) => s.name === 'EMPTY_TAGS')!.tags).toBeUndefined()
+  })
+})

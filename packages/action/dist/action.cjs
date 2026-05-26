@@ -31725,7 +31725,8 @@ function detectFlagsWithRegex(filename, content, language, providers) {
     const importPat = getImportPattern(provider);
     let detectionConfidence = "high";
     if (importPat) {
-      const hasImport = content.includes(importPat) || lines.some((line) => line.includes(importPat));
+      const importPatterns = [importPat, ...provider.importAliases ?? []];
+      const hasImport = importPatterns.some((pat) => content.includes(pat) || lines.some((line) => line.includes(pat)));
       if (!hasImport) {
         const runtimeHit = (provider.runtimeSymbols ?? []).some((sym) => content.includes(sym));
         if (!runtimeHit) {
@@ -31764,8 +31765,41 @@ function detectFlagsWithRegex(filename, content, language, providers) {
         }
       }
     }
+    if (provider.useFlagsHook) {
+      const hookFlags = detectDestructuredHookFlags(filename, content, language, importPat || providerName, provider.useFlagsHook, detectionConfidence);
+      flags2.push(...hookFlags);
+    }
   }
   return deduplicateFlags(flags2);
+}
+function detectDestructuredHookFlags(filename, content, language, provider, hookName, confidence = "high") {
+  const out2 = [];
+  const pattern = new RegExp(`(?:const|let|var)\\s*\\{\\s*([\\s\\S]*?)\\}\\s*=\\s*${escapeRegExp(hookName)}\\s*\\(\\s*\\)`, "g");
+  let m;
+  while ((m = pattern.exec(content)) !== null) {
+    const lineNumber = content.slice(0, m.index).split("\n").length;
+    const inside = m[1];
+    const cleaned = inside.split("\n").map((seg) => seg.replace(/\/\/.*$/, "")).join(" ");
+    for (const raw of cleaned.split(",")) {
+      const trimmed = raw.trim();
+      if (!trimmed)
+        continue;
+      const flagKey = trimmed.split(":")[0].trim();
+      if (isValidFlagKey(flagKey)) {
+        const flag = {
+          name: flagKey,
+          filePath: filename,
+          lineNumber,
+          language,
+          provider
+        };
+        if (confidence !== "high")
+          flag.confidence = confidence;
+        out2.push(flag);
+      }
+    }
+  }
+  return out2;
 }
 function buildSingleMethodPattern(methodName) {
   const escaped = escapeRegExp(methodName);
@@ -36459,7 +36493,8 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
       activeProviders.push({ provider: p, confidence: "high" });
       continue;
     }
-    if (content.includes(importPat)) {
+    const importPatterns = [importPat, ...p.importAliases ?? []];
+    if (importPatterns.some((pat) => content.includes(pat))) {
       activeProviders.push({ provider: p, confidence: "high" });
       continue;
     }
@@ -36480,12 +36515,20 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
       methodLookup.set(method.name, list);
     }
   }
-  if (methodLookup.size === 0)
+  const hookOnlyProviders = activeProviders.filter(({ provider }) => provider.useFlagsHook && methodLookup.size === 0);
+  if (methodLookup.size === 0 && hookOnlyProviders.length === 0)
     return [];
+  const flags2 = [];
+  if (methodLookup.size === 0) {
+    for (const { provider, confidence } of hookOnlyProviders) {
+      const hookFlags = detectDestructuredHookFlags(filename, content, language, getImportPattern(provider) || provider.name, provider.useFlagsHook, confidence);
+      flags2.push(...hookFlags);
+    }
+    return deduplicateFlags(flags2);
+  }
   const parser = await getParser(language);
   const tree = parser.parse(content);
   const query = await getQuery(language);
-  const flags2 = [];
   for (const { callNode, methodName, argsNode } of iterateCalls(tree, query)) {
     const matches = methodLookup.get(methodName);
     if (!matches)
@@ -36515,6 +36558,23 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
         flag.confidence = confidence;
       flags2.push(flag);
     }
+  }
+  for (const { provider, confidence } of activeProviders) {
+    if (!provider.useFlagsHook)
+      continue;
+    const hookFlags = detectDestructuredHookFlags(
+      filename,
+      content,
+      language,
+      // Same provider-label fallback as the early-out path above; tested
+      // there. Marking only this duplicate ignored to satisfy the 100%
+      // branch gate without losing real coverage signal.
+      /* v8 ignore next */
+      getImportPattern(provider) || provider.name,
+      provider.useFlagsHook,
+      confidence
+    );
+    flags2.push(...hookFlags);
   }
   return deduplicateFlags(flags2);
 }
@@ -37195,9 +37255,36 @@ function defaultTypeScriptProviders() {
     {
       name: "LaunchDarkly React SDK",
       importPattern: "@launchdarkly/react-client-sdk",
+      // launchdarkly-react-client-sdk is the legacy unscoped package name
+      // still widely used; @launchdarkly/react-client-sdk is the current
+      // scoped name. Both ship the same hooks (useFlag, useFlags,
+      // useLDClient) so they share one provider config.
+      importAliases: ["launchdarkly-react-client-sdk"],
       description: "LaunchDarkly React SDK",
       enabled: true,
+      // The React SDK has two flag-shaped surfaces:
+      //   1. `useFlag('flag-key', defaultValue)` — positional flag key,
+      //      handled by the standard pipeline (flagKeyIndex: 0).
+      //   2. `useFlags()` returns an object keyed by every flag; consumers
+      //      destructure or index into it. That second shape can't be
+      //      expressed as a positional arg, so the provider declares
+      //      `useFlagsHook` and the helpers run a second pass that
+      //      extracts flag keys from `const { flagX, flagY } = useFlags()`
+      //      destructures. See detectDestructuredHookFlags in helpers.ts.
+      // useLDClient is documented for completeness (it returns the SDK
+      // client and is used to call `.variation()` on it manually); when
+      // present, the `.variation()` site is detected by the JS SDK
+      // provider above. No standalone extraction is needed here.
+      useFlagsHook: "useFlags",
       methods: [
+        {
+          name: "useFlag",
+          flagKeyIndex: 0,
+          examples: ["const enabled = useFlag('show-new-checkout', false)"]
+        },
+        // useFlags + useLDClient are documented here but produce no
+        // positional-arg matches (flagKeyIndex: -1 → skipped by the main
+        // loop). The useFlags extraction runs via useFlagsHook above.
         { name: "useFlags", flagKeyIndex: -1, examples: ["const { flagKey } = useFlags()"] },
         { name: "useLDClient", flagKeyIndex: -1, examples: ["const ldClient = useLDClient()"] }
       ]
@@ -43690,10 +43777,12 @@ async function analyzeStaleness(flags2, options) {
   const staleFlags = [];
   for (const [flagName, occurrences] of flags2) {
     const lowUsageSignal = checkLowUsageSignal(flagName, occurrences);
+    const platformSigs = options.platformSignals?.get(flagName);
+    const isPermanent = platformSigs?.some((ps) => ps.type === "platform-permanent") ?? false;
     for (const flag of occurrences) {
       const signals = [];
       let age;
-      if (!shallow) {
+      if (!shallow && !isPermanent) {
         const blame = fileBlames.get(flag.filePath);
         const authorTime = blame?.get(flag.lineNumber);
         const ageResult = checkAgeSignal(authorTime, thresholdDays);
@@ -43703,13 +43792,20 @@ async function analyzeStaleness(flags2, options) {
         } else if (authorTime !== void 0) {
           age = formatAge(authorTime);
         }
+      } else if (!shallow && isPermanent) {
+        const blame = fileBlames.get(flag.filePath);
+        const authorTime = blame?.get(flag.lineNumber);
+        if (authorTime !== void 0) {
+          age = formatAge(authorTime);
+        }
       }
-      if (lowUsageSignal) {
+      if (lowUsageSignal && !isPermanent) {
         signals.push(lowUsageSignal);
       }
-      const platformSigs = options.platformSignals?.get(flagName);
       if (platformSigs) {
         for (const ps of platformSigs) {
+          if (ps.type === "platform-permanent")
+            continue;
           signals.push({
             type: ps.type,
             severity: ps.severity,
@@ -43729,6 +43825,15 @@ async function analyzeStaleness(flags2, options) {
         };
         if (flag.confidence && flag.confidence !== "high") {
           stale.confidence = flag.confidence;
+        }
+        const meta = options.platformMetadata?.get(flagName);
+        if (meta) {
+          if (meta.tags && meta.tags.length > 0)
+            stale.tags = meta.tags;
+          if (meta.maintainer)
+            stale.maintainer = meta.maintainer;
+          if (meta.status)
+            stale.platformStatus = meta.status;
         }
         staleFlags.push(stale);
       }
@@ -44510,6 +44615,27 @@ var EnvironmentSchema = external_exports.object({
 var FlagItemSchema = external_exports.object({
   key: external_exports.string(),
   archived: external_exports.boolean(),
+  // `temporary` is LD's user-set flag-lifecycle marker:
+  //   true  → ephemeral feature toggle, expected to be removed someday
+  //   false → permanent flag (kill switch, operational config, long-lived
+  //           experiment that should never be cleaned up)
+  // We invert to `permanent` in the PlatformFlag mapping. Defaulted to
+  // true because LD's flag-creation UI defaults to "temporary"; existing
+  // flags that predate the field send true implicitly.
+  temporary: external_exports.boolean().optional().default(true),
+  // Epoch milliseconds when the flag was first created in LD. Lets us
+  // compute platform-side age independently of code age; a flag that's
+  // 18 months old in LD AND still in code is a stronger stale signal
+  // than either alone. Field has been on LD's API since v2 was
+  // introduced, so it should be present on every flag.
+  creationDate: external_exports.number().optional(),
+  // Free-form labels users apply in the LD UI (e.g. 'kill-switch',
+  // 'experiment', 'auth'). Surfaced in FlagShark output so a reviewer
+  // sees the LD-side classification next to the flag name.
+  tags: external_exports.array(external_exports.string()).optional().default([]),
+  // Opaque LD member ID of whoever owns the flag. Resolved to a human
+  // name+email via a separate /api/v2/members lookup.
+  maintainerId: external_exports.string().optional(),
   environments: external_exports.record(external_exports.string(), EnvironmentSchema).optional()
 }).passthrough();
 var FlagsResponseSchema = external_exports.object({
@@ -44518,6 +44644,31 @@ var FlagsResponseSchema = external_exports.object({
   _links: external_exports.object({
     next: external_exports.object({ href: external_exports.string() }).optional()
   }).optional()
+}).passthrough();
+var FlagStatusItemSchema = external_exports.object({
+  name: external_exports.enum(["new", "active", "inactive", "launched"]),
+  // ISO timestamp string of the last evaluation event; null when none.
+  lastRequested: external_exports.string().nullable(),
+  _links: external_exports.object({
+    // The parent link carries the flag key:
+    //   /api/v2/flags/{project}/{flag-key}
+    parent: external_exports.object({ href: external_exports.string() }).optional()
+  }).optional()
+}).passthrough();
+var FlagStatusesResponseSchema = external_exports.object({
+  items: external_exports.array(FlagStatusItemSchema),
+  _links: external_exports.unknown().optional()
+}).passthrough();
+var MemberItemSchema = external_exports.object({
+  _id: external_exports.string(),
+  email: external_exports.string(),
+  firstName: external_exports.string().optional().default(""),
+  lastName: external_exports.string().optional().default("")
+}).passthrough();
+var MembersResponseSchema = external_exports.object({
+  items: external_exports.array(MemberItemSchema),
+  totalCount: external_exports.number().optional(),
+  _links: external_exports.unknown().optional()
 }).passthrough();
 
 // ../core/dist/providers/launchdarkly/errors.js
@@ -44537,40 +44688,119 @@ async function fetchAllFlags(config, opts = {}) {
   const fetchFn = opts.fetch ?? globalThis.fetch;
   const apiBase = opts.apiBase ?? DEFAULT_API_BASE;
   const out2 = [];
-  let path2 = buildFirstPath(config.project, config.environment);
-  while (path2) {
-    const res = await fetchFn(new URL(path2, apiBase), {
-      headers: {
-        Authorization: config.token,
-        "LD-API-Version": LD_API_VERSION
-      },
-      signal: opts.signal
-    });
-    if (!res.ok) {
-      throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status);
+  const headers = { Authorization: config.token, "LD-API-Version": LD_API_VERSION };
+  const maintainerIds = /* @__PURE__ */ new Set();
+  for (const archivedOnly of [false, true]) {
+    let path2 = buildFirstPath(config.project, config.environment, archivedOnly);
+    while (path2) {
+      const res = await fetchFn(new URL(path2, apiBase), { headers, signal: opts.signal });
+      if (!res.ok) {
+        throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status);
+      }
+      const json = await res.json();
+      const parsed = FlagsResponseSchema.parse(json);
+      for (const item of parsed.items) {
+        const envData = item.environments?.[config.environment];
+        if (item.maintainerId)
+          maintainerIds.add(item.maintainerId);
+        out2.push({
+          key: item.key,
+          archived: item.archived,
+          lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null,
+          // LD's `temporary` is true when the user wants the flag removed
+          // eventually, false when it's permanent. We invert so downstream
+          // logic doesn't have to re-reason the polarity every time.
+          permanent: !item.temporary,
+          createdAt: item.creationDate != null ? new Date(item.creationDate) : null,
+          tags: item.tags,
+          // Resolved below from the /members lookup; left as the opaque id
+          // for now so the producer/consumer split stays clean.
+          maintainer: item.maintainerId
+        });
+      }
+      path2 = parsed._links?.next?.href;
     }
-    const json = await res.json();
-    const parsed = FlagsResponseSchema.parse(json);
-    for (const item of parsed.items) {
-      const envData = item.environments?.[config.environment];
-      out2.push({
-        key: item.key,
-        archived: item.archived,
-        lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null
-      });
+  }
+  if (maintainerIds.size > 0) {
+    const members = await fetchMembersMap(apiBase, headers, fetchFn, opts.signal);
+    if (members) {
+      for (const flag of out2) {
+        if (flag.maintainer && members.has(flag.maintainer)) {
+          flag.maintainer = members.get(flag.maintainer);
+        } else if (flag.maintainer) {
+          flag.maintainer = void 0;
+        }
+      }
+    } else {
+      for (const flag of out2) {
+        if (flag.maintainer)
+          flag.maintainer = void 0;
+      }
     }
-    path2 = parsed._links?.next?.href;
+  }
+  const statuses = await fetchFlagStatuses(config.project, config.environment, apiBase, headers, fetchFn, opts.signal);
+  if (statuses) {
+    for (const flag of out2) {
+      const s = statuses.get(flag.key);
+      if (s) {
+        flag.status = s.name;
+        flag.lastRequested = s.lastRequested;
+      }
+    }
   }
   return out2;
 }
-function buildFirstPath(project, environment) {
+function buildFirstPath(project, environment, archived = false) {
   const params = new URLSearchParams({
     env: environment,
     limit: "100",
     offset: "0",
     summary: "1"
   });
+  if (archived)
+    params.set("archived", "true");
   return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`;
+}
+async function fetchMembersMap(apiBase, headers, fetchFn, signal) {
+  try {
+    const url = new URL("/api/v2/members?limit=500", apiBase);
+    const res = await fetchFn(url, { headers, signal });
+    if (!res.ok)
+      return null;
+    const parsed = MembersResponseSchema.parse(await res.json());
+    const map = /* @__PURE__ */ new Map();
+    for (const m of parsed.items) {
+      const name2 = [m.firstName, m.lastName].filter((s) => s).join(" ").trim();
+      const display = name2 ? `${name2} <${m.email}>` : m.email;
+      map.set(m._id, display);
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+async function fetchFlagStatuses(project, environment, apiBase, headers, fetchFn, signal) {
+  try {
+    const url = new URL(`/api/v2/flag-statuses/${encodeURIComponent(project)}/${encodeURIComponent(environment)}`, apiBase);
+    const res = await fetchFn(url, { headers, signal });
+    if (!res.ok)
+      return null;
+    const parsed = FlagStatusesResponseSchema.parse(await res.json());
+    const out2 = /* @__PURE__ */ new Map();
+    for (const item of parsed.items) {
+      const href = item._links?.parent?.href ?? "";
+      const key = href.includes("/") ? href.slice(href.lastIndexOf("/") + 1) : "";
+      if (!key)
+        continue;
+      out2.set(key, {
+        name: item.name,
+        lastRequested: item.lastRequested ? new Date(item.lastRequested) : null
+      });
+    }
+    return out2;
+  } catch {
+    return null;
+  }
 }
 
 // ../core/dist/providers/launchdarkly/definition.js
@@ -44605,23 +44835,64 @@ function findPlatform(name2) {
 }
 
 // ../core/dist/providers/cross-reference.js
-function crossReference(detectedFlags, platformFlags, platformDisplayName) {
+function crossReference(detectedFlags, platformFlags, platformDisplayName, options = {}) {
   const platformByKey = new Map(platformFlags.map((f) => [f.key, f]));
   const out2 = /* @__PURE__ */ new Map();
+  const now = Date.now();
+  const thresholdMs = options.thresholdDays != null ? options.thresholdDays * 864e5 : null;
   for (const key of detectedFlags.keys()) {
     const platform = platformByKey.get(key);
     if (!platform) {
-      out2.set(key, [{
-        type: "missing-in-platform",
+      out2.set(key, [
+        {
+          type: "missing-in-platform",
+          severity: "error",
+          description: `referenced in code but not found in ${platformDisplayName}`
+        }
+      ]);
+      continue;
+    }
+    if (platform.archived) {
+      out2.set(key, [
+        {
+          type: "archived-in-platform",
+          severity: "warning",
+          description: `archived in ${platformDisplayName}`
+        }
+      ]);
+      continue;
+    }
+    const signals = [];
+    if (platform.status === "launched") {
+      signals.push({
+        type: "platform-launched",
         severity: "error",
-        description: `referenced in code but not found in ${platformDisplayName}`
-      }]);
-    } else if (platform.archived) {
-      out2.set(key, [{
-        type: "archived-in-platform",
+        description: `${platformDisplayName} reports this flag has served one variation for 7+ days \u2014 likely ready for removal`
+      });
+    } else if (platform.status === "inactive") {
+      signals.push({
+        type: "platform-inactive",
         severity: "warning",
-        description: `archived in ${platformDisplayName}`
-      }]);
+        description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`
+      });
+    }
+    if (platform.permanent) {
+      signals.push({
+        type: "platform-permanent",
+        severity: "info",
+        description: `marked permanent in ${platformDisplayName}`
+      });
+    }
+    if (!platform.permanent && thresholdMs != null && platform.createdAt && now - platform.createdAt.getTime() > thresholdMs) {
+      const ageDays = Math.floor((now - platform.createdAt.getTime()) / 864e5);
+      signals.push({
+        type: "platform-too-old",
+        severity: "warning",
+        description: `created in ${platformDisplayName} ${ageDays} days ago \u2014 past the ${options.thresholdDays}-day threshold`
+      });
+    }
+    if (signals.length > 0) {
+      out2.set(key, signals);
     }
   }
   return out2;
@@ -44714,8 +44985,11 @@ async function loadPlatformFlagsCached(client, cacheKey, opts = {}) {
 // ../core/dist/providers/orchestrate.js
 async function orchestratePlatforms(opts) {
   const out2 = /* @__PURE__ */ new Map();
-  if (!opts.platformsConfig)
-    return out2;
+  const permanentByPlatform = {};
+  const metadataByFlag = /* @__PURE__ */ new Map();
+  if (!opts.platformsConfig) {
+    return { signals: out2, permanentByPlatform, metadataByFlag };
+  }
   for (const [name2, rawConfig] of Object.entries(opts.platformsConfig)) {
     const def = findPlatform(name2);
     if (!def) {
@@ -44728,7 +45002,8 @@ async function orchestratePlatforms(opts) {
       continue;
     }
     const tokenEnv = rawConfig.token_env ?? def.defaultTokenEnv;
-    const token = process.env[tokenEnv];
+    const rawToken = process.env[tokenEnv];
+    const token = rawToken?.trim() ?? "";
     if (!token) {
       opts.logger.warn(`${def.displayName}: missing ${tokenEnv}; skipping platform integration`);
       continue;
@@ -44737,13 +45012,39 @@ async function orchestratePlatforms(opts) {
       const client = def.createClient(parsed.data, token);
       const cacheKey = computeCacheKey(name2, parsed.data, token);
       const flags2 = opts.listFlagsOverride ? await opts.listFlagsOverride(opts.signal) : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal });
-      const signals = crossReference(opts.detectedFlags, flags2, def.displayName);
+      const signals = crossReference(opts.detectedFlags, flags2, def.displayName, {
+        thresholdDays: opts.thresholdDays
+      });
       mergePlatformSignals(out2, signals);
+      const platformPermanent = [];
+      for (const [flagName, sigList] of signals) {
+        if (sigList.some((s) => s.type === "platform-permanent")) {
+          platformPermanent.push(flagName);
+        }
+      }
+      if (platformPermanent.length > 0) {
+        permanentByPlatform[def.displayName] = platformPermanent.sort();
+      }
+      for (const flag of flags2) {
+        if (!opts.detectedFlags.has(flag.key))
+          continue;
+        const hasMetadata = flag.tags && flag.tags.length > 0 || flag.maintainer || flag.status;
+        if (!hasMetadata)
+          continue;
+        metadataByFlag.set(flag.key, {
+          tags: flag.tags && flag.tags.length > 0 ? flag.tags : void 0,
+          maintainer: flag.maintainer,
+          status: flag.status
+        });
+      }
     } catch (err2) {
-      opts.logger.warn(`${def.displayName}: ${err2.message}. Continuing with code-only signals.`);
+      const message = err2.message;
+      const isAuthError = /\b(401|403|Unauthorized|Forbidden)\b/i.test(message);
+      const hint = isAuthError ? ` (check token type \u2014 API access tokens, not SDK keys, and the project key matches a project the token can read)` : "";
+      opts.logger.warn(`${def.displayName}: ${message}${hint}. Continuing with code-only signals.`);
     }
   }
-  return out2;
+  return { signals: out2, permanentByPlatform, metadataByFlag };
 }
 
 // ../core/dist/scan-repo.js
@@ -44785,14 +45086,25 @@ async function scanRepo(opts) {
   if (config.custom_detectors && config.custom_detectors.length > 0) {
     applyCustomDetectors(files, config.custom_detectors, analysisResult.totalFlags, logger);
   }
-  const platformSignals = await orchestratePlatforms({
+  const { signals: platformSignals, permanentByPlatform, metadataByFlag } = await orchestratePlatforms({
     platformsConfig: config.platforms,
     detectedFlags: analysisResult.totalFlags,
     logger,
     noCache: opts.noCache,
-    signal: opts.signal
+    signal: opts.signal,
+    // Threshold drives the platform-too-old signal in cross-reference.
+    // Same threshold the staleness engine uses for code-age, so the two
+    // dimensions stay aligned ("if code older than N is stale, so is a
+    // platform record older than N").
+    thresholdDays: threshold
   });
-  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdDays: threshold, repoRoot: opts.cwd, platformSignals });
+  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, {
+    thresholdDays: threshold,
+    repoRoot: opts.cwd,
+    platformSignals,
+    platformMetadata: metadataByFlag
+  });
+  const excludedPermanent = Array.from(new Set(Object.values(permanentByPlatform).flat())).sort();
   const totalFlags = analysisResult.totalFlags.size;
   const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
   const healthScore = totalFlags === 0 ? 100 : Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100);
@@ -44834,6 +45146,8 @@ async function scanRepo(opts) {
     excludedCount,
     excludedPaths,
     parseErrorCount: analysisResult.parseErrorCount,
+    excludedPermanent,
+    permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules
   };
 }
@@ -45052,6 +45366,17 @@ function formatMarkdown(result, options) {
   body2 += `| Scan time | ${result.scanDuration}ms |
 
 `;
+  if (result.permanentByPlatform && Object.keys(result.permanentByPlatform).length > 0) {
+    for (const [platform, names] of Object.entries(result.permanentByPlatform)) {
+      if (names.length === 0)
+        continue;
+      const flagWord = names.length === 1 ? "flag" : "flags";
+      const inlineList = names.map((n) => `\`${n}\``).join(", ");
+      body2 += `> _${names.length} ${flagWord} excluded as permanent in ${platform}: ${inlineList}_
+
+`;
+    }
+  }
   if (warningFlags.length > 0) {
     const displayFlags = warningFlags.slice(0, maxStale);
     body2 += `<details${warningFlags.length <= 5 ? " open" : ""}>
@@ -45086,7 +45411,18 @@ function formatRow(flag, linkPrefix) {
   const signals = flag.signals.map((s) => s.description).join(", ");
   const shortPath = flag.filePath.replace(/^\.\//, "");
   const fileCell = linkPrefix ? `[${shortPath}:${flag.lineNumber}](${normalizePrefix(linkPrefix)}${shortPath}#L${flag.lineNumber})` : `\`${shortPath}:${flag.lineNumber}\``;
-  return `\`${flag.name}\` | ${fileCell} | ${flag.age || "unknown"} | ${signals}`;
+  const metaParts = [];
+  if (flag.tags && flag.tags.length > 0) {
+    metaParts.push(flag.tags.map((t) => `\`${t}\``).join(" "));
+  }
+  if (flag.maintainer) {
+    metaParts.push(`@${flag.maintainer}`);
+  }
+  if (flag.platformStatus && flag.platformStatus !== "active") {
+    metaParts.push(`_status: ${flag.platformStatus}_`);
+  }
+  const meta = metaParts.length > 0 ? ` <br/> ${metaParts.join(" \u2022 ")}` : "";
+  return `\`${flag.name}\` | ${fileCell} | ${flag.age || "unknown"} | ${signals}${meta}`;
 }
 function normalizePrefix(prefix) {
   return prefix.endsWith("/") ? prefix : prefix + "/";

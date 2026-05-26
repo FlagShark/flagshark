@@ -60,6 +60,14 @@ export interface FeatureFlagProvider {
   packagePath?: string
   /** Import pattern to match in source code */
   importPattern?: string
+  /**
+   * Optional alternative import patterns. Either the primary
+   * `importPattern` OR any entry here is enough to pass the import gate.
+   * Useful for SDKs published under both a legacy unscoped name and a
+   * new scoped name (e.g. `launchdarkly-react-client-sdk` vs.
+   * `@launchdarkly/react-client-sdk`).
+   */
+  importAliases?: string[]
   /** Methods to detect */
   methods: MethodConfig[]
   /** Human-readable description */
@@ -90,6 +98,32 @@ export interface FeatureFlagProvider {
    * Empty / unset = behave exactly as before (import gate only).
    */
   runtimeSymbols?: string[]
+
+  /**
+   * Optional bulk-flags hook name (e.g. `useFlags` for the LaunchDarkly
+   * React SDK). When set, the detector additionally extracts flag keys
+   * from destructured property names on the hook's return value:
+   *
+   *   const { showNewCheckout, oneClickPurchase } = useFlags()
+   *                ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+   *                each one becomes a detected flag
+   *
+   * Required because the React SDK does not pass flag keys as call-site
+   * arguments — `useFlags()` takes no parameters and returns an object
+   * keyed by every flag. Without this hook the entire React-SDK call
+   * pattern produces zero detections, even though every site reads a
+   * flag. See "React SDK gap" in the changelog for the motivating user
+   * report.
+   *
+   * Note: LaunchDarkly camelCases flag keys by default; detected names
+   * arrive in that form unless the consumer opted out via
+   * `reactOptions: { useCamelCaseFlagKeys: false }`. Users should turn
+   * camelCase off for the cleanest FlagShark experience, or apply a
+   * convention mapping in `.flagshark.yml`.
+   *
+   * Empty / unset = no destructure-based detection.
+   */
+  useFlagsHook?: string
 }
 
 /** Returns the effective import pattern, supporting backward compatibility. */

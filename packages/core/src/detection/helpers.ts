@@ -204,8 +204,15 @@ export function detectFlagsWithRegex(
     // false-positive trade-off.
     let detectionConfidence: 'high' | 'medium' = 'high'
     if (importPat) {
-      const hasImport =
-        content.includes(importPat) || lines.some((line) => line.includes(importPat))
+      // The import gate passes if EITHER the primary pattern OR any
+      // declared alias is present in the file. SDKs republished under a
+      // scoped name (e.g. `@launchdarkly/react-client-sdk`) rely on the
+      // alias list so the legacy unscoped form
+      // (`launchdarkly-react-client-sdk`) still triggers detection.
+      const importPatterns = [importPat, ...(provider.importAliases ?? [])]
+      const hasImport = importPatterns.some(
+        (pat) => content.includes(pat) || lines.some((line) => line.includes(pat)),
+      )
       if (!hasImport) {
         // Check whether the file matches any runtime-symbol pattern.
         const runtimeHit = (provider.runtimeSymbols ?? []).some((sym) =>
@@ -267,9 +274,88 @@ export function detectFlagsWithRegex(
         }
       }
     }
+
+    // useFlagsHook: providers like the LaunchDarkly React SDK don't pass
+    // flag keys as call-site arguments. Instead, calling `useFlags()` returns
+    // an object whose keys ARE the flag names; consumers either destructure
+    // them or index into them. The positional-arg pipeline above can't see
+    // this shape. When a provider declares `useFlagsHook`, run a second pass
+    // that extracts destructured property names from `... = <hook>()` sites
+    // and emits each as a detected flag.
+    if (provider.useFlagsHook) {
+      const hookFlags = detectDestructuredHookFlags(
+        filename,
+        content,
+        language,
+        importPat || providerName,
+        provider.useFlagsHook,
+        detectionConfidence,
+      )
+      flags.push(...hookFlags)
+    }
   }
 
   return deduplicateFlags(flags)
+}
+
+/**
+ * Extracts flag keys from destructured property names on a hook's return
+ * value. Handles the LaunchDarkly React SDK pattern (and any future hook
+ * with the same shape):
+ *
+ *   const { showNewCheckout, oneClickPurchase } = useFlags()
+ *   let   { feature: aliased } = useFlags()  // takes `feature`, not `aliased`
+ *
+ * Multi-line destructures are supported (the regex spans newlines). The
+ * line number reported is the line where the destructure begins.
+ *
+ * Identifiers that fail `isValidFlagKey` (numeric literals, reserved
+ * words) are dropped — this is the same gate the positional-arg path
+ * applies, kept consistent so downstream consumers see one rule.
+ */
+export function detectDestructuredHookFlags(
+  filename: string,
+  content: string,
+  language: Language,
+  provider: string,
+  hookName: string,
+  confidence: 'high' | 'medium' = 'high',
+): FeatureFlag[] {
+  const out: FeatureFlag[] = []
+  const pattern = new RegExp(
+    `(?:const|let|var)\\s*\\{\\s*([\\s\\S]*?)\\}\\s*=\\s*${escapeRegExp(hookName)}\\s*\\(\\s*\\)`,
+    'g',
+  )
+  let m: RegExpExecArray | null
+  while ((m = pattern.exec(content)) !== null) {
+    const lineNumber = content.slice(0, m.index).split('\n').length
+    const inside = m[1]
+    // Strip line comments inside the destructure body before splitting on
+    // commas — otherwise a trailing `// note` would taint the last name.
+    const cleaned = inside
+      .split('\n')
+      .map((seg) => seg.replace(/\/\/.*$/, ''))
+      .join(' ')
+    for (const raw of cleaned.split(',')) {
+      const trimmed = raw.trim()
+      if (!trimmed) continue
+      // `originalName: alias` — the flag key is the SOURCE side (the
+      // property on the hook's return value), not the local alias.
+      const flagKey = trimmed.split(':')[0].trim()
+      if (isValidFlagKey(flagKey)) {
+        const flag: FeatureFlag = {
+          name: flagKey,
+          filePath: filename,
+          lineNumber,
+          language,
+          provider,
+        }
+        if (confidence !== 'high') flag.confidence = confidence
+        out.push(flag)
+      }
+    }
+  }
+  return out
 }
 
 /** Builds a regex for a single method name that matches calls. */

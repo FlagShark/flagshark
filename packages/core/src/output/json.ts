@@ -36,6 +36,13 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       confidence: sf.confidence ?? 'high',
       signals: sf.signals.map((s) => ({ type: s.type, severity: s.severity, description: s.description })),
       age: sf.age ?? null,
+      // Platform-side metadata when present. Omitted entirely when
+      // absent so JSON consumers can detect "no platform integration
+      // configured" vs "platform configured but flag had no metadata"
+      // by whether the field is missing (former) or null/empty (latter).
+      ...(sf.tags && sf.tags.length > 0 ? { tags: sf.tags } : {}),
+      ...(sf.maintainer ? { maintainer: sf.maintainer } : {}),
+      ...(sf.platformStatus ? { platformStatus: sf.platformStatus } : {}),
     }
   })
 
@@ -51,6 +58,13 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
     // count. Don't conflate them.
     errorCount,
     parseErrorCount: result.parseErrorCount ?? 0,
+    // Per-platform record of flag names that were detected in code AND
+    // exist in the platform but were marked permanent (LD's
+    // `temporary: false`). Excluded from staleFlags above; surfaced here
+    // so machine consumers (CI scripts, dashboards) can show "we know
+    // about these, we just don't think they're stale".
+    excludedPermanent: result.excludedPermanent ?? [],
+    permanentByPlatform: result.permanentByPlatform ?? {},
     healthScore: result.healthScore,
     detectedProviders: result.detectedProviders,
     languages,

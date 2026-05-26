@@ -137,6 +137,26 @@ export interface ScanRepoResult {
    */
   parseErrorCount?: number
 
+  /**
+   * Flag names that were detected in code AND found in a platform but
+   * marked as permanent (LD's `temporary: false`, or equivalent on other
+   * platforms). These are filtered out of `staleFlags` because they're
+   * intentionally long-lived; surfacing them here lets output formatters
+   * show users WHY a flag they expected to see in the table isn't there.
+   * Empty array (not undefined) when no platforms are configured or no
+   * matches were permanent. Per-platform breakdown lives in the
+   * `permanentByPlatform` field below.
+   */
+  excludedPermanent?: string[]
+
+  /**
+   * Per-platform breakdown of `excludedPermanent`. Keyed by the
+   * platform's displayName (e.g. 'LaunchDarkly'). Lets the output
+   * formatter print 'X flags excluded as permanent in LaunchDarkly'
+   * (not just 'in some platform somewhere').
+   */
+  permanentByPlatform?: Record<string, string[]>
+
   /** Diagnostic — populated only when logger.debug level is active or callers explicitly opt in. */
   effectiveExcludes?: EffectiveRules
 }
@@ -217,18 +237,40 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     applyCustomDetectors(files, config.custom_detectors, analysisResult.totalFlags, logger)
   }
 
-  const platformSignals = await orchestratePlatforms({
+  const {
+    signals: platformSignals,
+    permanentByPlatform,
+    metadataByFlag,
+  } = await orchestratePlatforms({
     platformsConfig: config.platforms as Record<string, unknown> | undefined,
     detectedFlags: analysisResult.totalFlags,
     logger,
     noCache: opts.noCache,
     signal: opts.signal,
+    // Threshold drives the platform-too-old signal in cross-reference.
+    // Same threshold the staleness engine uses for code-age, so the two
+    // dimensions stay aligned ("if code older than N is stale, so is a
+    // platform record older than N").
+    thresholdDays: threshold,
   })
 
   const staleFlags = await analyzeStaleness(
     analysisResult.totalFlags,
-    { thresholdDays: threshold, repoRoot: opts.cwd, platformSignals },
+    {
+      thresholdDays: threshold,
+      repoRoot: opts.cwd,
+      platformSignals,
+      platformMetadata: metadataByFlag,
+    },
   )
+
+  // Flatten the per-platform breakdown into a single sorted, deduplicated
+  // list so callers that only want "did anything get excluded?" don't
+  // have to walk the platform record themselves. The per-platform record
+  // is retained for output formatters that want to attribute correctly.
+  const excludedPermanent = Array.from(
+    new Set(Object.values(permanentByPlatform).flat()),
+  ).sort()
 
   const totalFlags = analysisResult.totalFlags.size
   const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size
@@ -285,6 +327,8 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     excludedCount,
     excludedPaths,
     parseErrorCount: analysisResult.parseErrorCount,
+    excludedPermanent,
+    permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
   }
 }

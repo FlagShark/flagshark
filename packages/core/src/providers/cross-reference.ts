@@ -1,9 +1,32 @@
 import type { FeatureFlag } from '../detection/feature-flag.js'
 import type { PlatformFlag, PlatformSignal } from './interface.js'
 
+export interface CrossReferenceOptions {
+  /**
+   * Staleness threshold in days. When set, cross-reference can emit
+   * `platform-too-old` for matched flags whose platform-side
+   * `createdAt` exceeds the threshold — a code-independent staleness
+   * signal that's stronger than either code-age or platform-age alone.
+   * When unset, the platform-too-old signal is never emitted.
+   */
+  thresholdDays?: number
+}
+
 /**
  * Pure function: joins detected flag keys against a platform's flag list,
- * emits PlatformSignals for keys that are missing (error) or archived (warning).
+ * emits PlatformSignals based on the platform's view of each flag.
+ *
+ * Signal precedence (most-specific wins; only one primary signal per flag):
+ *   1. missing-in-platform   — flag not in platform at all (error)
+ *   2. archived-in-platform  — flag archived (warning)
+ *   3. platform-launched     — LD says single variation for 7+ days (error)
+ *   4. platform-inactive     — LD says no eval events for 7+ days (warning)
+ *   5. platform-permanent    — user marked permanent (control signal)
+ *   6. platform-too-old      — created > thresholdDays ago (warning)
+ *
+ * Permanent + too-old can coexist; permanent + inactive can coexist;
+ * permanent is the strongest CONTROL signal (it suppresses code-side
+ * heuristics) but doesn't displace platform-side activity signals.
  *
  * Does NOT surface platform flags with no code reference — that's a separate
  * "orphan platform flags" feature, out of scope.
@@ -12,24 +35,87 @@ export function crossReference(
   detectedFlags: Map<string, FeatureFlag[]>,
   platformFlags: PlatformFlag[],
   platformDisplayName: string,
+  options: CrossReferenceOptions = {},
 ): Map<string, PlatformSignal[]> {
   const platformByKey = new Map(platformFlags.map((f) => [f.key, f]))
   const out = new Map<string, PlatformSignal[]>()
+  const now = Date.now()
+  const thresholdMs = options.thresholdDays != null ? options.thresholdDays * 86_400_000 : null
 
   for (const key of detectedFlags.keys()) {
     const platform = platformByKey.get(key)
     if (!platform) {
-      out.set(key, [{
-        type: 'missing-in-platform',
+      out.set(key, [
+        {
+          type: 'missing-in-platform',
+          severity: 'error',
+          description: `referenced in code but not found in ${platformDisplayName}`,
+        },
+      ])
+      continue
+    }
+    if (platform.archived) {
+      out.set(key, [
+        {
+          type: 'archived-in-platform',
+          severity: 'warning',
+          description: `archived in ${platformDisplayName}`,
+        },
+      ])
+      continue
+    }
+
+    // Stack-able signals: platform-permanent (control), platform-too-old,
+    // platform-inactive/launched. A single flag can carry multiple.
+    const signals: PlatformSignal[] = []
+
+    if (platform.status === 'launched') {
+      signals.push({
+        type: 'platform-launched',
         severity: 'error',
-        description: `referenced in code but not found in ${platformDisplayName}`,
-      }])
-    } else if (platform.archived) {
-      out.set(key, [{
-        type: 'archived-in-platform',
+        description: `${platformDisplayName} reports this flag has served one variation for 7+ days — likely ready for removal`,
+      })
+    } else if (platform.status === 'inactive') {
+      signals.push({
+        type: 'platform-inactive',
         severity: 'warning',
-        description: `archived in ${platformDisplayName}`,
-      }])
+        description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`,
+      })
+    }
+
+    if (platform.permanent) {
+      // Control signal: tells staleness.ts to suppress age + low-usage
+      // signals. Filtered out of the user-facing StaleFlag.signals array
+      // before display. Kill-switches and other intentionally permanent
+      // flags should not be flagged as stale by code-side heuristics.
+      signals.push({
+        type: 'platform-permanent',
+        severity: 'info',
+        description: `marked permanent in ${platformDisplayName}`,
+      })
+    }
+
+    // platform-too-old: platform-side staleness independent of code age.
+    // Only fires when caller provided a threshold AND the platform
+    // exposed a createdAt timestamp. Permanent flags suppress this too —
+    // the user explicitly chose to keep a long-lived flag, so don't
+    // contradict them with a too-old warning.
+    if (
+      !platform.permanent &&
+      thresholdMs != null &&
+      platform.createdAt &&
+      now - platform.createdAt.getTime() > thresholdMs
+    ) {
+      const ageDays = Math.floor((now - platform.createdAt.getTime()) / 86_400_000)
+      signals.push({
+        type: 'platform-too-old',
+        severity: 'warning',
+        description: `created in ${platformDisplayName} ${ageDays} days ago — past the ${options.thresholdDays}-day threshold`,
+      })
+    }
+
+    if (signals.length > 0) {
+      out.set(key, signals)
     }
   }
 

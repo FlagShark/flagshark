@@ -48,12 +48,34 @@ function buildTable(flags: StaleFlag[]): string {
         if (s.type === 'low-usage') return 'Single file'
         if (s.type === 'missing-in-platform') return 'missing-in-platform'
         if (s.type === 'archived-in-platform') return 'archived-in-platform'
+        if (s.type === 'platform-too-old') return 'platform-too-old'
+        if (s.type === 'platform-inactive') return 'platform-inactive'
+        if (s.type === 'platform-launched') return 'platform-launched'
         return s.description
       })
       .join(', ')
     lines.push(
       `│ ${pad(sf.name, cols.flag)} │ ${pad(fileRef, cols.file)} │ ${pad(sf.age ?? 'unknown', cols.added)} │ ${pad(signalText, cols.signal)} │`,
     )
+    // Compact second row when we have platform metadata to surface.
+    // Indented under the flag column, kept brief so the table doesn't
+    // explode in width. Skipped when there's nothing to say.
+    const metaParts: string[] = []
+    if (sf.tags && sf.tags.length > 0) {
+      metaParts.push(`tags: ${sf.tags.join(', ')}`)
+    }
+    if (sf.maintainer) {
+      metaParts.push(`maintainer: ${sf.maintainer}`)
+    }
+    if (sf.platformStatus && sf.platformStatus !== 'active') {
+      metaParts.push(`platform-status: ${sf.platformStatus}`)
+    }
+    if (metaParts.length > 0) {
+      const metaText = metaParts.join(' • ')
+      // Wide layout — span all 4 column widths plus borders.
+      const totalWidth = cols.flag + cols.file + cols.added + cols.signal + 9 // 3 inner separators + 6 padding
+      lines.push(`│   ${pad('└─ ' + metaText, totalWidth)} │`)
+    }
   }
 
   lines.push(hBorder('└', '┴', '┘'))
@@ -135,6 +157,26 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
   const uniqueStaleNames = new Set(result.staleFlags.map((f) => f.name))
   const staleCount = uniqueStaleNames.size
   lines.push(`Found ${result.totalFlags} feature flags, ${staleCount} stale`)
+
+  // Surface permanent-flag exclusions so users see WHY a flag they expected
+  // to appear in the stale table doesn't. Per-platform breakdown so the
+  // attribution is clear when multiple platforms are configured.
+  if (result.permanentByPlatform && Object.keys(result.permanentByPlatform).length > 0) {
+    for (const [platform, names] of Object.entries(result.permanentByPlatform)) {
+      if (names.length === 0) continue
+      const flagWord = names.length === 1 ? 'flag' : 'flags'
+      // Cap the inline list at 5 names to keep the line readable on
+      // medium-sized projects. Verbose mode could show all — but the
+      // existing verbose option drives the stale-table cap, not this.
+      // For now, a fixed cap: anyone with >5 permanent flags can see
+      // the full list in JSON output.
+      const preview = names.slice(0, 5).join(', ')
+      const overflow = names.length > 5 ? `, +${names.length - 5} more` : ''
+      lines.push(
+        `${names.length} ${flagWord} excluded as permanent in ${platform}: ${preview}${overflow}`,
+      )
+    }
+  }
 
   if (staleCount > 0) {
     lines.push('')

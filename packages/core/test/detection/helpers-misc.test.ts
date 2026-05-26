@@ -431,3 +431,177 @@ describe('extractStringArgument', () => {
     expect(extractStringArgument('foo("a", "b")', -1)).toBeNull()
   })
 })
+
+describe('detectFlagsWithRegex — LaunchDarkly React SDK (useFlag + useFlags destructure)', () => {
+  // Regression coverage for the user-reported React SDK gap. Pre-fix this
+  // codebase shape returned 0 detections because:
+  //   1. `useFlag(...)` wasn't registered as a positional-arg method
+  //      (it had flagKeyIndex: -1, which the helper skips).
+  //   2. `useFlags()` destructured names weren't extracted at all —
+  //      there was no destructure-from-call detector.
+  //
+  // The fix adds:
+  //   - useFlag with flagKeyIndex: 0 → matched by the standard pipeline.
+  //   - useFlagsHook: 'useFlags' → triggers detectDestructuredHookFlags,
+  //     which pulls the destructured property names out of
+  //     `const { foo, bar } = useFlags()` and emits each as a flag.
+
+  const reactProvider = {
+    name: 'LaunchDarkly React SDK',
+    importPattern: '@launchdarkly/react-client-sdk',
+    importAliases: ['launchdarkly-react-client-sdk'],
+    enabled: true,
+    useFlagsHook: 'useFlags',
+    methods: [
+      { name: 'useFlag', flagKeyIndex: 0 },
+      { name: 'useFlags', flagKeyIndex: -1 },
+      { name: 'useLDClient', flagKeyIndex: -1 },
+    ],
+  }
+
+  it('detects useFlag("key", default) via positional arg', () => {
+    const content = [
+      `import { useFlag } from '@launchdarkly/react-client-sdk'`,
+      `export function Checkout() {`,
+      `  const showNewFlow = useFlag('show-new-checkout', false)`,
+      `  return showNewFlow ? <New /> : <Old />`,
+      `}`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('Checkout.tsx', content, 'typescript', [reactProvider])
+    expect(flags).toHaveLength(1)
+    expect(flags[0].name).toBe('show-new-checkout')
+    expect(flags[0].lineNumber).toBe(3)
+  })
+
+  it('detects each name destructured from `const { ... } = useFlags()`', () => {
+    const content = [
+      `import { useFlags } from '@launchdarkly/react-client-sdk'`,
+      `export function Dashboard() {`,
+      `  const { showNewCheckout, oneClickPurchase } = useFlags()`,
+      `  return showNewCheckout && oneClickPurchase ? <A /> : <B />`,
+      `}`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('Dashboard.tsx', content, 'typescript', [reactProvider])
+    expect(flags.map((f) => f.name).sort()).toEqual(['oneClickPurchase', 'showNewCheckout'])
+  })
+
+  it('handles a multi-line destructure', () => {
+    const content = [
+      `import { useFlags } from '@launchdarkly/react-client-sdk'`,
+      `const {`,
+      `  showNewCheckout,`,
+      `  oneClickPurchase,`,
+      `  experimentalSearch,`,
+      `} = useFlags()`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('app.tsx', content, 'typescript', [reactProvider])
+    expect(flags.map((f) => f.name).sort()).toEqual([
+      'experimentalSearch',
+      'oneClickPurchase',
+      'showNewCheckout',
+    ])
+  })
+
+  it('takes the source name, not the alias, for `{ source: alias }` destructure', () => {
+    const content = [
+      `import { useFlags } from '@launchdarkly/react-client-sdk'`,
+      `const { showNewCheckout: shouldShowNewCheckout } = useFlags()`,
+      `if (shouldShowNewCheckout) { render() }`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('aliased.tsx', content, 'typescript', [reactProvider])
+    // The source-side identifier is the LD flag key (camelCased from
+    // 'show-new-checkout'); the local alias `shouldShowNewCheckout` is
+    // private to the consumer.
+    expect(flags).toHaveLength(1)
+    expect(flags[0].name).toBe('showNewCheckout')
+  })
+
+  it('strips trailing line comments inside the destructure body', () => {
+    const content = [
+      `import { useFlags } from '@launchdarkly/react-client-sdk'`,
+      `const {`,
+      `  showNewCheckout, // gradual rollout`,
+      `  oneClickPurchase, // launched 2025-11-01`,
+      `} = useFlags()`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('cmt.tsx', content, 'typescript', [reactProvider])
+    expect(flags.map((f) => f.name).sort()).toEqual(['oneClickPurchase', 'showNewCheckout'])
+  })
+
+  it('passes the import gate via the legacy `launchdarkly-react-client-sdk` alias', () => {
+    // Many existing codebases still import the unscoped legacy name; the
+    // gate must accept it even though the provider's primary
+    // importPattern is the new scoped name.
+    const content = [
+      `import { useFlag } from 'launchdarkly-react-client-sdk'`,
+      `const v = useFlag('legacy-package-flag', false)`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('legacy.tsx', content, 'typescript', [reactProvider])
+    expect(flags).toHaveLength(1)
+    expect(flags[0].name).toBe('legacy-package-flag')
+  })
+
+  it('emits nothing for `useFlags()` when no import is present (gate enforced)', () => {
+    // The destructure pass is gated on the same import check as the
+    // positional path — a file that destructures `useFlags()` without
+    // importing the SDK should not light up.
+    const content = `const { mystery } = useFlags()`
+    const flags = detectFlagsWithRegex('orphan.tsx', content, 'typescript', [reactProvider])
+    expect(flags).toEqual([])
+  })
+
+  it('combines positional useFlag + destructured useFlags in the same file', () => {
+    const content = [
+      `import { useFlag, useFlags } from '@launchdarkly/react-client-sdk'`,
+      `function A() {`,
+      `  const one = useFlag('positional-key', false)`,
+      `  const { destructuredOne, destructuredTwo } = useFlags()`,
+      `  return one || destructuredOne || destructuredTwo`,
+      `}`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('mixed.tsx', content, 'typescript', [reactProvider])
+    expect(flags.map((f) => f.name).sort()).toEqual([
+      'destructuredOne',
+      'destructuredTwo',
+      'positional-key',
+    ])
+  })
+
+  it('falls back to provider name when importPattern is unset for the useFlagsHook path', () => {
+    // Coverage gate for the `importPat || providerName` short-circuit in
+    // the useFlagsHook branch. Providers without an importPattern (the
+    // Custom-Feature-Flags catch-all shape) still emit destructured names,
+    // tagged with the provider's display name.
+    const noImportProvider = {
+      name: 'CustomReactHook',
+      enabled: true,
+      useFlagsHook: 'useFlags',
+      methods: [{ name: 'useFlags', flagKeyIndex: -1 }],
+    }
+    const content = `const { customA, customB } = useFlags()`
+    const flags = detectFlagsWithRegex('custom.tsx', content, 'typescript', [noImportProvider])
+    expect(flags.map((f) => f.name).sort()).toEqual(['customA', 'customB'])
+    expect(flags.every((f) => f.provider === 'CustomReactHook')).toBe(true)
+  })
+
+  it('tags destructured flags with confidence:medium when the gate passes via runtimeSymbols', () => {
+    // Coverage gate for the medium-confidence branch in
+    // detectDestructuredHookFlags. A provider with runtimeSymbols can
+    // pass the import gate without a static import (mirroring the
+    // PostHog window-loaded pattern); destructured names emitted from
+    // that gate carry the same medium tag as the positional path.
+    const runtimeReactProvider = {
+      name: 'RuntimeReactSDK',
+      importPattern: '@example/react-sdk',
+      runtimeSymbols: ['useFlags('],
+      enabled: true,
+      useFlagsHook: 'useFlags',
+      methods: [{ name: 'useFlags', flagKeyIndex: -1 }],
+    }
+    // No static import — gate passes only via the runtime-symbol match.
+    const content = `const { runtimeFlagA, runtimeFlagB } = useFlags()`
+    const flags = detectFlagsWithRegex('rt.tsx', content, 'typescript', [runtimeReactProvider])
+    expect(flags.map((f) => f.name).sort()).toEqual(['runtimeFlagA', 'runtimeFlagB'])
+    expect(flags.every((f) => f.confidence === 'medium')).toBe(true)
+  })
+})

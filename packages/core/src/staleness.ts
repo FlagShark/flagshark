@@ -5,7 +5,19 @@ import { type FeatureFlag } from './detection/feature-flag.js'
 // ── Public interfaces ──────────────────────────────────────────────
 
 export interface StalenessSignal {
-  type: 'age' | 'hardcoded' | 'low-usage' | 'missing-in-platform' | 'archived-in-platform'
+  // Code-side signals: 'age', 'hardcoded', 'low-usage'.
+  // Platform-side signals (from cross-reference): 'missing-in-platform',
+  // 'archived-in-platform', 'platform-too-old', 'platform-inactive',
+  // 'platform-launched'.
+  type:
+    | 'age'
+    | 'hardcoded'
+    | 'low-usage'
+    | 'missing-in-platform'
+    | 'archived-in-platform'
+    | 'platform-too-old'
+    | 'platform-inactive'
+    | 'platform-launched'
   severity: 'error' | 'warning'
   description: string
 }
@@ -27,6 +39,18 @@ export interface StaleFlag {
    * medium-confidence flags to manual review rather than auto-cleanup.
    */
   confidence?: 'high' | 'medium' | 'low'
+
+  /**
+   * Platform-side metadata propagated through from the cross-reference
+   * layer. Populated only when a platform integration is active AND the
+   * platform exposed the data. Output formatters surface these
+   * alongside each flag so reviewers see who owns it and how the
+   * platform classifies it without a context switch.
+   */
+  tags?: string[]
+  maintainer?: string
+  /** LD's per-environment activity verdict; see PlatformFlag.status. */
+  platformStatus?: 'new' | 'active' | 'inactive' | 'launched'
 }
 
 export interface StalenessOptions {
@@ -36,6 +60,16 @@ export interface StalenessOptions {
   repoRoot: string
   /** Optional: pre-computed platform signals keyed by flag name. */
   platformSignals?: Map<string, import('./providers/interface.js').PlatformSignal[]>
+  /**
+   * Optional: per-flag platform metadata surfaced by the orchestrator.
+   * Drives the tags / maintainer / platformStatus fields on each
+   * emitted StaleFlag. Keyed by detected flag name; values come
+   * straight from the matched PlatformFlag.
+   */
+  platformMetadata?: Map<
+    string,
+    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+  >
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -238,12 +272,20 @@ export async function analyzeStaleness(
     // Low-usage is per-flag-name (not per-occurrence).
     const lowUsageSignal = checkLowUsageSignal(flagName, occurrences)
 
+    // Pre-check: is this flag marked permanent by ANY platform? The
+    // `platform-permanent` cross-reference signal is a CONTROL marker,
+    // not a stale signal — it tells us to suppress age + low-usage
+    // (those are false positives on kill-switches / operational config).
+    // The marker itself never reaches the user-facing signals array.
+    const platformSigs = options.platformSignals?.get(flagName)
+    const isPermanent = platformSigs?.some((ps) => ps.type === 'platform-permanent') ?? false
+
     for (const flag of occurrences) {
       const signals: StalenessSignal[] = []
       let age: string | undefined
 
-      // Age signal (git blame)
-      if (!shallow) {
+      // Age signal (git blame) — skipped for permanent flags.
+      if (!shallow && !isPermanent) {
         const blame = fileBlames.get(flag.filePath)
         const authorTime = blame?.get(flag.lineNumber)
         const ageResult = checkAgeSignal(authorTime, thresholdDays)
@@ -253,10 +295,20 @@ export async function analyzeStaleness(
         } else if (authorTime !== undefined) {
           age = formatAge(authorTime)
         }
+      } else if (!shallow && isPermanent) {
+        // Still compute the human-readable age for display, even though
+        // we suppress the staleness signal. Operators looking at the
+        // output for a permanent flag still benefit from knowing how old
+        // it is; we just don't yell about it.
+        const blame = fileBlames.get(flag.filePath)
+        const authorTime = blame?.get(flag.lineNumber)
+        if (authorTime !== undefined) {
+          age = formatAge(authorTime)
+        }
       }
 
-      // Low-usage signal
-      if (lowUsageSignal) {
+      // Low-usage signal — skipped for permanent flags.
+      if (lowUsageSignal && !isPermanent) {
         signals.push(lowUsageSignal)
       }
 
@@ -264,13 +316,21 @@ export async function analyzeStaleness(
       // checkHardcodedSignal returns null unconditionally; kept for structural symmetry
       // with the other signal detectors. No branch emitted here.
 
-      // Platform signals (from provider API cross-reference)
-      const platformSigs = options.platformSignals?.get(flagName)
+      // Platform signals (from provider API cross-reference).
+      // `platform-permanent` is dropped at this seam — it was a control
+      // signal, not a user-facing one. `missing-in-platform` and
+      // `archived-in-platform` still fire even for permanent flags
+      // because those represent platform-state-vs-code mismatches the
+      // user genuinely needs to know about.
       if (platformSigs) {
         for (const ps of platformSigs) {
+          if (ps.type === 'platform-permanent') continue
+          // After the platform-permanent filter, the remaining types are
+          // missing-in-platform / archived-in-platform — both narrow to
+          // error/warning severities. Help the type checker see that.
           signals.push({
             type: ps.type,
-            severity: ps.severity,
+            severity: ps.severity as 'error' | 'warning',
             description: ps.description,
           })
         }
@@ -292,6 +352,19 @@ export async function analyzeStaleness(
         if (flag.confidence && flag.confidence !== 'high') {
           stale.confidence = flag.confidence
         }
+
+        // Attach platform-side metadata when available. Each field is
+        // optional so the StaleFlag shape stays stable for code-only
+        // scans (no platforms configured) and JSON consumers that
+        // never expected these fields aren't broken by their presence
+        // since they're absent unless explicitly populated.
+        const meta = options.platformMetadata?.get(flagName)
+        if (meta) {
+          if (meta.tags && meta.tags.length > 0) stale.tags = meta.tags
+          if (meta.maintainer) stale.maintainer = meta.maintainer
+          if (meta.status) stale.platformStatus = meta.status
+        }
+
         staleFlags.push(stale)
       }
     }
