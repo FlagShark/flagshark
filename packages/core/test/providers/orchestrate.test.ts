@@ -215,6 +215,61 @@ describe('orchestratePlatforms', () => {
     )
   })
 
+  it('loops over multiple environments and stitches per-env platform data', async () => {
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      // Two listFlags calls, one per env. The override receives a signal
+      // but we use a call counter to distinguish envs.
+      let call = 0
+      const result = await orchestratePlatforms({
+        platformsConfig: {
+          launchdarkly: { project: 'p', environments: ['production', 'staging'] },
+        },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => {
+          call++
+          if (call === 1) {
+            // production: launched
+            return [{ key: 'FOO', archived: false, lastModified: null, status: 'launched' as const }]
+          }
+          // staging: active
+          return [{ key: 'FOO', archived: false, lastModified: null, status: 'active' as const }]
+        },
+      })
+      expect(call).toBe(2)
+      const signals = result.signals.get('FOO') ?? []
+      const launched = signals.find((s) => s.type === 'platform-launched')
+      expect(launched).toBeDefined()
+      expect(launched!.description).toContain('in production')
+      expect(launched!.description).not.toContain('everywhere')
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('treats single environment: prod the same as environments: [prod]', async () => {
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'prod' } },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => [
+          { key: 'FOO', archived: false, lastModified: null, status: 'launched' as const },
+        ],
+      })
+      const launched = result.signals.get('FOO')?.find((s) => s.type === 'platform-launched')
+      expect(launched).toBeDefined()
+      // Single env => 'everywhere' rendering (correct: one env IS all envs)
+      expect(launched!.description).toContain('everywhere')
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
   // The output transparency feature relies on permanentByPlatform being
   // correctly populated by the orchestrator. This test pins that
   // contract end-to-end through listFlagsOverride.

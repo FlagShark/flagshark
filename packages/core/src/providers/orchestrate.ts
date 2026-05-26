@@ -103,32 +103,42 @@ export async function orchestratePlatforms(
     }
 
     try {
-      const client = def.createClient(parsed.data, token)
-      const cacheKey = computeCacheKey(name, parsed.data, token)
-      const flags = opts.listFlagsOverride
-        ? await opts.listFlagsOverride(opts.signal)
-        : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal })
-      // Bridge: wrap the single-env listFlags() result into the PerEnvFlags
-      // shape crossReference now expects. The full multi-env loop arrives
-      // in a later task; for now we pass one env's data under a synthesized
-      // env key.
-      const envName = (parsed.data as { environments?: string[] }).environments?.[0]
-        ?? (parsed.data as { environment?: string }).environment
-        ?? 'default'
+      // Multi-env: parsed.data.environments is always a non-empty array
+      // after the Zod transform (both `environment: 'x'` and
+      // `environments: ['x']` are normalized to environments[]).
+      // Loop serially per env — each iteration runs an isolated
+      // listFlags() with its own concurrency budget and its own cache
+      // entry (computeCacheKey hashes the full config including env).
+      // Serial keeps blast radius constant per env.
+      const envs = (parsed.data as { environments: string[] }).environments
       const perEnv = new Map<string, Map<string, PlatformFlag>>()
-      for (const f of flags) {
-        perEnv.set(f.key, new Map([[envName, f]]))
+      let firstEnvFlags: PlatformFlag[] = []
+
+      for (const env of envs) {
+        const envConfig = { ...(parsed.data as Record<string, unknown>), environment: env }
+        const client = def.createClient(envConfig as typeof parsed.data, token)
+        const cacheKey = computeCacheKey(name, envConfig, token)
+        const flags = opts.listFlagsOverride
+          ? await opts.listFlagsOverride(opts.signal)
+          : await loadPlatformFlagsCached(client, cacheKey, {
+              noCache: opts.noCache,
+              signal: opts.signal,
+            })
+        if (env === envs[0]) firstEnvFlags = flags
+        for (const f of flags) {
+          if (!perEnv.has(f.key)) perEnv.set(f.key, new Map())
+          perEnv.get(f.key)!.set(env, f)
+        }
       }
+
       const signals = crossReference(opts.detectedFlags, perEnv, def.displayName, {
         thresholdDays: opts.thresholdDays,
         evaluationThreshold: opts.evaluationThreshold,
       })
       mergePlatformSignals(out, signals)
 
-      // Track which flags this platform marked permanent so output
-      // formatters can show 'N flag(s) excluded as permanent in
-      // <Platform>: a, b, c'. Read the signals MAP we just merged in
-      // (not `signals` directly — same content, but consistent source).
+      // Track flags marked permanent (LD's temporary=false). Flag-level
+      // field — identical across envs — so reading from first env is correct.
       const platformPermanent: string[] = []
       for (const [flagName, sigList] of signals) {
         if (sigList.some((s) => s.type === 'platform-permanent')) {
@@ -139,11 +149,10 @@ export async function orchestratePlatforms(
         permanentByPlatform[def.displayName] = platformPermanent.sort()
       }
 
-      // Surface platform-side metadata (tags, maintainer, activity
-      // status) for every detected flag that matched this platform.
-      // Output formatters consume this to enrich the per-row display
-      // without re-querying the platform.
-      for (const flag of flags) {
+      // metadataByFlag: surface platform-side metadata. For multi-env,
+      // we use the first env's data — matches the JSON output rule
+      // (top-level fields source from environments[envs[0]]).
+      for (const flag of firstEnvFlags) {
         if (!opts.detectedFlags.has(flag.key)) continue
         const hasMetadata = (flag.tags && flag.tags.length > 0) || flag.maintainer || flag.status
         if (!hasMetadata) continue
