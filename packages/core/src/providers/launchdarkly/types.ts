@@ -69,6 +69,37 @@ export const FlagStatusesResponseSchema = z.object({
 
 export type FlagStatusesResponse = z.infer<typeof FlagStatusesResponseSchema>
 
+// ── Evaluations (real runtime evaluation counts per flag per env) ──────────
+//
+// Endpoint: GET /api/v2/usage/evaluations/{project}/{env}/{flagKey}
+// Returns a time-series. Each series point has a `time` (epoch ms) and one
+// numeric field per variation, KEYED BY VARIATION INDEX AS A STRING
+// (e.g. "0": 1234, "1": 567). The number of keys depends on the flag's
+// variation count (boolean = 2; multivariate = N).
+//
+// We don't care about the per-variation split for the staleness signal —
+// we only need the TOTAL across all variations. The schema below
+// passthrough()s the variation keys and we sum them at the call site.
+
+const EvaluationSeriesPointSchema = z
+  .object({
+    // ISO 8601 timestamp string per LD docs; we parse but don't typecheck
+    // the format because LD has shipped it as both string and numeric in
+    // the past — passthrough() keeps us tolerant.
+    time: z.union([z.string(), z.number()]).optional(),
+  })
+  .passthrough()
+
+export const EvaluationsResponseSchema = z
+  .object({
+    series: z.array(EvaluationSeriesPointSchema).optional().default([]),
+    metadata: z.array(z.unknown()).optional(),
+    _links: z.unknown().optional(),
+  })
+  .passthrough()
+
+export type EvaluationsResponse = z.infer<typeof EvaluationsResponseSchema>
+
 // ── Members (P3: maintainer name resolution) ────────────────────────────────
 
 const MemberItemSchema = z.object({

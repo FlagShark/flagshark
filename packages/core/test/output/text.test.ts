@@ -619,6 +619,22 @@ describe('formatText — platform metadata + new signal types', () => {
     expect(out).toContain('platform-launched')
   })
 
+  it('renders platform-zero-evaluations as a short label', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('UNUSED', { signalType: 'platform-zero-evaluations' as 'low-usage' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-zero-evaluations')
+  })
+
+  it('renders platform-low-evaluations as a short label', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('RARE', { signalType: 'platform-low-evaluations' as 'low-usage' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-low-evaluations')
+  })
+
   it('renders an unknown signal type by falling through to its description', () => {
     const flag = staleFlagWithMeta('UNKNOWN')
     flag.signals = [
