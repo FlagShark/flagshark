@@ -181,14 +181,26 @@ Opt-in via `excludes.presets`. Each preset expands to a curated list of common p
 
 ## Platform integration (cross-reference against your flag platform)
 
-FlagShark can cross-reference detected flag keys against your flag-management platform's API to surface two extra signals:
+FlagShark can cross-reference detected flag keys against your flag-management platform's API to surface platform-side signals. For LaunchDarkly that's six signals total:
 
-- **`missing-in-platform`** — flag is referenced in code but doesn't exist in the platform → production-risk bug (SDK falls back to defaults)
-- **`archived-in-platform`** — flag exists but is archived → safe to remove
+- **`missing-in-platform`** (error) — flag is referenced in code but doesn't exist in the platform → production-risk bug (SDK falls back to defaults).
+- **`archived-in-platform`** (warning) — flag exists but is archived → safe to remove.
+- **`platform-too-old`** (warning) — flag was created more than `thresholdDays` ago. Independent of code age.
+- **`platform-inactive`** (warning) — LD reports no evaluations recorded in the last 7+ days for this environment.
+- **`platform-launched`** (error) — LD reports the flag has served a single variation for 7+ days. From LD's perspective the conditional code is dead.
+- **`platform-permanent`** (control) — LD's `temporary: false` marker. Suppresses code-side age + low-usage stale signals. Filtered out before user-facing output; surfaced via "N flag(s) excluded as permanent in LaunchDarkly: …".
+
+Tags and maintainer (from LD) are surfaced alongside each row in text + markdown + JSON output.
 
 ### LaunchDarkly setup
 
-1. Create a read-only API access token in LaunchDarkly: Account settings → Authorization → Access tokens. Recommended permissions: `flag:read` on the project + environment you'll scan.
+1. **Create a service token in LaunchDarkly** (recommended over a personal token — survives personnel changes, scoped narrowly):
+    - Account settings → Authorization → Access tokens → **Create token**.
+    - **Service token: on**.
+    - **Role: Reader** (minimum needed; FlagShark only reads).
+    - **Scope: project-scoped to the project you'll scan** (or "All projects" if simpler).
+
+   **Don't paste an SDK key here** — SDK keys (the values used by your application code) return 401 against the management API. API access tokens are an opaque ~40-char string with no `sdk-` / `mob-` prefix.
 
 2. Add to `.flagshark.yml`:
 
