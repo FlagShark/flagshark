@@ -120,9 +120,36 @@ export function defaultTypeScriptProviders(): FeatureFlagProvider[] {
     {
       name: 'LaunchDarkly React SDK',
       importPattern: '@launchdarkly/react-client-sdk',
+      // launchdarkly-react-client-sdk is the legacy unscoped package name
+      // still widely used; @launchdarkly/react-client-sdk is the current
+      // scoped name. Both ship the same hooks (useFlag, useFlags,
+      // useLDClient) so they share one provider config.
+      importAliases: ['launchdarkly-react-client-sdk'],
       description: 'LaunchDarkly React SDK',
       enabled: true,
+      // The React SDK has two flag-shaped surfaces:
+      //   1. `useFlag('flag-key', defaultValue)` — positional flag key,
+      //      handled by the standard pipeline (flagKeyIndex: 0).
+      //   2. `useFlags()` returns an object keyed by every flag; consumers
+      //      destructure or index into it. That second shape can't be
+      //      expressed as a positional arg, so the provider declares
+      //      `useFlagsHook` and the helpers run a second pass that
+      //      extracts flag keys from `const { flagX, flagY } = useFlags()`
+      //      destructures. See detectDestructuredHookFlags in helpers.ts.
+      // useLDClient is documented for completeness (it returns the SDK
+      // client and is used to call `.variation()` on it manually); when
+      // present, the `.variation()` site is detected by the JS SDK
+      // provider above. No standalone extraction is needed here.
+      useFlagsHook: 'useFlags',
       methods: [
+        {
+          name: 'useFlag',
+          flagKeyIndex: 0,
+          examples: ["const enabled = useFlag('show-new-checkout', false)"],
+        },
+        // useFlags + useLDClient are documented here but produce no
+        // positional-arg matches (flagKeyIndex: -1 → skipped by the main
+        // loop). The useFlags extraction runs via useFlagsHook above.
         { name: 'useFlags', flagKeyIndex: -1, examples: ['const { flagKey } = useFlags()'] },
         { name: 'useLDClient', flagKeyIndex: -1, examples: ['const ldClient = useLDClient()'] },
       ],
