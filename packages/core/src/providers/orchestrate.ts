@@ -35,11 +35,19 @@ export interface OrchestratePlatformsOptions {
 }
 
 /**
- * Returned alongside platform signals: the names of flags excluded from
- * staleness checks because a platform marked them permanent, indexed by
- * the platform's displayName. Output formatters surface this directly
- * so users see WHY a permanent flag isn't in the stale table.
+ * Per-env breakdown of platform data for each detected flag, indexed by
+ * flag name then env key. Populated only for flags that matched a platform
+ * AND had per-env enrichment data (status, evaluations30d, lastRequested,
+ * lastTouched). Surfaced to the JSON output formatter so consumers see the
+ * full multi-env picture beneath the flat top-level fields.
  */
+export interface PerFlagEnvironmentData {
+  status?: 'new' | 'active' | 'inactive' | 'launched'
+  evaluations30d?: number | null
+  lastRequested?: Date | null
+  lastTouched?: Date | null
+}
+
 export interface OrchestrateResult {
   signals: Map<string, PlatformSignal[]>
   permanentByPlatform: Record<string, string[]>
@@ -55,6 +63,13 @@ export interface OrchestrateResult {
     string,
     { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
   >
+  /**
+   * Per-flag, per-env enrichment data. Outer key: detected flag name.
+   * Inner key: env name. Empty when no platform integration is configured
+   * or when no flag had enrichment data. JSON output uses this to emit
+   * the additive `environments` block.
+   */
+  environmentsByFlag: Map<string, Map<string, PerFlagEnvironmentData>>
 }
 
 /**
@@ -72,8 +87,9 @@ export async function orchestratePlatforms(
     string,
     { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
   >()
+  const environmentsByFlag = new Map<string, Map<string, PerFlagEnvironmentData>>()
   if (!opts.platformsConfig) {
-    return { signals: out, permanentByPlatform, metadataByFlag }
+    return { signals: out, permanentByPlatform, metadataByFlag, environmentsByFlag }
   }
 
   for (const [name, rawConfig] of Object.entries(opts.platformsConfig)) {
@@ -162,6 +178,34 @@ export async function orchestratePlatforms(
           status: flag.status,
         })
       }
+
+      // environmentsByFlag: per-env enrichment for every detected flag
+      // that the platform knew about. Outer key = detected flag name.
+      // Inner key = env name. Populates from the stitched perEnv map
+      // we built above — single source of truth.
+      for (const [flagKey, envInnerMap] of perEnv) {
+        if (!opts.detectedFlags.has(flagKey)) continue
+        const inner = new Map<string, PerFlagEnvironmentData>()
+        for (const [env, pf] of envInnerMap) {
+          // Only include envs where we have at least one enrichment field
+          // populated — otherwise the block is just noise.
+          if (
+            pf.status == null
+            && pf.evaluations30d == null
+            && pf.lastRequested == null
+            && pf.lastTouched == null
+          ) continue
+          inner.set(env, {
+            status: pf.status,
+            evaluations30d: pf.evaluations30d,
+            lastRequested: pf.lastRequested,
+            lastTouched: pf.lastTouched,
+          })
+        }
+        if (inner.size > 0) {
+          environmentsByFlag.set(flagKey, inner)
+        }
+      }
     } catch (err) {
       // 401/403 are by far the most common failure mode here and the cause
       // is almost always confusable token shapes (SDK key vs. API access
@@ -179,5 +223,5 @@ export async function orchestratePlatforms(
     }
   }
 
-  return { signals: out, permanentByPlatform, metadataByFlag }
+  return { signals: out, permanentByPlatform, metadataByFlag, environmentsByFlag }
 }
