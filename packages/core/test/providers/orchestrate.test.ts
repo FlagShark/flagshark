@@ -301,6 +301,89 @@ describe('orchestratePlatforms', () => {
     }
   })
 
+  it('populates environmentsByFlag from per-env enrichment data', async () => {
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      let call = 0
+      const result = await orchestratePlatforms({
+        platformsConfig: {
+          launchdarkly: { project: 'p', environments: ['production', 'staging'] },
+        },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => {
+          call++
+          if (call === 1) {
+            return [{
+              key: 'FOO',
+              archived: false,
+              lastModified: null,
+              status: 'launched' as const,
+              evaluations30d: 12000,
+              lastRequested: new Date('2026-05-25T00:00:00Z'),
+              lastTouched: new Date('2026-04-01T00:00:00Z'),
+            }]
+          }
+          return [{
+            key: 'FOO',
+            archived: false,
+            lastModified: null,
+            status: 'active' as const,
+            evaluations30d: 3,
+            lastRequested: new Date('2026-05-26T00:00:00Z'),
+            lastTouched: new Date('2026-05-20T00:00:00Z'),
+          }]
+        },
+      })
+      const fooEnvs = result.environmentsByFlag.get('FOO')
+      expect(fooEnvs).toBeDefined()
+      expect(fooEnvs!.size).toBe(2)
+      expect(fooEnvs!.get('production')?.status).toBe('launched')
+      expect(fooEnvs!.get('production')?.evaluations30d).toBe(12000)
+      expect(fooEnvs!.get('staging')?.status).toBe('active')
+      expect(fooEnvs!.get('staging')?.evaluations30d).toBe(3)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('skips envs in environmentsByFlag when they have no enrichment data', async () => {
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      let call = 0
+      const result = await orchestratePlatforms({
+        platformsConfig: {
+          launchdarkly: { project: 'p', environments: ['production', 'staging'] },
+        },
+        detectedFlags: detected(['BAR']),
+        logger,
+        listFlagsOverride: async () => {
+          call++
+          if (call === 1) {
+            // production: enriched
+            return [{
+              key: 'BAR',
+              archived: false,
+              lastModified: null,
+              status: 'active' as const,
+            }]
+          }
+          // staging: no enrichment fields at all
+          return [{ key: 'BAR', archived: false, lastModified: null }]
+        },
+      })
+      const barEnvs = result.environmentsByFlag.get('BAR')
+      expect(barEnvs).toBeDefined()
+      // staging should be filtered out because it has no enrichment fields
+      expect(barEnvs!.has('production')).toBe(true)
+      expect(barEnvs!.has('staging')).toBe(false)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
   it('omits a platform from permanentByPlatform when nothing is marked permanent', async () => {
     process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
     try {

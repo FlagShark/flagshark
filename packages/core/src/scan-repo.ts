@@ -262,7 +262,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
       repoRoot: opts.cwd,
       platformSignals,
       platformMetadata: metadataByFlag,
-      platformEnvironments: environmentsByFlag,  // NEW
+      platformEnvironments: environmentsByFlag,
     },
   )
 

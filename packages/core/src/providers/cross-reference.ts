@@ -56,20 +56,33 @@ function fmtEnvs(triggered: string[], all: string[]): string {
 }
 
 /**
- * Pure function: joins detected flag keys against a platform's per-env flag
- * map, emits PlatformSignals based on the platform's view of each flag.
+ * Pure function: joins detected flag keys against per-env platform flag data,
+ * emits PlatformSignals based on each platform's view of each flag.
  *
- * Signal precedence (most-specific wins; only one primary signal per flag):
- *   1. missing-in-platform   — flag not in platform at all (error)
- *   2. archived-in-platform  — flag archived (warning)
- *   3. platform-launched     — LD says single variation for 7+ days (error)
- *   4. platform-inactive     — LD says no eval events for 7+ days (warning)
- *   5. platform-permanent    — user marked permanent (control signal)
- *   6. platform-too-old      — created > thresholdDays ago (warning)
+ * Two early-exit signals are sole signals when they fire:
+ *   - missing-in-platform   — flag absent from EVERY env (error)
+ *   - archived-in-platform  — flag archived in the platform (warning)
  *
- * Permanent + too-old can coexist; permanent + inactive can coexist;
- * permanent is the strongest CONTROL signal (it suppresses code-side
- * heuristics) but doesn't displace platform-side activity signals.
+ * All other signals stack — a single flag can carry several at once:
+ *   - platform-permanent          — user marked the flag permanent (info,
+ *                                   control signal; filtered from user output)
+ *   - platform-too-old            — created > thresholdDays ago (warning)
+ *   - platform-launched           — at least one env reports the flag as
+ *                                   served-single-variation for 7+ days (error)
+ *   - platform-inactive           — at least one env reports no evaluations in
+ *                                   7+ days, AND no env is platform-launched
+ *                                   (warning)
+ *   - platform-zero-evaluations   — at least one env has 0 evaluations over
+ *                                   the 30-day window (error)
+ *   - platform-low-evaluations    — at least one env is below the threshold,
+ *                                   AND no env is at zero (warning)
+ *   - platform-untouched-stale    — EVERY env's audit log confirmed zero
+ *                                   activity within the window (warning, the
+ *                                   one strict-all-envs rule)
+ *
+ * For multi-env scans, signal descriptions carry env attribution
+ * ('everywhere' when all envs agree, 'in env1, env2' otherwise) via the
+ * fmtEnvs helper above.
  *
  * Does NOT surface platform flags with no code reference — that's a separate
  * "orphan platform flags" feature, out of scope.
