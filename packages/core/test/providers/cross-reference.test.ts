@@ -433,6 +433,77 @@ describe('crossReference', () => {
     })
   })
 
+  it("emits platform-launched 'in <env>' when only one env reports launched", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const signals = result.get('FOO') ?? []
+    const launched = signals.find((s) => s.type === 'platform-launched')
+    expect(launched).toBeDefined()
+    expect(launched!.description).toContain('in production')
+    expect(launched!.description).not.toContain('everywhere')
+  })
+
+  it("emits platform-launched 'everywhere' when all envs report launched", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const launched = result.get('FOO')?.find((s) => s.type === 'platform-launched')
+    expect(launched!.description).toContain('everywhere')
+  })
+
+  it("emits platform-launched with comma-separated envs in config order", () => {
+    // Build a perEnv map where production and test are launched, staging is
+    // active. The user's configured order is [production, staging, test]
+    // — the perEnv Map's insertion order is what determines render
+    // order in fmtEnvs (since we have no other source of truth here, the
+    // insertion order IS the config-declared order).
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+      ['test',       { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const launched = result.get('FOO')?.find((s) => s.type === 'platform-launched')
+    expect(launched!.description).toContain('in production, test')
+  })
+
+  it("emits platform-inactive 'in <env>' when one env reports inactive", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const inactive = result.get('FOO')?.find((s) => s.type === 'platform-inactive')
+    expect(inactive).toBeDefined()
+    expect(inactive!.description).toContain('in staging')
+  })
+
+  it("emits platform-inactive 'everywhere' when all envs are inactive", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const inactive = result.get('FOO')?.find((s) => s.type === 'platform-inactive')
+    expect(inactive!.description).toContain('everywhere')
+  })
+
+  it('suppresses platform-inactive when any env reports launched', () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const signals = result.get('FOO') ?? []
+    expect(signals.find((s) => s.type === 'platform-launched')).toBeDefined()
+    expect(signals.find((s) => s.type === 'platform-inactive')).toBeUndefined()
+  })
+
   // Audit-log signal (issue #21 item 1).
   describe('platform-untouched-stale', () => {
     it('emits when lastTouched is null (audit log confirmed no activity)', () => {

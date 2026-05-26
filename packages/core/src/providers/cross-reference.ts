@@ -37,6 +37,25 @@ export interface CrossReferenceOptions {
 }
 
 /**
+ * Render an env attribution suffix for a multi-env signal description.
+ *
+ *   fmtEnvs(['production'], ['production', 'staging'])  // 'in production'
+ *   fmtEnvs(['production', 'staging'], ['production', 'staging'])  // 'everywhere'
+ *
+ * Order of envs in the output follows the order of `all` (i.e. the
+ * config-declared order, since that's the order the orchestrator builds
+ * the inner perEnv map in).
+ */
+function fmtEnvs(triggered: string[], all: string[]): string {
+  // Both empty would render 'everywhere' without the second guard, which
+  // is semantically wrong. Current call sites all gate on triggered.length > 0
+  // before invoking; the guard is defensive insurance for future callers.
+  if (triggered.length === all.length && triggered.length > 0) return 'everywhere'
+  const ordered = all.filter((e) => triggered.includes(e))
+  return `in ${ordered.join(', ')}`
+}
+
+/**
  * Pure function: joins detected flag keys against a platform's per-env flag
  * map, emits PlatformSignals based on the platform's view of each flag.
  *
@@ -95,24 +114,32 @@ export function crossReference(
 
     const signals: PlatformSignal[] = []
 
-    // Single-env preservation: with one env, this collapses to the
-    // pre-refactor behavior exactly. Multi-env rules are added in
-    // later tasks; here we just iterate one env's status.
-    for (const platform of envMap.values()) {
-      if (platform.status === 'launched') {
-        signals.push({
-          type: 'platform-launched',
-          severity: 'error',
-          description: `${platformDisplayName} reports this flag has served one variation for 7+ days — likely ready for removal`,
-        })
-      } else if (platform.status === 'inactive') {
+    // platform-launched: fire-on-any with env attribution. Inactive is
+    // handled in a separate block below so we can suppress it when any
+    // env is launched (they're contradictory states).
+    const allEnvs = Array.from(envMap.keys())
+    const launchedEnvs = allEnvs.filter((e) => envMap.get(e)!.status === 'launched')
+    if (launchedEnvs.length > 0) {
+      const where = fmtEnvs(launchedEnvs, allEnvs)
+      signals.push({
+        type: 'platform-launched',
+        severity: 'error',
+        description: `${platformDisplayName} reports this flag has served one variation for 7+ days ${where} — likely ready for removal`,
+      })
+    }
+    // platform-inactive: fire-on-any-env, BUT suppress when any env is
+    // launched (they're contradictory; launched is the more severe
+    // and more actionable signal).
+    if (launchedEnvs.length === 0) {
+      const inactiveEnvs = allEnvs.filter((e) => envMap.get(e)!.status === 'inactive')
+      if (inactiveEnvs.length > 0) {
+        const where = fmtEnvs(inactiveEnvs, allEnvs)
         signals.push({
           type: 'platform-inactive',
           severity: 'warning',
-          description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`,
+          description: `no evaluations recorded in ${platformDisplayName} ${where} in the last 7+ days`,
         })
       }
-      break  // single-env preservation; multi-env handling lands later
     }
 
     if (firstEntry.permanent) {
