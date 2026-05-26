@@ -63,6 +63,28 @@ describe('formatJson — environments block', () => {
     })
   })
 
+  it('omits per-env status when undefined while including other fields', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      environments: new Map([
+        ['production', {
+          // status intentionally absent — exercises the data.status != null else branch
+          evaluations30d: 100,
+          lastRequested: new Date('2026-05-25T00:00:00Z'),
+          lastTouched: new Date('2026-04-01T00:00:00Z'),
+        }],
+      ]),
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0].environments.production).not.toHaveProperty('status')
+    expect(json.flags[0].environments.production).toHaveProperty('evaluations30d', 100)
+  })
+
   it('omits null/undefined per-env fields', () => {
     const result = baseResult([{
       name: 'FOO',

@@ -110,6 +110,22 @@ describe('launchdarklyDefinition', () => {
     expect(r.success).toBe(false)
   })
 
+  it('createClient falls back to environments[0] when environment is undefined', async () => {
+    const spy = vi.spyOn(clientModule, 'fetchAllFlags').mockResolvedValueOnce([])
+    const client = launchdarklyDefinition.createClient(
+      // Simulate the post-transform shape when the user supplied the
+      // `environments: [...]` form (no `environment` field).
+      { project: 'p', environments: ['prod', 'staging'] } as any,
+      'tok',
+    )
+    await client.listFlags()
+    expect(spy).toHaveBeenCalledWith(
+      { project: 'p', environment: 'prod', token: 'tok' },
+      { apiBase: undefined, signal: undefined },
+    )
+    spy.mockRestore()
+  })
+
   it('createClient.listFlags delegates to fetchAllFlags with correct args', async () => {
     const spy = vi.spyOn(clientModule, 'fetchAllFlags').mockResolvedValueOnce([])
     const client = launchdarklyDefinition.createClient(

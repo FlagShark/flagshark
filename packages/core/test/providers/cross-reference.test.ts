@@ -548,6 +548,21 @@ describe('crossReference', () => {
     expect(low!.description).toContain('9 evaluations')
   })
 
+  it("picks the lowest count when the SECOND env in iteration order has fewer evaluations", () => {
+    // Both envs are below threshold; staging (second) has the lower count (3 < 8).
+    // This exercises the reducer's `b` branch: a.count <= b.count is false,
+    // so the reducer returns b (staging) instead of a (production).
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 8 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
+    const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
+    expect(low).toBeDefined()
+    expect(low!.description).toContain('as few as 3')
+    // Confirms the reducer picked staging's 3, not production's 8.
+  })
+
   it("emits platform-low-evaluations with 'as few as' when multiple envs are low", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
       ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 7 }],
