@@ -43777,10 +43777,12 @@ async function analyzeStaleness(flags2, options) {
   const staleFlags = [];
   for (const [flagName, occurrences] of flags2) {
     const lowUsageSignal = checkLowUsageSignal(flagName, occurrences);
+    const platformSigs = options.platformSignals?.get(flagName);
+    const isPermanent = platformSigs?.some((ps) => ps.type === "platform-permanent") ?? false;
     for (const flag of occurrences) {
       const signals = [];
       let age;
-      if (!shallow) {
+      if (!shallow && !isPermanent) {
         const blame = fileBlames.get(flag.filePath);
         const authorTime = blame?.get(flag.lineNumber);
         const ageResult = checkAgeSignal(authorTime, thresholdDays);
@@ -43790,13 +43792,20 @@ async function analyzeStaleness(flags2, options) {
         } else if (authorTime !== void 0) {
           age = formatAge(authorTime);
         }
+      } else if (!shallow && isPermanent) {
+        const blame = fileBlames.get(flag.filePath);
+        const authorTime = blame?.get(flag.lineNumber);
+        if (authorTime !== void 0) {
+          age = formatAge(authorTime);
+        }
       }
-      if (lowUsageSignal) {
+      if (lowUsageSignal && !isPermanent) {
         signals.push(lowUsageSignal);
       }
-      const platformSigs = options.platformSignals?.get(flagName);
       if (platformSigs) {
         for (const ps of platformSigs) {
+          if (ps.type === "platform-permanent")
+            continue;
           signals.push({
             type: ps.type,
             severity: ps.severity,
@@ -44597,6 +44606,14 @@ var EnvironmentSchema = external_exports.object({
 var FlagItemSchema = external_exports.object({
   key: external_exports.string(),
   archived: external_exports.boolean(),
+  // `temporary` is LD's user-set flag-lifecycle marker:
+  //   true  → ephemeral feature toggle, expected to be removed someday
+  //   false → permanent flag (kill switch, operational config, long-lived
+  //           experiment that should never be cleaned up)
+  // We invert to `permanent` in the PlatformFlag mapping. Defaulted to
+  // true because LD's flag-creation UI defaults to "temporary"; existing
+  // flags that predate the field send true implicitly.
+  temporary: external_exports.boolean().optional().default(true),
   environments: external_exports.record(external_exports.string(), EnvironmentSchema).optional()
 }).passthrough();
 var FlagsResponseSchema = external_exports.object({
@@ -44644,7 +44661,11 @@ async function fetchAllFlags(config, opts = {}) {
         out2.push({
           key: item.key,
           archived: item.archived,
-          lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null
+          lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null,
+          // LD's `temporary` is true when the user wants the flag removed
+          // eventually, false when it's permanent. We invert so downstream
+          // logic doesn't have to re-reason the polarity every time.
+          permanent: !item.temporary
         });
       }
       path2 = parsed._links?.next?.href;
@@ -44712,6 +44733,12 @@ function crossReference(detectedFlags, platformFlags, platformDisplayName) {
         type: "archived-in-platform",
         severity: "warning",
         description: `archived in ${platformDisplayName}`
+      }]);
+    } else if (platform.permanent) {
+      out2.set(key, [{
+        type: "platform-permanent",
+        severity: "info",
+        description: `marked permanent in ${platformDisplayName}`
       }]);
     }
   }

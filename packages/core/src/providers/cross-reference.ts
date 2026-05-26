@@ -30,6 +30,16 @@ export function crossReference(
         severity: 'warning',
         description: `archived in ${platformDisplayName}`,
       }])
+    } else if (platform.permanent) {
+      // Control signal: tells staleness.ts to suppress age + low-usage
+      // signals. Filtered out of the user-facing StaleFlag.signals array
+      // before display. Kill-switches and other intentionally permanent
+      // flags should not be flagged as stale by code-side heuristics.
+      out.set(key, [{
+        type: 'platform-permanent',
+        severity: 'info',
+        description: `marked permanent in ${platformDisplayName}`,
+      }])
     }
   }
 
