@@ -139,6 +139,57 @@ describe('TypeScriptDetector class', () => {
       expect(flags).toEqual([])
     })
   })
+
+  // LaunchDarkly React SDK: tree-sitter's positional-arg query can't see
+  // `const { x, y } = useFlags()` directly because the flag keys aren't
+  // call arguments. The engine falls through to detectDestructuredHookFlags
+  // for any provider that declares `useFlagsHook`. These tests pin that
+  // the tree-sitter path emits the same flag set as the regex path.
+  describe('LaunchDarkly React SDK destructure (useFlagsHook fallback)', () => {
+    it('detects names destructured from useFlags() via the tree-sitter path', async () => {
+      const d = new TypeScriptDetector({ engine: 'tree-sitter' })
+      const content = [
+        `import { useFlags } from '@launchdarkly/react-client-sdk'`,
+        `export function Dashboard() {`,
+        `  const { showNewCheckout, oneClickPurchase } = useFlags()`,
+        `  return showNewCheckout && oneClickPurchase`,
+        `}`,
+      ].join('\n')
+      const flags = await d.detectFlags('Dashboard.tsx', content)
+      const names = flags.map((f) => f.name).sort()
+      expect(names).toContain('showNewCheckout')
+      expect(names).toContain('oneClickPurchase')
+    })
+
+    it('also detects useFlag("key") positional sites via tree-sitter', async () => {
+      const d = new TypeScriptDetector({ engine: 'tree-sitter' })
+      const content = [
+        `import { useFlag } from '@launchdarkly/react-client-sdk'`,
+        `const v = useFlag('show-checkout-banner', false)`,
+      ].join('\n')
+      const flags = await d.detectFlags('banner.tsx', content)
+      expect(flags.some((f) => f.name === 'show-checkout-banner')).toBe(true)
+    })
+
+    it('uses provider.name as the source label when importPattern is unset', async () => {
+      // A custom-shaped provider with useFlagsHook but no importPattern
+      // (the catch-all custom provider shape). Tree-sitter still picks
+      // up destructured names; the emitted `provider` field falls back
+      // to the display name.
+      const customHook = {
+        name: 'CustomTreeSitterHook',
+        enabled: true,
+        useFlagsHook: 'useFlags',
+        methods: [{ name: 'useFlags', flagKeyIndex: -1 }],
+      }
+      const d = new TypeScriptDetector({ engine: 'tree-sitter', providers: [customHook] })
+      const content = `const { tsHookFlagA, tsHookFlagB } = useFlags()`
+      const flags = await d.detectFlags('hook.ts', content)
+      const names = flags.map((f) => f.name).sort()
+      expect(names).toEqual(['tsHookFlagA', 'tsHookFlagB'])
+      expect(flags.every((f) => f.provider === 'CustomTreeSitterHook')).toBe(true)
+    })
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────
