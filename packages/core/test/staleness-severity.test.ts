@@ -381,3 +381,132 @@ describe('analyzeStaleness — platform metadata propagation (P3)', () => {
     expect(result.find((s) => s.name === 'EMPTY_TAGS')!.tags).toBeUndefined()
   })
 })
+
+describe('analyzeStaleness — test-only references signal', () => {
+  // A flag referenced only in test/spec files is unlikely to be a real
+  // production toggle — it's either an SDK-test fixture, a prototype
+  // that was never deployed, or experiment leftover. Emit a PRIMARY
+  // stale signal (unlike low-usage which is contributing-only).
+
+  function flagAt(name: string, path: string): FeatureFlag {
+    return {
+      name,
+      filePath: path,
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+    }
+  }
+
+  it.each([
+    'src/foo.test.ts',
+    'src/foo.spec.ts',
+    'src/foo-test.tsx',
+    'src/foo_test.go',
+    'src/test_foo.py',
+    'src/FooTest.java',
+    'src/FooTests.java',
+    'src/__tests__/foo.ts',
+    'src/__mocks__/foo.ts',
+    'test/foo.ts',
+    'tests/foo.ts',
+    'spec/foo.ts',
+  ])('marks a flag as test-only when its only ref is %s', async (path) => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, path, `const x = 'TEST_ONLY_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const result = await analyzeStaleness(
+      detectedMap([flagAt('TEST_ONLY_FLAG', path)]),
+      { thresholdDays: 6, repoRoot: dir },
+    )
+    const stale = result.find((s) => s.name === 'TEST_ONLY_FLAG')
+    expect(stale, `expected ${path} to be classified as a test file`).toBeDefined()
+    expect(stale!.signals.map((s) => s.type)).toContain('test-only-references')
+  })
+
+  it('does NOT mark as test-only when at least one ref is in a production file', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'src/app.ts', `const x = 'MIXED_FLAG'\n`)
+    writeFixtureFile(dir, 'src/app.test.ts', `const x = 'MIXED_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      flagAt('MIXED_FLAG', 'src/app.ts'),
+      flagAt('MIXED_FLAG', 'src/app.test.ts'),
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+    })
+    // Mixed = not test-only = no signal from THIS detector. Without
+    // a primary stale signal, the flag isn't on the stale list at all.
+    expect(result.find((s) => s.name === 'MIXED_FLAG')).toBeUndefined()
+  })
+
+  it('test-only is a PRIMARY signal (puts a flag on the stale list by itself)', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'src/lonely.test.ts', `const x = 'LONELY'\n`)
+    commitAll(dir, 'init')
+
+    const result = await analyzeStaleness(
+      detectedMap([flagAt('LONELY', 'src/lonely.test.ts')]),
+      { thresholdDays: 6, repoRoot: dir },
+    )
+    // No platform signals, no age signal (just-committed), low-usage
+    // alone wouldn't make it stale anymore — only test-only-references
+    // is putting LONELY on the stale list here.
+    expect(result.find((s) => s.name === 'LONELY')).toBeDefined()
+  })
+
+  it('test-only is suppressed for permanent flags', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'src/lonely.test.ts', `const x = 'PERM_TEST'\n`)
+    commitAll(dir, 'init')
+
+    const platformSignals = new Map<string, import('../src/providers/interface.js').PlatformSignal[]>([
+      [
+        'PERM_TEST',
+        [
+          {
+            type: 'platform-permanent' as const,
+            severity: 'info' as const,
+            description: 'marked permanent in LaunchDarkly',
+          },
+        ],
+      ],
+    ])
+    const result = await analyzeStaleness(
+      detectedMap([flagAt('PERM_TEST', 'src/lonely.test.ts')]),
+      { thresholdDays: 6, repoRoot: dir, platformSignals },
+    )
+    // Permanent flag with only test references and no other signal → not stale.
+    expect(result.find((s) => s.name === 'PERM_TEST')).toBeUndefined()
+  })
+
+  it('does not misclassify a production "tester.ts" or "specification.ts" file', async () => {
+    // Boundary check on the regexes: "tester", "specification", and
+    // "main_testing.go" are not test files, even though they contain
+    // 'test' / 'spec' substrings.
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'src/tester.ts', `const x = 'PROD_TESTER'\n`)
+    writeFixtureFile(dir, 'src/specification.ts', `const x = 'PROD_SPEC'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      flagAt('PROD_TESTER', 'src/tester.ts'),
+      flagAt('PROD_SPEC', 'src/specification.ts'),
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+    })
+    expect(result.find((s) => s.name === 'PROD_TESTER')).toBeUndefined()
+    expect(result.find((s) => s.name === 'PROD_SPEC')).toBeUndefined()
+  })
+})

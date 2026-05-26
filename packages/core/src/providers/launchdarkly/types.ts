@@ -100,6 +100,44 @@ export const EvaluationsResponseSchema = z
 
 export type EvaluationsResponse = z.infer<typeof EvaluationsResponseSchema>
 
+// ── Audit log (per-flag last-touched timestamp) ─────────────────────────────
+//
+// Endpoint: GET /api/v2/auditlog
+//   ?spec=proj/{proj}:env/{env}:flag/*  → filter to flag events in a project+env
+//   ?after=<epoch-ms>                   → window start
+//   ?limit=20                           → max page size (per LD's docs)
+//
+// Response.items[].target.resources is an array of resource specifier
+// strings shaped 'proj/{proj}:env/{env}:flag/{flagKey}' — we extract the
+// flagKey from the trailing segment.
+//
+// .date is epoch milliseconds.
+
+const AuditLogEntrySchema = z
+  .object({
+    date: z.number(),
+    target: z
+      .object({
+        resources: z.array(z.string()).optional().default([]),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough()
+
+export const AuditLogResponseSchema = z
+  .object({
+    items: z.array(AuditLogEntrySchema).optional().default([]),
+    _links: z
+      .object({
+        next: z.object({ href: z.string() }).optional(),
+      })
+      .optional(),
+  })
+  .passthrough()
+
+export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>
+
 // ── Members (P3: maintainer name resolution) ────────────────────────────────
 
 const MemberItemSchema = z.object({

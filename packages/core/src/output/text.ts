@@ -46,6 +46,7 @@ function buildTable(flags: StaleFlag[]): string {
       .map((s: StalenessSignal) => {
         if (s.type === 'age') return 'Age > threshold'
         if (s.type === 'low-usage') return 'Single file'
+        if (s.type === 'test-only-references') return 'Test files only'
         if (s.type === 'missing-in-platform') return 'missing-in-platform'
         if (s.type === 'archived-in-platform') return 'archived-in-platform'
         if (s.type === 'platform-too-old') return 'platform-too-old'
@@ -53,6 +54,7 @@ function buildTable(flags: StaleFlag[]): string {
         if (s.type === 'platform-launched') return 'platform-launched'
         if (s.type === 'platform-zero-evaluations') return 'platform-zero-evaluations'
         if (s.type === 'platform-low-evaluations') return 'platform-low-evaluations'
+        if (s.type === 'platform-untouched-stale') return 'platform-untouched-stale'
         return s.description
       })
       .join(', ')
@@ -82,6 +84,36 @@ function buildTable(flags: StaleFlag[]): string {
 
   lines.push(hBorder('└', '┴', '┘'))
   return lines.join('\n')
+}
+
+/**
+ * Build a per-flag detail card for --verbose output. Includes every
+ * field FlagShark knows about for the flag: code location, age,
+ * platform-side metadata (maintainer, tags, platform-status), and
+ * the full description of each signal (the table truncates these).
+ *
+ * Renders as an indented, dash-prefixed block — easy to scan in a
+ * terminal, structured enough to be parseable for anyone who wants
+ * to grep it.
+ */
+function buildDetailCard(sf: StaleFlag, index: number): string[] {
+  const lines: string[] = []
+  lines.push(`[${index}] ${sf.name}`)
+  lines.push(`    File: ${sf.filePath}:${sf.lineNumber}`)
+  lines.push(`    Language: ${sf.language}`)
+  lines.push(`    Provider: ${sf.provider}`)
+  if (sf.age) lines.push(`    Added: ${sf.age}`)
+  if (sf.confidence && sf.confidence !== 'high') {
+    lines.push(`    Detection confidence: ${sf.confidence}`)
+  }
+  if (sf.maintainer) lines.push(`    Maintainer: ${sf.maintainer}`)
+  if (sf.tags && sf.tags.length > 0) lines.push(`    Tags: ${sf.tags.join(', ')}`)
+  if (sf.platformStatus) lines.push(`    Platform status: ${sf.platformStatus}`)
+  lines.push(`    Signals:`)
+  for (const s of sf.signals) {
+    lines.push(`      • ${s.type} (${s.severity}): ${s.description}`)
+  }
+  return lines
 }
 
 export function formatText(result: ScanRepoResult, options: TextFormatOptions): string {
@@ -196,6 +228,21 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
     if (remaining > 0) {
       lines.push('')
       lines.push(`... and ${remaining} more (use --verbose to see all)`)
+    }
+
+    // Verbose mode: per-flag detail cards after the table. Includes the
+    // full signal descriptions (the table truncates them) plus every
+    // platform-side metadata field FlagShark knows about. Designed to
+    // give reviewers everything they need without context-switching to
+    // the LD dashboard.
+    if (options.verbose) {
+      lines.push('')
+      lines.push('Flag details:')
+      lines.push('')
+      for (let i = 0; i < displayFlags.length; i++) {
+        lines.push(...buildDetailCard(displayFlags[i], i + 1))
+        if (i < displayFlags.length - 1) lines.push('')
+      }
     }
   }
 

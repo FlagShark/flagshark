@@ -13,6 +13,7 @@ export interface StalenessSignal {
     | 'age'
     | 'hardcoded'
     | 'low-usage'
+    | 'test-only-references'
     | 'missing-in-platform'
     | 'archived-in-platform'
     | 'platform-too-old'
@@ -20,6 +21,7 @@ export interface StalenessSignal {
     | 'platform-launched'
     | 'platform-zero-evaluations'
     | 'platform-low-evaluations'
+    | 'platform-untouched-stale'
   severity: 'error' | 'warning'
   description: string
 }
@@ -233,6 +235,67 @@ function checkLowUsageSignal(flagName: string, occurrences: FeatureFlag[]): Stal
   }
 }
 
+/**
+ * Patterns that identify a path as a TEST file across the languages
+ * FlagShark detects flags in. The patterns are deliberately tight —
+ * we'd rather miss a test file than misclassify a production file as
+ * a test (which would suppress a real staleness verdict).
+ *
+ * Coverage:
+ *   - `.test.<ext>` and `.spec.<ext>` (JS/TS, common in the JS ecosystem)
+ *   - `_test.go` (Go convention)
+ *   - `test_<name>.py` (Python pytest convention)
+ *   - `<Name>Test.java` / `<Name>Tests.java` (Java JUnit convention)
+ *   - Anything inside `__tests__/`, `__mocks__/`, `/test/`, `/tests/`,
+ *     or `/spec/` directories
+ *
+ * Not covered (false negative is the safer failure mode here): unusual
+ * test-naming conventions like Ruby `*_spec.rb` (different path conventions
+ * across Ruby projects), or single-file scripts that happen to be tests.
+ */
+const TEST_FILE_PATTERNS: ReadonlyArray<RegExp> = [
+  /[._-]test\.[jt]sx?$/i, // foo.test.ts, foo-test.ts, foo_test.ts
+  /[._-]spec\.[jt]sx?$/i, // foo.spec.ts
+  /_test\.go$/, // Go: foo_test.go
+  /(^|\/)test_[^/]+\.py$/i, // Python: test_foo.py
+  /(^|\/)[A-Z][a-zA-Z0-9]*Tests?\.java$/, // Java: FooTest.java / FooTests.java
+  /(^|\/)__(tests|mocks)__\//, // __tests__/ / __mocks__/
+  /(^|\/)(test|tests|spec)\//, // /test/, /tests/, /spec/
+]
+
+function isTestFile(filePath: string): boolean {
+  return TEST_FILE_PATTERNS.some((p) => p.test(filePath))
+}
+
+/**
+ * Check whether ALL references for a flag are in test/spec files. When
+ * yes, the flag is unlikely to be a real production toggle — most often
+ * it's an SDK-integration test fixture, a prototype that was never
+ * deployed, or a leftover from an experiment. Emit a primary stale
+ * signal so the user knows.
+ *
+ * Deliberately requires EVERY reference to be in a test file, not "any".
+ * A flag with both test and production references is real production
+ * code; this signal is for the all-test-files case only.
+ */
+function checkTestOnlyReferencesSignal(
+  flagName: string,
+  occurrences: FeatureFlag[],
+): StalenessSignal | null {
+  // Defensive guard. The detection pipeline only produces entries in
+  // the flags map when at least one occurrence exists, so this branch
+  // is unreachable from a real scan; we keep it so the function is
+  // safe to call independently from tests or future code paths.
+  /* v8 ignore next */
+  if (occurrences.length === 0) return null
+  if (!occurrences.every((o) => isTestFile(o.filePath))) return null
+  return {
+    type: 'test-only-references' as const,
+    severity: 'warning' as const,
+    description: `Flag "${flagName}" is referenced only in test/spec files — likely a forgotten test fixture or never-deployed prototype`,
+  }
+}
+
 // ── Main entry point ───────────────────────────────────────────────
 
 /**
@@ -271,8 +334,9 @@ export async function analyzeStaleness(
   const staleFlags: StaleFlag[] = []
 
   for (const [flagName, occurrences] of flags) {
-    // Low-usage is per-flag-name (not per-occurrence).
+    // Low-usage + test-only are per-flag-name (not per-occurrence).
     const lowUsageSignal = checkLowUsageSignal(flagName, occurrences)
+    const testOnlySignal = checkTestOnlyReferencesSignal(flagName, occurrences)
 
     // Pre-check: is this flag marked permanent by ANY platform? The
     // `platform-permanent` cross-reference signal is a CONTROL marker,
@@ -312,6 +376,15 @@ export async function analyzeStaleness(
       // Low-usage signal — skipped for permanent flags.
       if (lowUsageSignal && !isPermanent) {
         signals.push(lowUsageSignal)
+      }
+
+      // Test-only references signal. Unlike low-usage, this DOES make
+      // a flag stale on its own — production code that's referenced
+      // only from test files is genuinely dead from the runtime's
+      // perspective. Suppressed for permanent flags (a kill switch
+      // intentionally exercised only by tests is a valid setup).
+      if (testOnlySignal && !isPermanent) {
+        signals.push(testOnlySignal)
       }
 
       // Hardcoded signal (v2 placeholder — always null for regex v1)

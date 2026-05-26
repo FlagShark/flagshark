@@ -52,6 +52,12 @@ let flagStatusesResponse: RouteResponse = { status: 200, body: { items: [] } }
 let evaluationsResponses: Map<string, RouteResponse> = new Map()
 let evaluationsDefault: RouteResponse = { status: 200, body: { series: [] } }
 let evaluationRequests: string[] = []
+// Audit-log uses a single endpoint with paginated responses. We model
+// it as a queue (`auditLogResponses[N]` for the Nth page); empty queue
+// = single empty-items page (= confirmed-no-activity in the window).
+let auditLogResponses: RouteResponse[] = []
+let auditLogCursor = 0
+let auditLogRequests: string[] = []
 let activeCursor = 0
 let archivedCursor = 0
 
@@ -82,6 +88,14 @@ beforeAll(async () => {
       const flagKey = decodeURIComponent(url.split('/').pop() ?? '')
       evaluationRequests.push(flagKey)
       r = evaluationsResponses.get(flagKey) ?? evaluationsDefault
+    } else if (url.startsWith('/api/v2/auditlog')) {
+      // Audit-log endpoint, single URL, paginated by `_links.next.href`.
+      // Serve responses from the queue; empty queue = empty page.
+      auditLogRequests.push(url)
+      r = auditLogResponses[auditLogCursor++] ?? {
+        status: 200,
+        body: { items: [] },
+      }
     } else if (url.includes('archived=true')) {
       r = archivedResponses[archivedCursor++] ?? EMPTY_FLAGS
     } else {
@@ -110,6 +124,9 @@ beforeEach(() => {
   evaluationsResponses = new Map()
   evaluationsDefault = { status: 200, body: { series: [] } }
   evaluationRequests = []
+  auditLogResponses = []
+  auditLogCursor = 0
+  auditLogRequests = []
   activeCursor = 0
   archivedCursor = 0
 })
@@ -757,6 +774,205 @@ describe('fetchAllFlags — real HTTP integration', () => {
         { apiBase },
       )
       expect(flags[0].evaluations30d).toBe(15)
+    })
+  })
+
+  // Audit-log last-touched enrichment (issue #21 item 1).
+  describe('audit-log last-touched enrichment', () => {
+    it('populates lastTouched from a recent audit entry', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'recent-flag', archived: false }], totalCount: 1 } },
+      ]
+      const eventDate = Date.now() - 7 * 86_400_000 // 7 days ago
+      auditLogResponses = [
+        {
+          status: 200,
+          body: {
+            items: [
+              {
+                date: eventDate,
+                target: { resources: ['proj/p:env/e:flag/recent-flag'] },
+              },
+            ],
+          },
+        },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toEqual(new Date(eventDate))
+    })
+
+    it('confirms-untouched (lastTouched: null) when audit log returns no entries for a flag', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'untouched', archived: false }], totalCount: 1 } },
+      ]
+      // Default empty audit-log response → no events match this flag.
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toBeNull()
+    })
+
+    it('skips lastTouched population on archived flags', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'active', archived: false }], totalCount: 1 } },
+      ]
+      archivedResponses = [
+        { status: 200, body: { items: [{ key: 'arc', archived: true }], totalCount: 1 } },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      const arc = flags.find((f) => f.key === 'arc')
+      expect(arc?.lastTouched).toBeUndefined()
+      const active = flags.find((f) => f.key === 'active')
+      expect(active?.lastTouched).toBeNull()
+    })
+
+    it('keeps the LATEST timestamp when a flag has multiple audit entries', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'changed', archived: false }], totalCount: 1 } },
+      ]
+      const oldDate = Date.now() - 30 * 86_400_000
+      const newDate = Date.now() - 3 * 86_400_000
+      auditLogResponses = [
+        {
+          status: 200,
+          body: {
+            items: [
+              // Order in the API response doesn't matter — we keep the max.
+              { date: oldDate, target: { resources: ['proj/p:env/e:flag/changed'] } },
+              { date: newDate, target: { resources: ['proj/p:env/e:flag/changed'] } },
+            ],
+          },
+        },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toEqual(new Date(newDate))
+    })
+
+    it('paginates through _links.next.href until exhausted', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'flag-a', archived: false }, { key: 'flag-b', archived: false }], totalCount: 2 } },
+      ]
+      const date = Date.now() - 5 * 86_400_000
+      auditLogResponses = [
+        {
+          status: 200,
+          body: {
+            items: [{ date, target: { resources: ['proj/p:env/e:flag/flag-a'] } }],
+            _links: { next: { href: '/api/v2/auditlog?cursor=page-2' } },
+          },
+        },
+        {
+          status: 200,
+          body: {
+            items: [{ date, target: { resources: ['proj/p:env/e:flag/flag-b'] } }],
+          },
+        },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags.find((f) => f.key === 'flag-a')?.lastTouched).toEqual(new Date(date))
+      expect(flags.find((f) => f.key === 'flag-b')?.lastTouched).toEqual(new Date(date))
+      expect(auditLogRequests.length).toBe(2)
+    })
+
+    it('leaves lastTouched undefined on every flag when audit log returns 401/403/404', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'tier-gated', archived: false }], totalCount: 1 } },
+      ]
+      auditLogResponses = [{ status: 403, body: { message: 'forbidden' } }]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toBeUndefined()
+    })
+
+    it('leaves lastTouched undefined on transient 5xx as well', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'flaky', archived: false }], totalCount: 1 } },
+      ]
+      auditLogResponses = [{ status: 500, body: { message: 'oops' } }]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toBeUndefined()
+    })
+
+    it('catches a JSON parse failure on the audit-log response', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'flag-x', archived: false }], totalCount: 1 } },
+      ]
+      auditLogResponses = [
+        // Malformed body — items should be array.
+        { status: 200, body: { items: 'not-an-array' } },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toBeUndefined()
+    })
+
+    it('returns lastTouched: undefined for every flag when pagination hits the page cap', async () => {
+      // Page cap is 30. Construct 31 pages, each with a `_links.next`
+      // pointer so we never naturally exhaust. fetchAllFlags must stop
+      // at the cap and return null, leaving every flag's lastTouched
+      // undefined (incomplete data → no signal).
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'will-stay-undefined', archived: false }], totalCount: 1 } },
+      ]
+      auditLogResponses = Array.from({ length: 31 }, () => ({
+        status: 200,
+        body: {
+          items: [],
+          _links: { next: { href: '/api/v2/auditlog?cursor=more' } },
+        },
+      }))
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].lastTouched).toBeUndefined()
+      // Cap is 30, so we expect exactly 30 hits before stopping.
+      expect(auditLogRequests.length).toBe(30)
+    })
+
+    it('ignores entries whose resources do not match the flag pattern', async () => {
+      activeResponses = [
+        { status: 200, body: { items: [{ key: 'flag-x', archived: false }], totalCount: 1 } },
+      ]
+      auditLogResponses = [
+        {
+          status: 200,
+          body: {
+            items: [
+              // Wrong shape — should be silently ignored, not crash.
+              { date: Date.now(), target: { resources: ['proj/p:env/e'] } },
+              { date: Date.now(), target: { resources: [] } },
+              { date: Date.now() },
+            ],
+          },
+        },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // No entries matched flag-x → confirmed-untouched.
+      expect(flags[0].lastTouched).toBeNull()
     })
   })
 })

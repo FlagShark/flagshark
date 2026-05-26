@@ -97,6 +97,29 @@ export interface PlatformFlag {
    * no signal emitted.
    */
   evaluations30d?: number | null
+
+  /**
+   * Timestamp of the most recent audit-log event for this flag within
+   * the configured window (default 90 days). Distinct from
+   * `lastModified` (which only tracks env-level edits visible in the
+   * flag-list response) — audit log captures EVERY change including
+   * toggles, targeting rule edits, prerequisite updates, and approval-
+   * workflow events.
+   *
+   *   `Date`       → most recent activity within the window
+   *   `null`       → confirmed NO activity in the window (audit log
+   *                  fetched successfully, this flag wasn't in it)
+   *   `undefined`  → audit log unavailable (tier-gated, 404, rate
+   *                  limit, page cap hit before window exhausted —
+   *                  we couldn't confirm)
+   *
+   * Cross-reference uses the null case to emit
+   * `platform-untouched-stale` — particularly valuable for permanent
+   * flags where age/usage signals are correctly suppressed but
+   * "haven't touched this kill switch in 3 years" is still worth
+   * surfacing.
+   */
+  lastTouched?: Date | null
 }
 
 /** Runtime client for a configured platform. Returned by PlatformDefinition.createClient. */
@@ -161,6 +184,7 @@ export interface PlatformSignal {
     | 'platform-launched'
     | 'platform-zero-evaluations'
     | 'platform-low-evaluations'
+    | 'platform-untouched-stale'
   severity: 'error' | 'warning' | 'info'
   description: string
 }
