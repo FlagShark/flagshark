@@ -238,12 +238,20 @@ export async function analyzeStaleness(
     // Low-usage is per-flag-name (not per-occurrence).
     const lowUsageSignal = checkLowUsageSignal(flagName, occurrences)
 
+    // Pre-check: is this flag marked permanent by ANY platform? The
+    // `platform-permanent` cross-reference signal is a CONTROL marker,
+    // not a stale signal — it tells us to suppress age + low-usage
+    // (those are false positives on kill-switches / operational config).
+    // The marker itself never reaches the user-facing signals array.
+    const platformSigs = options.platformSignals?.get(flagName)
+    const isPermanent = platformSigs?.some((ps) => ps.type === 'platform-permanent') ?? false
+
     for (const flag of occurrences) {
       const signals: StalenessSignal[] = []
       let age: string | undefined
 
-      // Age signal (git blame)
-      if (!shallow) {
+      // Age signal (git blame) — skipped for permanent flags.
+      if (!shallow && !isPermanent) {
         const blame = fileBlames.get(flag.filePath)
         const authorTime = blame?.get(flag.lineNumber)
         const ageResult = checkAgeSignal(authorTime, thresholdDays)
@@ -253,10 +261,20 @@ export async function analyzeStaleness(
         } else if (authorTime !== undefined) {
           age = formatAge(authorTime)
         }
+      } else if (!shallow && isPermanent) {
+        // Still compute the human-readable age for display, even though
+        // we suppress the staleness signal. Operators looking at the
+        // output for a permanent flag still benefit from knowing how old
+        // it is; we just don't yell about it.
+        const blame = fileBlames.get(flag.filePath)
+        const authorTime = blame?.get(flag.lineNumber)
+        if (authorTime !== undefined) {
+          age = formatAge(authorTime)
+        }
       }
 
-      // Low-usage signal
-      if (lowUsageSignal) {
+      // Low-usage signal — skipped for permanent flags.
+      if (lowUsageSignal && !isPermanent) {
         signals.push(lowUsageSignal)
       }
 
@@ -264,13 +282,21 @@ export async function analyzeStaleness(
       // checkHardcodedSignal returns null unconditionally; kept for structural symmetry
       // with the other signal detectors. No branch emitted here.
 
-      // Platform signals (from provider API cross-reference)
-      const platformSigs = options.platformSignals?.get(flagName)
+      // Platform signals (from provider API cross-reference).
+      // `platform-permanent` is dropped at this seam — it was a control
+      // signal, not a user-facing one. `missing-in-platform` and
+      // `archived-in-platform` still fire even for permanent flags
+      // because those represent platform-state-vs-code mismatches the
+      // user genuinely needs to know about.
       if (platformSigs) {
         for (const ps of platformSigs) {
+          if (ps.type === 'platform-permanent') continue
+          // After the platform-permanent filter, the remaining types are
+          // missing-in-platform / archived-in-platform — both narrow to
+          // error/warning severities. Help the type checker see that.
           signals.push({
             type: ps.type,
-            severity: ps.severity,
+            severity: ps.severity as 'error' | 'warning',
             description: ps.description,
           })
         }

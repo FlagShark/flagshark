@@ -31,8 +31,11 @@ describe('fetchAllFlags', () => {
       { fetch: fakeFetch },
     )
     expect(flags).toEqual([
-      { key: 'A', archived: false, lastModified: null },
-      { key: 'B', archived: true, lastModified: null },
+      // `permanent` defaults to `false` because the LD schema defaults
+      // `temporary` to `true` (the field is set on every modern flag;
+      // when missing we treat the flag as temporary, i.e. NOT permanent).
+      { key: 'A', archived: false, lastModified: null, permanent: false },
+      { key: 'B', archived: true, lastModified: null, permanent: false },
     ])
   })
 

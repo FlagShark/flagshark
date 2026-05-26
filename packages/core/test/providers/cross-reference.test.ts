@@ -64,6 +64,57 @@ describe('crossReference', () => {
     const result = crossReference(new Map(), [platformFlag('A')], 'LaunchDarkly')
     expect(result.size).toBe(0)
   })
+
+  // LD's `temporary: false` → PlatformFlag.permanent: true means the user
+  // intentionally wants the flag to stick around (kill-switch, operational
+  // config). Cross-reference emits a `platform-permanent` CONTROL signal
+  // so the staleness engine can suppress age + low-usage signals. The
+  // marker is filtered out before reaching user-facing output.
+  it('emits platform-permanent for an active flag the platform marked permanent', () => {
+    const permanentFlag: PlatformFlag = {
+      key: 'KILL_SWITCH',
+      archived: false,
+      lastModified: null,
+      permanent: true,
+    }
+    const result = crossReference(detected(['KILL_SWITCH']), [permanentFlag], 'LaunchDarkly')
+    expect(result.get('KILL_SWITCH')).toEqual([
+      {
+        type: 'platform-permanent',
+        severity: 'info',
+        description: 'marked permanent in LaunchDarkly',
+      },
+    ])
+  })
+
+  it('prioritises archived-in-platform over platform-permanent (archive wins)', () => {
+    // If a permanent flag has been archived, the archive signal should
+    // win — the user explicitly archived it despite the permanent marker,
+    // so they want it out.
+    const archivedPermanent: PlatformFlag = {
+      key: 'OLD_KILL_SWITCH',
+      archived: true,
+      lastModified: null,
+      permanent: true,
+    }
+    const result = crossReference(
+      detected(['OLD_KILL_SWITCH']),
+      [archivedPermanent],
+      'LaunchDarkly',
+    )
+    expect(result.get('OLD_KILL_SWITCH')?.[0].type).toBe('archived-in-platform')
+  })
+
+  it('does not emit platform-permanent for an active non-permanent flag', () => {
+    const active: PlatformFlag = {
+      key: 'TEMP_TOGGLE',
+      archived: false,
+      lastModified: null,
+      permanent: false,
+    }
+    const result = crossReference(detected(['TEMP_TOGGLE']), [active], 'LaunchDarkly')
+    expect(result.has('TEMP_TOGGLE')).toBe(false)
+  })
 })
 
 describe('mergePlatformSignals', () => {

@@ -57,6 +57,10 @@ export async function fetchAllFlags(
           key: item.key,
           archived: item.archived,
           lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null,
+          // LD's `temporary` is true when the user wants the flag removed
+          // eventually, false when it's permanent. We invert so downstream
+          // logic doesn't have to re-reason the polarity every time.
+          permanent: !item.temporary,
         })
       }
       path = parsed._links?.next?.href
