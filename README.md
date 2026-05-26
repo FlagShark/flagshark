@@ -208,8 +208,12 @@ Tags and maintainer (from LD) are surfaced alongside each row in text + markdown
     platforms:
       launchdarkly:
         project: my-project-key
-        environment: production
+        environments: [production]    # or [production, staging, test]
     ```
+
+The `environments` array can contain one or more environment keys. When multiple are configured, FlagShark cross-references each flag against every listed environment and emits env-attributed signals (e.g. `launched in production`, `inactive in staging, test`). A flag has to be stale in EVERY configured env to be a candidate for safe removal — mid-rollout flags (`launched` in one env, still `active` in another) are surfaced so reviewers see them rather than getting an over-confident "stale" verdict.
+
+The legacy single-env form `environment: production` is still accepted and is equivalent to `environments: [production]`.
 
 3. Export the token (CI: secrets; local: shell env or `.envrc`):
 
