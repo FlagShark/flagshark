@@ -36,6 +36,13 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       confidence: sf.confidence ?? 'high',
       signals: sf.signals.map((s) => ({ type: s.type, severity: s.severity, description: s.description })),
       age: sf.age ?? null,
+      // Platform-side metadata when present. Omitted entirely when
+      // absent so JSON consumers can detect "no platform integration
+      // configured" vs "platform configured but flag had no metadata"
+      // by whether the field is missing (former) or null/empty (latter).
+      ...(sf.tags && sf.tags.length > 0 ? { tags: sf.tags } : {}),
+      ...(sf.maintainer ? { maintainer: sf.maintainer } : {}),
+      ...(sf.platformStatus ? { platformStatus: sf.platformStatus } : {}),
     }
   })
 

@@ -477,6 +477,85 @@ describe('formatText — permanentByPlatform surfacing', () => {
   })
 })
 
+describe('formatJson — platform-side metadata propagation', () => {
+  function makeResult(staleFlags: Parameters<typeof formatJson>[0]['staleFlags']) {
+    return {
+      totalFlags: staleFlags.length,
+      filesScanned: 1,
+      staleFlags,
+      detectedProviders: [],
+      languageBreakdown: { typescript: 1 },
+      healthScore: 50,
+      scanDuration: 1,
+    }
+  }
+
+  it('includes tags + maintainer + platformStatus when present on the StaleFlag', () => {
+    const out = JSON.parse(
+      formatJson(
+        makeResult([
+          {
+            name: 'F',
+            filePath: 'src/a.ts',
+            lineNumber: 1,
+            language: 'typescript',
+            provider: 'launchdarkly',
+            signals: [{ type: 'low-usage', severity: 'warning', description: 'd' }],
+            tags: ['kill-switch', 'auth'],
+            maintainer: 'Jane Doe <jane@example.com>',
+            platformStatus: 'inactive',
+          },
+        ]),
+        { version: '0.0.0-test' },
+      ),
+    )
+    expect(out.flags[0].tags).toEqual(['kill-switch', 'auth'])
+    expect(out.flags[0].maintainer).toBe('Jane Doe <jane@example.com>')
+    expect(out.flags[0].platformStatus).toBe('inactive')
+  })
+
+  it('omits the metadata fields entirely when absent (vs nulled)', () => {
+    const out = JSON.parse(
+      formatJson(
+        makeResult([
+          {
+            name: 'F',
+            filePath: 'src/a.ts',
+            lineNumber: 1,
+            language: 'typescript',
+            provider: 'launchdarkly',
+            signals: [{ type: 'low-usage', severity: 'warning', description: 'd' }],
+          },
+        ]),
+        { version: '0.0.0-test' },
+      ),
+    )
+    expect(out.flags[0]).not.toHaveProperty('tags')
+    expect(out.flags[0]).not.toHaveProperty('maintainer')
+    expect(out.flags[0]).not.toHaveProperty('platformStatus')
+  })
+
+  it('omits tags when array is empty (not just undefined)', () => {
+    const out = JSON.parse(
+      formatJson(
+        makeResult([
+          {
+            name: 'F',
+            filePath: 'src/a.ts',
+            lineNumber: 1,
+            language: 'typescript',
+            provider: 'launchdarkly',
+            signals: [{ type: 'low-usage', severity: 'warning', description: 'd' }],
+            tags: [],
+          },
+        ]),
+        { version: '0.0.0-test' },
+      ),
+    )
+    expect(out.flags[0]).not.toHaveProperty('tags')
+  })
+})
+
 describe('formatText — platform metadata + new signal types', () => {
   function staleFlagWithMeta(name: string, opts: Partial<{
     tags: string[]
