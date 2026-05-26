@@ -44815,7 +44815,8 @@ async function orchestratePlatforms(opts) {
       continue;
     }
     const tokenEnv = rawConfig.token_env ?? def.defaultTokenEnv;
-    const token = process.env[tokenEnv];
+    const rawToken = process.env[tokenEnv];
+    const token = rawToken?.trim() ?? "";
     if (!token) {
       opts.logger.warn(`${def.displayName}: missing ${tokenEnv}; skipping platform integration`);
       continue;
@@ -44827,7 +44828,10 @@ async function orchestratePlatforms(opts) {
       const signals = crossReference(opts.detectedFlags, flags2, def.displayName);
       mergePlatformSignals(out2, signals);
     } catch (err2) {
-      opts.logger.warn(`${def.displayName}: ${err2.message}. Continuing with code-only signals.`);
+      const message = err2.message;
+      const isAuthError = /\b(401|403|Unauthorized|Forbidden)\b/i.test(message);
+      const hint = isAuthError ? ` (check token type \u2014 API access tokens, not SDK keys, and the project key matches a project the token can read)` : "";
+      opts.logger.warn(`${def.displayName}: ${message}${hint}. Continuing with code-only signals.`);
     }
   }
   return out2;
