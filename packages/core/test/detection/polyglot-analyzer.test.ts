@@ -57,6 +57,7 @@ function makeEmptyResult(): RepositoryAnalysisResult {
     languages: new Map(),
     skippedFiles: [],
     partialFiles: [],
+    parseErrorCount: 0,
   }
 }
 

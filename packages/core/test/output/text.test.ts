@@ -183,6 +183,96 @@ describe('formatText', () => {
   })
 })
 
+// Regression coverage for the silent-skip bug: without this surfacing, a
+// user could scan PostHog with v1.3.x, see "54 stale flags" in the summary,
+// and have no idea that 4568 of 17170 files (27%) were silently dropped by
+// the python tree-sitter grammar. The shakedown report on the docs/product-
+// specific-readme-links branch documents the original repro.
+describe('formatText — parseErrorCount surfacing', () => {
+  it('omits the parse-error line when parseErrorCount is 0', () => {
+    const result = makeScanResult({ filesScanned: 100, parseErrorCount: 0 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).not.toContain("couldn't be parsed")
+  })
+
+  it('omits the parse-error line when parseErrorCount is missing (backward compat)', () => {
+    const result = makeScanResult({ filesScanned: 100 })
+    delete (result as { parseErrorCount?: number }).parseErrorCount
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).not.toContain("couldn't be parsed")
+  })
+
+  it('uses a quiet parenthetical when only a few files failed (<= 5%)', () => {
+    const result = makeScanResult({ filesScanned: 100, parseErrorCount: 3 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain("(3 files couldn't be parsed")
+    // Points to the existing stderr warning (logParseErrorSample) rather
+    // than promising fictional `--verbose` detail. Ultrareview bug_012.
+    expect(output).toContain('Parse errors during analysis')
+    expect(output).not.toContain('⚠')
+  })
+
+  it('uses singular "file" when exactly one file failed', () => {
+    const result = makeScanResult({ filesScanned: 100, parseErrorCount: 1 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain("(1 file couldn't be parsed")
+    expect(output).not.toContain("files couldn't")
+  })
+
+  it('escalates to a warning with percentage when more than 5% of files failed', () => {
+    // PostHog repro: 4568 / 17170 ≈ 27%.
+    const result = makeScanResult({ filesScanned: 17170, parseErrorCount: 4568 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('⚠')
+    expect(output).toContain('4568 of 17170 files')
+    expect(output).toContain('(27%)')
+    expect(output).toContain('results may be incomplete')
+  })
+
+  it('does not show a percentage when below 1% (avoids "(0%)")', () => {
+    const result = makeScanResult({ filesScanned: 1000, parseErrorCount: 5 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(output).not.toContain('(0%)')
+    expect(output).toContain("5 files couldn't be parsed")
+  })
+
+  it('does not divide by zero when filesScanned is 0', () => {
+    // Important: use parseErrorCount > 0 here. Pre-fix this test used
+    // parseErrorCount=0 which short-circuited the guard at
+    // `parseErrorCount > 0 && filesScanned > 0` before the division was
+    // ever reached — so it didn't actually exercise the filesScanned > 0
+    // protection. Ultrareview bug_008.
+    const result = makeScanResult({ filesScanned: 0, parseErrorCount: 1 })
+    const output = formatText(result, { verbose: false, maxDisplay: 10 })
+    // The guarded clause was hit (parseErrorCount > 0 was true) and
+    // skipped because filesScanned === 0. The output must not have
+    // computed `1 / 0 * 100` → Infinity, nor `NaN%`.
+    expect(output).not.toMatch(/NaN|Infinity/)
+  })
+})
+
+describe('formatJson — parseErrorCount field', () => {
+  it('includes parseErrorCount when present on the result', () => {
+    const result = makeScanResult({ filesScanned: 100, parseErrorCount: 7 })
+    const parsed = JSON.parse(formatJson(result, { version: '0.0.0-test' }))
+    expect(parsed.parseErrorCount).toBe(7)
+  })
+
+  it('defaults parseErrorCount to 0 when missing on the result', () => {
+    const result = makeScanResult({ filesScanned: 100 })
+    delete (result as { parseErrorCount?: number }).parseErrorCount
+    const parsed = JSON.parse(formatJson(result, { version: '0.0.0-test' }))
+    expect(parsed.parseErrorCount).toBe(0)
+  })
+
+  it('keeps the legacy errorCount field separate (it counts severity-error stale flags, not parse failures)', () => {
+    const result = makeScanResult({ filesScanned: 100, parseErrorCount: 12, staleFlags: [] })
+    const parsed = JSON.parse(formatJson(result, { version: '0.0.0-test' }))
+    expect(parsed.errorCount).toBe(0) // no severity-error flags
+    expect(parsed.parseErrorCount).toBe(12)
+  })
+})
+
 describe('text formatter — severity + new signals', () => {
   function staleFlag(name: string, signalType: 'missing-in-platform' | 'archived-in-platform' | 'age', severity: 'error' | 'warning') {
     return {
@@ -254,6 +344,49 @@ describe('formatJson', () => {
     expect(parsed.flags[0].name).toBe('MY_FLAG')
     expect(parsed.flags[0].stale).toBe(true)
   })
+
+  // B2.C — confidence field on detected flags. The detection-side
+  // emission omits the field when value is 'high' (absent = high
+  // convention); the JSON formatter normalises that to an explicit
+  // string so downstream consumers (cleanup-PR builder, dashboards)
+  // can read the field unconditionally.
+  describe('confidence field (B2.C)', () => {
+    it('defaults absent confidence to "high" in JSON output', () => {
+      const result = makeScanResult({
+        staleFlags: [
+          {
+            name: 'F1',
+            filePath: 'a.ts',
+            lineNumber: 1,
+            language: 'typescript',
+            provider: 'LaunchDarkly',
+            signals: [{ type: 'low-usage', severity: 'warning', description: 'x' }],
+            // confidence intentionally not set
+          },
+        ],
+      })
+      const parsed = JSON.parse(formatJson(result, { version: 'test' }))
+      expect(parsed.flags[0].confidence).toBe('high')
+    })
+
+    it('emits medium confidence verbatim for runtime-symbol detections', () => {
+      const result = makeScanResult({
+        staleFlags: [
+          {
+            name: 'F2',
+            filePath: 'a.tsx',
+            lineNumber: 1,
+            language: 'typescript',
+            provider: 'posthog-js',
+            signals: [{ type: 'low-usage', severity: 'warning', description: 'x' }],
+            confidence: 'medium',
+          },
+        ],
+      })
+      const parsed = JSON.parse(formatJson(result, { version: 'test' }))
+      expect(parsed.flags[0].confidence).toBe('medium')
+    })
+  })
 })
 
 describe('json formatter — severity + errorCount', () => {
@@ -290,5 +423,26 @@ describe('json formatter — severity + errorCount', () => {
   it('adds severity field to each staleFlag (max across signals)', () => {
     const out = JSON.parse(formatJson(makeResult([staleFlag('E', 'error')]), { version: 'v1' }))
     expect(out.flags[0].severity).toBe('error')
+  })
+})
+
+describe('formatText — zero-flags large-repo hint', () => {
+  // Coverage gate for text.ts:120-126. The SUSPICIOUS_THRESHOLD hint only
+  // fires when both totalFlags === 0 AND filesScanned >= 100 — small repos
+  // legitimately have no flags and don't deserve scolding.
+  it('emits the "three patterns we can\'t see" hint for large zero-flag repos', () => {
+    const result = makeScanResult({ totalFlags: 0, filesScanned: 250, staleFlags: [] })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('Expected results in this 250-file repo?')
+    expect(out).toContain('SDK loaded at runtime')
+    expect(out).toContain('TS path aliases')
+    expect(out).toContain('config-struct flag systems')
+    expect(out).toContain('known-limitations')
+  })
+
+  it('suppresses the hint on small zero-flag repos (< 100 files)', () => {
+    const result = makeScanResult({ totalFlags: 0, filesScanned: 50, staleFlags: [] })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).not.toContain('Expected results in this')
   })
 })

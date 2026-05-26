@@ -25,6 +25,15 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       provider: sf.provider,
       stale: true,
       severity: flagSeverity,
+      // `confidence` is a detection-tier hint (high | medium | low). The
+      // legacy `severity` field above is about staleness signal severity
+      // — different axis entirely. Routing logic: an auto-merge cleanup
+      // PR pipeline should gate on (severity === 'error' OR confidence
+      // !== 'high') to surface anything that isn't a rock-solid match.
+      // Emitted as 'high' explicitly here (vs the detection-side omission)
+      // so downstream JSON consumers can branch on the field without
+      // needing to know about the "absent = high" convention.
+      confidence: sf.confidence ?? 'high',
       signals: sf.signals.map((s) => ({ type: s.type, severity: s.severity, description: s.description })),
       age: sf.age ?? null,
     }
@@ -36,7 +45,12 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
     version: options.version,
     totalFlags: result.totalFlags,
     staleFlags: new Set(result.staleFlags.map((f) => f.name)).size,
+    // NB: `errorCount` here counts stale flags carrying an error-severity
+    // signal (e.g. missing-in-platform). It is NOT the parse-error count.
+    // The new `parseErrorCount` field below is the per-file parse failure
+    // count. Don't conflate them.
     errorCount,
+    parseErrorCount: result.parseErrorCount ?? 0,
     healthScore: result.healthScore,
     detectedProviders: result.detectedProviders,
     languages,

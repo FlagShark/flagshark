@@ -58,6 +58,14 @@ export interface RepositoryAnalysisResult {
   languages: Map<Language, number>
   skippedFiles: string[]
   partialFiles: string[]
+  /**
+   * Count of files whose detector raised at least one parse error
+   * (`file.parseErrors.length > 0`). Includes both `skipped` (couldn't extract
+   * any flags) and `partial` (extracted some flags but the parser bailed mid-file)
+   * outcomes. Surfaced to the user via the text-output summary so a silent
+   * `4568 / 17170 files skipped` cannot masquerade as a clean scan.
+   */
+  parseErrorCount: number
 }
 
 export type AnalysisProgressCallback = (analyzed: number, total: number) => void
@@ -96,6 +104,7 @@ export class PolyglotAnalyzer {
       languages: new Map(),
       skippedFiles: [],
       partialFiles: [],
+      parseErrorCount: 0,
     }
 
     const workerPoolSize = Number(process.env.ANALYZER_WORKER_POOL_SIZE) || DEFAULT_WORKER_POOL_SIZE
@@ -174,6 +183,8 @@ export class PolyglotAnalyzer {
     }
 
     await Promise.allSettled(tasks)
+
+    result.parseErrorCount = errorCount
 
     if (totalFlagsFound > 0 || errorCount > 0) {
       this.logger.info('Polyglot analysis completed', {

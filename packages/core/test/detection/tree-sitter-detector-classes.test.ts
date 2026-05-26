@@ -82,6 +82,63 @@ describe('TypeScriptDetector class', () => {
     const flags = await d.detectFlags('app.ts', content)
     expect(flags.some((f) => f.name === 'TS_FLAG')).toBe(true)
   })
+
+  // B2.A — runtime-loaded SDK detection. PostHog's canonical snippet
+  // attaches the SDK to `window.posthog` from a <script> tag; consumer
+  // files never `import 'posthog-js'`. Pre-fix this returned 0 detections;
+  // post-fix the runtimeSymbols field on the PostHog provider triggers
+  // the import-gate bypass and the flag is detected with confidence:'medium'.
+  describe('PostHog runtime-loaded SDK (B2.A)', () => {
+    const runtimePostHogSource = [
+      // No `import 'posthog-js'` — the SDK is loaded by a layout-level
+      // <script> tag and attached to the window.
+      `function trackFlag(): void {`,
+      `  if (window.posthog.isFeatureEnabled('feature-x')) {`,
+      `    doX()`,
+      `  }`,
+      `}`,
+    ].join('\n')
+
+    it('regex engine: detects when posthog is loaded via window without import', async () => {
+      const d = new TypeScriptDetector({ engine: 'regex' })
+      const flags = await d.detectFlags('app.tsx', runtimePostHogSource)
+      const match = flags.find((f) => f.name === 'feature-x')
+      expect(match, 'PostHog runtime-loaded flag should be detected').toBeDefined()
+      expect(match!.confidence, 'runtime-symbol gate should tag as medium').toBe('medium')
+    })
+
+    it('tree-sitter engine: same detection + confidence tag', async () => {
+      const d = new TypeScriptDetector({ engine: 'tree-sitter' })
+      const flags = await d.detectFlags('app.tsx', runtimePostHogSource)
+      const match = flags.find((f) => f.name === 'feature-x')
+      expect(match).toBeDefined()
+      expect(match!.confidence).toBe('medium')
+    })
+
+    it('keeps confidence at "high" when posthog is statically imported', async () => {
+      const d = new TypeScriptDetector({ engine: 'tree-sitter' })
+      const withImport = [
+        `import posthog from 'posthog-js'`,
+        `if (posthog.isFeatureEnabled('feature-y')) {}`,
+      ].join('\n')
+      const flags = await d.detectFlags('app.tsx', withImport)
+      const match = flags.find((f) => f.name === 'feature-y')
+      expect(match).toBeDefined()
+      // High confidence omits the field by convention -- the type
+      // docstring says "absent = high". Pin both encodings.
+      expect(match!.confidence).toBeUndefined()
+    })
+
+    it('does NOT match when the runtime-symbol shape is missing', async () => {
+      const d = new TypeScriptDetector({ engine: 'tree-sitter' })
+      // String contains "posthog" but not as a property/call shape —
+      // this would have false-positived without the disciplined symbol
+      // patterns (`window.posthog.`, `posthog.isFeatureEnabled(`).
+      const irrelevant = `const note = 'remember to set up posthog later'`
+      const flags = await d.detectFlags('notes.ts', irrelevant)
+      expect(flags).toEqual([])
+    })
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────

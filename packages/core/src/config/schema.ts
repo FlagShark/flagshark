@@ -44,6 +44,65 @@ export const CustomProviderSchema = z.object({
   methods: z.array(MethodConfigSchema),
 })
 
+/**
+ * Escape hatch for typed config-struct flag systems (B3).
+ *
+ * Codebases like Mattermost don't use an SDK — flags are typed fields on a
+ * configuration struct:
+ *
+ *   if (server.Config().FeatureFlags.EnableSharedChannelsMemberSync) { ... }
+ *
+ * There's no `import 'unleash-client'`, no `client.variation(...)`, no string
+ * literal flag key. The standard import-gated detection model returns 0 on
+ * these codebases because none of its preconditions hold (see the
+ * design spec at docs/superpowers/specs/2026-05-24-static-config-flag-detection.md).
+ *
+ * Users opt in by declaring the access pattern in `.flagshark.yml`:
+ *
+ *   custom_detectors:
+ *     - type: struct-field-access
+ *       language: go
+ *       access_pattern: '\.FeatureFlags\.([A-Z]\w+)'
+ *
+ * The capture group is the flag name. Files matching this regex are added
+ * to detection results with `confidence: 'low'` so downstream tooling
+ * surfaces them for manual review — false-positive risk on heuristic
+ * matches is real and the user is the one who said "trust this pattern".
+ *
+ * We deliberately do NOT auto-discover the struct definition + enumerate
+ * its fields (the more aggressive design path from the spec). Reasons:
+ * each codebase invents its own pattern (Mattermost, Kubernetes, Grafana
+ * each have different shapes) and chasing them is N customer-engagements
+ * of work. The config-driven approach scales — users with bespoke
+ * patterns can express them; we don't have to encode every variant.
+ */
+export const CustomDetectorSchema = z.object({
+  /**
+   * Detector kind. Today only `struct-field-access` is supported; future
+   * kinds (e.g. `runtime-symbol`, `type-assertion`) would slot in here
+   * without breaking the schema.
+   */
+  type: z.literal('struct-field-access'),
+  /** Language whose file extensions this detector applies to. */
+  language: z.enum([
+    'typescript', 'javascript', 'go', 'python', 'java',
+    'kotlin', 'swift', 'ruby', 'csharp', 'php', 'rust',
+    'cpp', 'objc',
+  ]),
+  /**
+   * Regex with exactly one capture group — the captured text becomes the
+   * detected flag name. Run as a global regex over file content. Must be
+   * a string (parsed at load time) so the YAML stays plain-data.
+   */
+  access_pattern: z.string().min(1),
+  /**
+   * Optional display name surfaced as the `provider` for matched flags.
+   * Defaults to "Custom struct-field detector" so JSON consumers can
+   * filter on a stable string.
+   */
+  name: z.string().optional(),
+})
+
 export const OutputConfigSchema = z.object({
   format: z.enum(['text', 'json', 'sarif', 'markdown', 'csv']).default('text'),
   groupBy: z.enum(['file', 'provider', 'signal', 'none']).default('file'),
@@ -71,6 +130,11 @@ export const FlagsharkConfigSchema = z.object({
   suppress: SuppressSchema,
   paths: z.array(PathRuleSchema).default([]),
   providers: z.array(CustomProviderSchema).default([]),
+  /**
+   * User-defined non-SDK detectors (B3). Today only `struct-field-access`.
+   * See `CustomDetectorSchema` for the rationale + per-codebase examples.
+   */
+  custom_detectors: z.array(CustomDetectorSchema).default([]),
   output: OutputConfigSchema,
   healthScore: HealthScoreSchema,
   engine: EngineSchema,

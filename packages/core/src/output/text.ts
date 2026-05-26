@@ -72,11 +72,59 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
     lines.push(`(${result.excludedCount} excluded via .flagsharkignore + excludes)`)
   }
 
+  // Surface files where the detector errored. A small number is the long tail
+  // of edge cases (mid-edit syntax errors, exotic source files, etc.) — note
+  // it but don't shout. A large fraction means the analysis is materially
+  // incomplete (e.g. PostHog on 1.3.x: ~27% of files aborted from the python
+  // tree-sitter grammar) and the user needs to know before they trust the
+  // flag count or health score. Threshold of >5% picks up "noticeably broken"
+  // without firing on the dozen-files-out-of-ten-thousand case.
+  const parseErrorCount = result.parseErrorCount ?? 0
+  if (parseErrorCount > 0 && result.filesScanned > 0) {
+    const pct = (parseErrorCount / result.filesScanned) * 100
+    // Compare on the rounded value so the threshold and the displayed
+    // percentage cannot disagree. Pre-fix, `pct > 5` with `Math.round(pct)`
+    // could fire the warning branch while rendering "(5%)" — same number
+    // we document as the quiet/loud boundary in the comment above. See
+    // ultrareview bug_018.
+    const rounded = Math.round(pct)
+    const pctStr = pct >= 1 ? ` (${rounded}%)` : ''
+    if (rounded > 5) {
+      lines.push(
+        `⚠ ${parseErrorCount} of ${result.filesScanned} files${pctStr} couldn't be parsed — results may be incomplete. See the "Parse errors during analysis" warning on stderr for the top failing patterns.`,
+      )
+    } else {
+      lines.push(
+        `(${parseErrorCount} file${parseErrorCount === 1 ? '' : 's'} couldn't be parsed — see the "Parse errors during analysis" warning above)`,
+      )
+    }
+  }
+
   if (result.totalFlags === 0) {
     lines.push('No feature flags detected.')
     lines.push('')
     lines.push('Supported providers: LaunchDarkly, Unleash, Flipt, Split.io, PostHog, and more.')
     lines.push('Run flagshark scan --help for configuration options.')
+
+    // Troubleshooting hint when a non-trivial repo turns up empty. Pre-fix,
+    // this was the single most common confused-user response: "I have 50
+    // feature flags, your scan found 0, what's wrong?". The hint surfaces
+    // the three real causes (SDK wrappers loaded at runtime, TS path
+    // aliases, config-struct flag systems) without falsely promising
+    // "this WILL find them"; see README#known-limitations for the design
+    // trade-offs that lead here. We only fire on repos large enough that
+    // "no flags at all" is suspicious (≥100 files); empty/tiny repos
+    // legitimately have no flags and don't deserve scolding.
+    const SUSPICIOUS_THRESHOLD = 100
+    if (result.filesScanned >= SUSPICIOUS_THRESHOLD) {
+      lines.push('')
+      lines.push(`Expected results in this ${result.filesScanned}-file repo? Three patterns FlagShark can't see today:`)
+      lines.push('  • SDK loaded at runtime via window/globalThis (instead of static `import`)')
+      lines.push('  • TS path aliases (`@/...`, `~/...`) bridging the consumer file to the SDK')
+      lines.push('  • Typed config-struct flag systems (e.g. `Config().FeatureFlags.X`)')
+      lines.push('See https://github.com/FlagShark/flagshark#known-limitations for details + workarounds.')
+    }
+
     return lines.join('\n')
   }
 

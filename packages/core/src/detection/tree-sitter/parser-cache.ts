@@ -60,9 +60,40 @@ const parsers = new Map<Language, Parser>()
 const inFlight = new Map<Language, Promise<Parser>>()
 let initPromise: Promise<void> | null = null
 
+/**
+ * @internal — exported for unit testing.
+ *
+ * Override emscripten's default `printErr` (which is `console.error`) so the
+ * WASM abort path doesn't dump `Aborted(<reason>)` straight to the user's
+ * terminal. When tree-sitter hits a pathological file (e.g. a 187 KB Python
+ * file blowing the grammar's recursion budget), emscripten BOTH calls
+ * `printErr(...)` AND throws a `WebAssembly.RuntimeError` synchronously
+ * (see web-tree-sitter's `tree-sitter.cjs` `abort()`). The throw is caught
+ * by `PolyglotAnalyzer.analyzeFile`'s per-file try/catch and surfaced via
+ * `logParseErrorSample`, so the `printErr` call is purely duplicative — but
+ * on a large polyglot scan it can emit thousands of `Aborted()` lines,
+ * indistinguishable to the user from a hard crash.
+ *
+ * Set `FLAGSHARK_WASM_STDERR=1` to restore the default (useful for
+ * debugging a packaging regression where the WASM fails to load).
+ */
+export function getEmscriptenInitOptions(): { printErr: (text: string) => void } | undefined {
+  if (process.env.FLAGSHARK_WASM_STDERR === '1') return undefined
+  return {
+    printErr: () => {
+      /* swallowed; the same payload is preserved on the thrown
+         WebAssembly.RuntimeError and captured in parseErrors. */
+    },
+  }
+}
+
 async function ensureInit(): Promise<void> {
   if (!initPromise) {
-    initPromise = Parser.init()
+    const opts = getEmscriptenInitOptions()
+    // Parser.init's signature wants a full EmscriptenModule, but every field
+    // bar `printErr` is populated by web-tree-sitter itself. Cast through
+    // unknown so we can pass just the override.
+    initPromise = Parser.init(opts as unknown as Parameters<typeof Parser.init>[0])
   }
   await initPromise
 }
