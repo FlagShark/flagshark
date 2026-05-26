@@ -10,6 +10,19 @@ export interface CrossReferenceOptions {
    * When unset, the platform-too-old signal is never emitted.
    */
   thresholdDays?: number
+
+  /**
+   * Minimum evaluation count over the platform's reporting window
+   * (30 days for LD) below which a flag is considered "rarely used"
+   * and emits `platform-low-evaluations`. The `platform-zero-evaluations`
+   * signal (count exactly 0) is independent of this — it always fires
+   * regardless of threshold when the platform reports a real zero.
+   *
+   * Default: 10. Tuned for "small project, real usage" — set higher
+   * for high-traffic prod environments where 10 evaluations/30d is
+   * still effectively dead.
+   */
+  evaluationThreshold?: number
 }
 
 /**
@@ -112,6 +125,34 @@ export function crossReference(
         severity: 'warning',
         description: `created in ${platformDisplayName} ${ageDays} days ago — past the ${options.thresholdDays}-day threshold`,
       })
+    }
+
+    // Real evaluation counts beat every heuristic above when present.
+    // `evaluations30d === 0` is a hard signal: the platform itself
+    // confirms the code path is unused. Suppressed on permanent flags
+    // because the user explicitly opted into keeping the flag — same
+    // logic as too-old.
+    //
+    // `undefined` means the feature isn't available for this account
+    // (tier-gated / endpoint 404'd); `null` means available but no
+    // window data yet. Both fall through to no signal.
+    if (!platform.permanent && typeof platform.evaluations30d === 'number') {
+      if (platform.evaluations30d === 0) {
+        signals.push({
+          type: 'platform-zero-evaluations',
+          severity: 'error',
+          description: `0 evaluations in ${platformDisplayName} over the last 30 days — code path is unused`,
+        })
+      } else {
+        const threshold = options.evaluationThreshold ?? 10
+        if (platform.evaluations30d < threshold) {
+          signals.push({
+            type: 'platform-low-evaluations',
+            severity: 'warning',
+            description: `only ${platform.evaluations30d} evaluation${platform.evaluations30d === 1 ? '' : 's'} in ${platformDisplayName} over the last 30 days (below threshold ${threshold})`,
+          })
+        }
+      }
     }
 
     if (signals.length > 0) {

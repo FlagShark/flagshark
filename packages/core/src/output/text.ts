@@ -51,6 +51,8 @@ function buildTable(flags: StaleFlag[]): string {
         if (s.type === 'platform-too-old') return 'platform-too-old'
         if (s.type === 'platform-inactive') return 'platform-inactive'
         if (s.type === 'platform-launched') return 'platform-launched'
+        if (s.type === 'platform-zero-evaluations') return 'platform-zero-evaluations'
+        if (s.type === 'platform-low-evaluations') return 'platform-low-evaluations'
         return s.description
       })
       .join(', ')

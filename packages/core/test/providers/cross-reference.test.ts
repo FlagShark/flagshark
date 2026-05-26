@@ -287,6 +287,137 @@ describe('crossReference', () => {
       expect(types).toContain('platform-too-old')
     })
   })
+
+  // Tier 1.1: real evaluation data signals.
+  describe('platform-zero-evaluations + platform-low-evaluations (Tier 1.1)', () => {
+    it('emits platform-zero-evaluations (error) when evaluations30d is 0', () => {
+      const unused: PlatformFlag = {
+        key: 'UNUSED',
+        archived: false,
+        lastModified: null,
+        evaluations30d: 0,
+      }
+      const result = crossReference(detected(['UNUSED']), [unused], 'LaunchDarkly')
+      const sig = result.get('UNUSED')?.[0]
+      expect(sig?.type).toBe('platform-zero-evaluations')
+      expect(sig?.severity).toBe('error')
+      expect(sig?.description).toContain('0 evaluations')
+      expect(sig?.description).toContain('last 30 days')
+    })
+
+    it('emits platform-low-evaluations (warning) when below default threshold (10)', () => {
+      const rare: PlatformFlag = {
+        key: 'RARELY_USED',
+        archived: false,
+        lastModified: null,
+        evaluations30d: 3,
+      }
+      const result = crossReference(detected(['RARELY_USED']), [rare], 'LaunchDarkly')
+      const sig = result.get('RARELY_USED')?.[0]
+      expect(sig?.type).toBe('platform-low-evaluations')
+      expect(sig?.severity).toBe('warning')
+      expect(sig?.description).toContain('only 3 evaluations')
+    })
+
+    it('uses singular "evaluation" when the count is exactly 1', () => {
+      const justOne: PlatformFlag = {
+        key: 'ONE',
+        archived: false,
+        lastModified: null,
+        evaluations30d: 1,
+      }
+      const result = crossReference(detected(['ONE']), [justOne], 'LaunchDarkly')
+      expect(result.get('ONE')?.[0].description).toContain('only 1 evaluation in')
+    })
+
+    it('honors a custom evaluationThreshold', () => {
+      const wouldPassDefault: PlatformFlag = {
+        key: 'BORDERLINE',
+        archived: false,
+        lastModified: null,
+        evaluations30d: 50, // > 10 default, < 100 custom
+      }
+      const result = crossReference(
+        detected(['BORDERLINE']),
+        [wouldPassDefault],
+        'LaunchDarkly',
+        { evaluationThreshold: 100 },
+      )
+      expect(result.get('BORDERLINE')?.[0].type).toBe('platform-low-evaluations')
+    })
+
+    it('emits no evaluations signal when count meets the threshold', () => {
+      const healthy: PlatformFlag = {
+        key: 'HEALTHY',
+        archived: false,
+        lastModified: null,
+        evaluations30d: 5_000,
+      }
+      const result = crossReference(detected(['HEALTHY']), [healthy], 'LaunchDarkly')
+      expect(result.has('HEALTHY')).toBe(false)
+    })
+
+    it('emits no evaluations signal when evaluations30d is undefined (feature unavailable)', () => {
+      const noData: PlatformFlag = {
+        key: 'NO_DATA',
+        archived: false,
+        lastModified: null,
+        // evaluations30d intentionally absent
+      }
+      const result = crossReference(detected(['NO_DATA']), [noData], 'LaunchDarkly')
+      expect(result.has('NO_DATA')).toBe(false)
+    })
+
+    it('emits no evaluations signal when evaluations30d is null (no window data yet)', () => {
+      const noWindow: PlatformFlag = {
+        key: 'NO_WINDOW',
+        archived: false,
+        lastModified: null,
+        evaluations30d: null,
+      }
+      const result = crossReference(detected(['NO_WINDOW']), [noWindow], 'LaunchDarkly')
+      expect(result.has('NO_WINDOW')).toBe(false)
+    })
+
+    it('suppresses evaluations signals on permanent flags', () => {
+      const permanentButUnused: PlatformFlag = {
+        key: 'KILL_SWITCH',
+        archived: false,
+        lastModified: null,
+        permanent: true,
+        evaluations30d: 0,
+      }
+      const result = crossReference(
+        detected(['KILL_SWITCH']),
+        [permanentButUnused],
+        'LaunchDarkly',
+      )
+      const types = result.get('KILL_SWITCH')?.map((s) => s.type) ?? []
+      expect(types).toContain('platform-permanent')
+      expect(types).not.toContain('platform-zero-evaluations')
+      expect(types).not.toContain('platform-low-evaluations')
+    })
+
+    it('stacks platform-zero-evaluations with platform-launched (both apply)', () => {
+      // A "launched" flag that also has 0 recent evaluations is the
+      // ideal cleanup candidate — both signals reinforce each other.
+      const ideal: PlatformFlag = {
+        key: 'CLEANUP_CANDIDATE',
+        archived: false,
+        lastModified: null,
+        status: 'launched',
+        evaluations30d: 0,
+      }
+      const result = crossReference(
+        detected(['CLEANUP_CANDIDATE']),
+        [ideal],
+        'LaunchDarkly',
+      )
+      const types = result.get('CLEANUP_CANDIDATE')?.map((s) => s.type) ?? []
+      expect(types).toContain('platform-launched')
+      expect(types).toContain('platform-zero-evaluations')
+    })
+  })
 })
 
 describe('mergePlatformSignals', () => {

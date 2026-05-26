@@ -1,4 +1,7 @@
+import pLimit from 'p-limit'
+
 import {
+  EvaluationsResponseSchema,
   FlagsResponseSchema,
   FlagStatusesResponseSchema,
   MembersResponseSchema,
@@ -8,6 +11,14 @@ import type { PlatformFlag } from '../interface.js'
 
 const DEFAULT_API_BASE = 'https://app.launchdarkly.com'
 const LD_API_VERSION = '20240415'
+
+// Concurrency cap on the per-flag evaluation-counts fetch fan-out.
+// LD's per-token rate limit is documented at "thousands of requests per
+// minute"; 5 in-flight keeps us comfortably under any reasonable cap
+// even on 200-flag projects. Higher = faster scans, more rate-limit
+// risk. Kept private (not configurable) because tuning this should be
+// a deliberate change visible in code review.
+const EVALUATIONS_CONCURRENCY = 5
 
 export interface FetchAllFlagsConfig {
   project: string
@@ -130,7 +141,93 @@ export async function fetchAllFlags(
     }
   }
 
+  // Aux 3: 30-day evaluation counts per flag. Per-flag endpoint, so we
+  // fan out with a concurrency cap. The endpoint is tier-gated; the
+  // first 404/403/401 short-circuits the rest so we don't make N
+  // pointless requests on accounts that don't have this feature.
+  // Active flags only — archived flags have no evaluation activity by
+  // definition, and probing them wastes API calls.
+  await enrichWithEvaluations(out, config, apiBase, headers, fetchFn, opts.signal)
+
   return out
+}
+
+/**
+ * Fan-out fetch of 30-day evaluation counts per (active, non-archived)
+ * flag. Mutates the input PlatformFlag[] in place — sets
+ * `evaluations30d` to a number on success, leaves it undefined when
+ * the endpoint isn't available. The first request that returns 401 /
+ * 403 / 404 disables the feature for the rest of the batch (assumed
+ * to be tier-gated or feature-off project-wide).
+ *
+ * Network errors on individual flags are tolerated: that single flag's
+ * `evaluations30d` stays undefined and the rest of the scan continues.
+ * Cross-reference treats `undefined` as "no data, no signal".
+ */
+async function enrichWithEvaluations(
+  flags: PlatformFlag[],
+  config: FetchAllFlagsConfig,
+  apiBase: string,
+  headers: Record<string, string>,
+  fetchFn: typeof globalThis.fetch,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  const candidates = flags.filter((f) => !f.archived)
+  if (candidates.length === 0) return
+
+  let featureAvailable = true
+  const limiter = pLimit(EVALUATIONS_CONCURRENCY)
+
+  await Promise.all(
+    candidates.map((flag) =>
+      limiter(async () => {
+        if (!featureAvailable) return
+        try {
+          const url = new URL(
+            `/api/v2/usage/evaluations/${encodeURIComponent(config.project)}/${encodeURIComponent(config.environment)}/${encodeURIComponent(flag.key)}`,
+            apiBase,
+          )
+          const res = await fetchFn(url, { headers, signal })
+          if (res.status === 401 || res.status === 403 || res.status === 404) {
+            // Disable for the rest of the batch — assume tier-gated /
+            // feature off for this project. Leave already-set
+            // evaluations30d alone (no rollback).
+            featureAvailable = false
+            return
+          }
+          if (!res.ok) {
+            // 5xx / 429 — transient. Skip this flag, keep the feature
+            // enabled for others.
+            return
+          }
+          const parsed = EvaluationsResponseSchema.parse(await res.json())
+          flag.evaluations30d = sumEvaluationSeries(parsed.series)
+        } catch {
+          // Network error / JSON parse failure — same treatment as 5xx,
+          // skip this flag, keep going.
+        }
+      }),
+    ),
+  )
+}
+
+/**
+ * The /usage/evaluations response is a time-series of variation-keyed
+ * counts: each series point is `{ time, "0": N, "1": M, ... }`. We
+ * don't care which variation served — only the total. Sum every
+ * numeric field on every series point.
+ */
+function sumEvaluationSeries(series: Array<Record<string, unknown>>): number {
+  let total = 0
+  for (const point of series) {
+    for (const [key, value] of Object.entries(point)) {
+      if (key === 'time') continue
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        total += value
+      }
+    }
+  }
+  return total
 }
 
 function buildFirstPath(project: string, environment: string, archived = false): string {

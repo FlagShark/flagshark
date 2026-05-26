@@ -44659,6 +44659,17 @@ var FlagStatusesResponseSchema = external_exports.object({
   items: external_exports.array(FlagStatusItemSchema),
   _links: external_exports.unknown().optional()
 }).passthrough();
+var EvaluationSeriesPointSchema = external_exports.object({
+  // ISO 8601 timestamp string per LD docs; we parse but don't typecheck
+  // the format because LD has shipped it as both string and numeric in
+  // the past — passthrough() keeps us tolerant.
+  time: external_exports.union([external_exports.string(), external_exports.number()]).optional()
+}).passthrough();
+var EvaluationsResponseSchema = external_exports.object({
+  series: external_exports.array(EvaluationSeriesPointSchema).optional().default([]),
+  metadata: external_exports.array(external_exports.unknown()).optional(),
+  _links: external_exports.unknown().optional()
+}).passthrough();
 var MemberItemSchema = external_exports.object({
   _id: external_exports.string(),
   email: external_exports.string(),
@@ -44684,6 +44695,7 @@ var LdApiError = class extends Error {
 // ../core/dist/providers/launchdarkly/client.js
 var DEFAULT_API_BASE = "https://app.launchdarkly.com";
 var LD_API_VERSION = "20240415";
+var EVALUATIONS_CONCURRENCY = 5;
 async function fetchAllFlags(config, opts = {}) {
   const fetchFn = opts.fetch ?? globalThis.fetch;
   const apiBase = opts.apiBase ?? DEFAULT_API_BASE;
@@ -44748,7 +44760,46 @@ async function fetchAllFlags(config, opts = {}) {
       }
     }
   }
+  await enrichWithEvaluations(out2, config, apiBase, headers, fetchFn, opts.signal);
   return out2;
+}
+async function enrichWithEvaluations(flags2, config, apiBase, headers, fetchFn, signal) {
+  const candidates = flags2.filter((f) => !f.archived);
+  if (candidates.length === 0)
+    return;
+  let featureAvailable = true;
+  const limiter = pLimit(EVALUATIONS_CONCURRENCY);
+  await Promise.all(candidates.map((flag) => limiter(async () => {
+    if (!featureAvailable)
+      return;
+    try {
+      const url = new URL(`/api/v2/usage/evaluations/${encodeURIComponent(config.project)}/${encodeURIComponent(config.environment)}/${encodeURIComponent(flag.key)}`, apiBase);
+      const res = await fetchFn(url, { headers, signal });
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        featureAvailable = false;
+        return;
+      }
+      if (!res.ok) {
+        return;
+      }
+      const parsed = EvaluationsResponseSchema.parse(await res.json());
+      flag.evaluations30d = sumEvaluationSeries(parsed.series);
+    } catch {
+    }
+  })));
+}
+function sumEvaluationSeries(series) {
+  let total = 0;
+  for (const point of series) {
+    for (const [key, value] of Object.entries(point)) {
+      if (key === "time")
+        continue;
+      if (typeof value === "number" && Number.isFinite(value)) {
+        total += value;
+      }
+    }
+  }
+  return total;
 }
 function buildFirstPath(project, environment, archived = false) {
   const params = new URLSearchParams({
@@ -44890,6 +44941,24 @@ function crossReference(detectedFlags, platformFlags, platformDisplayName, optio
         severity: "warning",
         description: `created in ${platformDisplayName} ${ageDays} days ago \u2014 past the ${options.thresholdDays}-day threshold`
       });
+    }
+    if (!platform.permanent && typeof platform.evaluations30d === "number") {
+      if (platform.evaluations30d === 0) {
+        signals.push({
+          type: "platform-zero-evaluations",
+          severity: "error",
+          description: `0 evaluations in ${platformDisplayName} over the last 30 days \u2014 code path is unused`
+        });
+      } else {
+        const threshold = options.evaluationThreshold ?? 10;
+        if (platform.evaluations30d < threshold) {
+          signals.push({
+            type: "platform-low-evaluations",
+            severity: "warning",
+            description: `only ${platform.evaluations30d} evaluation${platform.evaluations30d === 1 ? "" : "s"} in ${platformDisplayName} over the last 30 days (below threshold ${threshold})`
+          });
+        }
+      }
     }
     if (signals.length > 0) {
       out2.set(key, signals);

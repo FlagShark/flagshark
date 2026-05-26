@@ -75,6 +75,28 @@ export interface PlatformFlag {
    * "7 days ago" or "9 months ago" before pulling the trigger.
    */
   lastRequested?: Date | null
+
+  /**
+   * Total evaluations recorded across all variations in the configured
+   * environment over the last 30 days. Distinct from `status` (which is
+   * LD's 7-day verdict) — gives a number we can compare against a
+   * threshold, and a stronger signal than the status alone.
+   *
+   *   `0`     → flag definitively unused over the window; emit
+   *             `platform-zero-evaluations` (error severity — same as
+   *             missing-in-platform: the code path can be removed).
+   *   `< N`   → flag rarely evaluated; emit `platform-low-evaluations`
+   *             (warning). Threshold N is configurable per-platform.
+   *   `>= N`  → no signal — actively used.
+   *
+   * Set to `null` when the platform supports the field but couldn't
+   * resolve a count (e.g. flag just created — no window yet). Set to
+   * `undefined` when the platform's evaluation-counts feature isn't
+   * available at all (tier-gated, or feature off project-wide). The
+   * cross-reference layer treats `undefined` and `null` the same way:
+   * no signal emitted.
+   */
+  evaluations30d?: number | null
 }
 
 /** Runtime client for a configured platform. Returned by PlatformDefinition.createClient. */
@@ -123,6 +145,12 @@ export interface PlatformSignal {
    * - `platform-launched` (error): LD's own verdict — flag has been
    *   serving a single variation consistently for the past 7 days.
    *   "Ready for removal" from LD's perspective.
+   * - `platform-zero-evaluations` (error): real runtime data — zero
+   *   evaluations recorded in the last 30 days. Sourced from LD's
+   *   evaluation analytics endpoint. Strongest possible stale signal
+   *   because it's based on actual usage, not heuristics.
+   * - `platform-low-evaluations` (warning): evaluations below the
+   *   configured threshold over the window. Default threshold: 10/30d.
    */
   type:
     | 'missing-in-platform'
@@ -131,6 +159,8 @@ export interface PlatformSignal {
     | 'platform-too-old'
     | 'platform-inactive'
     | 'platform-launched'
+    | 'platform-zero-evaluations'
+    | 'platform-low-evaluations'
   severity: 'error' | 'warning' | 'info'
   description: string
 }

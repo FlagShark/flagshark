@@ -46,6 +46,12 @@ let activeResponses: RouteResponse[] = []
 let archivedResponses: RouteResponse[] = []
 let membersResponse: RouteResponse = { status: 200, body: { items: [] } }
 let flagStatusesResponse: RouteResponse = { status: 200, body: { items: [] } }
+// Evaluation counts are PER-FLAG, so we route by flag key. The fallback
+// (empty series → 0 evaluations) keeps existing tests stable without
+// each needing to declare evaluation responses.
+let evaluationsResponses: Map<string, RouteResponse> = new Map()
+let evaluationsDefault: RouteResponse = { status: 200, body: { series: [] } }
+let evaluationRequests: string[] = []
 let activeCursor = 0
 let archivedCursor = 0
 
@@ -69,6 +75,13 @@ beforeAll(async () => {
       r = flagStatusesResponse
     } else if (url.startsWith('/api/v2/members')) {
       r = membersResponse
+    } else if (url.startsWith('/api/v2/usage/evaluations/')) {
+      // Path: /api/v2/usage/evaluations/{project}/{env}/{flagKey}
+      // Decode the flag key + record the request so tests can assert
+      // which flags were probed.
+      const flagKey = decodeURIComponent(url.split('/').pop() ?? '')
+      evaluationRequests.push(flagKey)
+      r = evaluationsResponses.get(flagKey) ?? evaluationsDefault
     } else if (url.includes('archived=true')) {
       r = archivedResponses[archivedCursor++] ?? EMPTY_FLAGS
     } else {
@@ -94,6 +107,9 @@ beforeEach(() => {
   archivedResponses = []
   membersResponse = { status: 200, body: { items: [] } }
   flagStatusesResponse = { status: 200, body: { items: [] } }
+  evaluationsResponses = new Map()
+  evaluationsDefault = { status: 200, body: { series: [] } }
+  evaluationRequests = []
   activeCursor = 0
   archivedCursor = 0
 })
@@ -500,5 +516,247 @@ describe('fetchAllFlags — real HTTP integration', () => {
     // these as "no platform-side activity signal".
     expect(flags[0].status).toBeUndefined()
     expect(flags[0].lastRequested).toBeUndefined()
+  })
+
+  // 30-day evaluation-count enrichment (Tier 1.1 feature).
+  describe('evaluation counts enrichment', () => {
+    it('sums every variation across every series point to the total', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'live-flag', archived: false }], totalCount: 1 },
+        },
+      ]
+      evaluationsResponses.set('live-flag', {
+        status: 200,
+        body: {
+          series: [
+            // Boolean flag → variations keyed "0" and "1". Sum: 100+50 + 200+25 = 375.
+            { time: 1, '0': 100, '1': 50 },
+            { time: 2, '0': 200, '1': 25 },
+          ],
+        },
+      })
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].evaluations30d).toBe(375)
+    })
+
+    it('handles multivariate flags (3+ variation keys)', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'multi', archived: false }], totalCount: 1 },
+        },
+      ]
+      evaluationsResponses.set('multi', {
+        status: 200,
+        body: {
+          series: [
+            { time: 1, '0': 10, '1': 20, '2': 30 },
+            { time: 2, '0': 5, '1': 15, '2': 25 },
+          ],
+        },
+      })
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // 10+20+30 + 5+15+25 = 105
+      expect(flags[0].evaluations30d).toBe(105)
+    })
+
+    it('reports 0 evaluations when LD returns an empty series', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'unused', archived: false }], totalCount: 1 },
+        },
+      ]
+      // evaluationsDefault is already {series: []} from beforeEach.
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].evaluations30d).toBe(0)
+    })
+
+    it('skips evaluation fetch entirely for archived flags', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'active-one', archived: false }], totalCount: 1 },
+        },
+      ]
+      archivedResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'archived-one', archived: true }], totalCount: 1 },
+        },
+      ]
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // Active flag was probed; archived was NOT.
+      expect(evaluationRequests).toEqual(['active-one'])
+      expect(flags.find((f) => f.key === 'active-one')?.evaluations30d).toBe(0)
+      expect(flags.find((f) => f.key === 'archived-one')?.evaluations30d).toBeUndefined()
+    })
+
+    it('short-circuits the fan-out after the first 404 (feature unavailable)', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: {
+            items: [
+              { key: 'flag-a', archived: false },
+              { key: 'flag-b', archived: false },
+              { key: 'flag-c', archived: false },
+            ],
+            totalCount: 3,
+          },
+        },
+      ]
+      // Make the default 404 — feature off project-wide.
+      evaluationsDefault = { status: 404, body: { message: 'not found' } }
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // The first request 404s and disables the feature. Concurrency=5
+      // means all 3 may go in flight together, but evaluations30d
+      // remains undefined for every one of them (no Number was assigned).
+      for (const f of flags) {
+        expect(f.evaluations30d).toBeUndefined()
+      }
+    })
+
+    it('handles 401 and 403 the same way as 404 (feature gate)', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'gated', archived: false }], totalCount: 1 },
+        },
+      ]
+      evaluationsDefault = { status: 403, body: { message: 'forbidden' } }
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].evaluations30d).toBeUndefined()
+    })
+
+    it('tolerates a 5xx on one flag without affecting siblings', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: {
+            items: [
+              { key: 'flaky', archived: false },
+              { key: 'fine', archived: false },
+            ],
+            totalCount: 2,
+          },
+        },
+      ]
+      evaluationsResponses.set('flaky', { status: 500, body: {} })
+      evaluationsResponses.set('fine', {
+        status: 200,
+        body: { series: [{ time: 1, '0': 42 }] },
+      })
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // 'flaky' had a transient 5xx — its evaluations stay undefined,
+      // but 'fine' still got its count.
+      expect(flags.find((f) => f.key === 'flaky')?.evaluations30d).toBeUndefined()
+      expect(flags.find((f) => f.key === 'fine')?.evaluations30d).toBe(42)
+    })
+
+    it('short-circuits later flags when an earlier one already hit a feature-gate', async () => {
+      // Once the concurrency window saturates and the first returned 404
+      // sets featureAvailable=false, subsequent queued flags should
+      // observe it and bail. We force this by sending more flags than
+      // the concurrency cap (5) and making EVERY response 404.
+      activeResponses = [
+        {
+          status: 200,
+          body: {
+            items: Array.from({ length: 10 }, (_, i) => ({
+              key: `flag-${i}`,
+              archived: false,
+            })),
+            totalCount: 10,
+          },
+        },
+      ]
+      evaluationsDefault = { status: 404, body: { message: 'not found' } }
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // Every flag should have evaluations30d undefined (no data).
+      for (const f of flags) {
+        expect(f.evaluations30d).toBeUndefined()
+      }
+      // Strictly speaking we should see fewer than 10 evaluation requests
+      // because later ones short-circuit before sending. Concurrency=5
+      // means the first ~5 will be in flight when the first 404 returns;
+      // queued ones (>5) hit the early-return.
+      expect(evaluationRequests.length).toBeLessThan(10)
+    })
+
+    it('catches a JSON parse failure on the evaluations response', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'malformed', archived: false }], totalCount: 1 },
+        },
+      ]
+      // Inject a malformed body — the schema parse will throw and the
+      // catch block should swallow it.
+      evaluationsResponses.set('malformed', {
+        status: 200,
+        // Send a body that fails Zod parsing (series should be array).
+        body: { series: 'not-an-array' },
+      })
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      // No evaluations recorded for this flag, but the scan as a whole
+      // didn't fail.
+      expect(flags[0].evaluations30d).toBeUndefined()
+    })
+
+    it('ignores non-numeric values in the series payload', async () => {
+      activeResponses = [
+        {
+          status: 200,
+          body: { items: [{ key: 'mixed', archived: false }], totalCount: 1 },
+        },
+      ]
+      evaluationsResponses.set('mixed', {
+        status: 200,
+        body: {
+          series: [
+            // LD's contract is numeric, but we don't trust it absolutely.
+            // String / null / undefined entries on a series point must
+            // not poison the sum or throw.
+            { time: 1, '0': 10, '1': 'not-a-number', extra: null },
+            { time: 2, '0': 5 },
+          ],
+        },
+      })
+      const flags = await fetchAllFlags(
+        { project: 'p', environment: 'e', token: 't' },
+        { apiBase },
+      )
+      expect(flags[0].evaluations30d).toBe(15)
+    })
   })
 })

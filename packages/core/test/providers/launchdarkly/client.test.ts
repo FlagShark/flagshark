@@ -36,7 +36,10 @@ describe('fetchAllFlags', () => {
       // when missing we treat the flag as temporary, i.e. NOT permanent).
       // `tags` defaults to []; `createdAt` is null when LD didn't send
       // `creationDate`; `maintainer` is undefined because no maintainerId
-      // was present in the mocked response.
+      // was present in the mocked response. `evaluations30d` is 0 for the
+      // active flag because the fake-fetch fallback returns an empty
+      // series; archived flags are excluded from the evaluation fetch
+      // entirely so `evaluations30d` stays undefined on key 'B'.
       {
         key: 'A',
         archived: false,
@@ -45,6 +48,7 @@ describe('fetchAllFlags', () => {
         createdAt: null,
         tags: [],
         maintainer: undefined,
+        evaluations30d: 0,
       },
       {
         key: 'B',

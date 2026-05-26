@@ -18,6 +18,8 @@ export interface StalenessSignal {
     | 'platform-too-old'
     | 'platform-inactive'
     | 'platform-launched'
+    | 'platform-zero-evaluations'
+    | 'platform-low-evaluations'
   severity: 'error' | 'warning'
   description: string
 }
