@@ -1,6 +1,17 @@
 import type { FeatureFlag } from '../detection/feature-flag.js'
 import type { PlatformFlag, PlatformSignal } from './interface.js'
 
+/**
+ * Per-flag, per-environment view of platform data. Outer key is the flag
+ * key; inner key is the environment name as declared in the user's
+ * `environments: [...]` config. Built by the orchestrator (one
+ * listFlags() call per env, stitched).
+ *
+ * Single-env callers wrap their data in a one-entry inner Map. The
+ * shape is the same — only env count varies.
+ */
+export type PerEnvFlags = Map<string, Map<string, PlatformFlag>>
+
 export interface CrossReferenceOptions {
   /**
    * Staleness threshold in days. When set, cross-reference can emit
@@ -26,8 +37,8 @@ export interface CrossReferenceOptions {
 }
 
 /**
- * Pure function: joins detected flag keys against a platform's flag list,
- * emits PlatformSignals based on the platform's view of each flag.
+ * Pure function: joins detected flag keys against a platform's per-env flag
+ * map, emits PlatformSignals based on the platform's view of each flag.
  *
  * Signal precedence (most-specific wins; only one primary signal per flag):
  *   1. missing-in-platform   — flag not in platform at all (error)
@@ -46,18 +57,17 @@ export interface CrossReferenceOptions {
  */
 export function crossReference(
   detectedFlags: Map<string, FeatureFlag[]>,
-  platformFlags: PlatformFlag[],
+  platformFlagsByEnv: PerEnvFlags,
   platformDisplayName: string,
   options: CrossReferenceOptions = {},
 ): Map<string, PlatformSignal[]> {
-  const platformByKey = new Map(platformFlags.map((f) => [f.key, f]))
   const out = new Map<string, PlatformSignal[]>()
   const now = Date.now()
   const thresholdMs = options.thresholdDays != null ? options.thresholdDays * 86_400_000 : null
 
   for (const key of detectedFlags.keys()) {
-    const platform = platformByKey.get(key)
-    if (!platform) {
+    const envMap = platformFlagsByEnv.get(key)
+    if (!envMap || envMap.size === 0) {
       out.set(key, [
         {
           type: 'missing-in-platform',
@@ -67,7 +77,12 @@ export function crossReference(
       ])
       continue
     }
-    if (platform.archived) {
+
+    // Flag-level fields (archived, permanent, tags, maintainer, createdAt)
+    // are identical across envs in LD's data model. Read them from the
+    // first env's entry.
+    const firstEntry = envMap.values().next().value as PlatformFlag
+    if (firstEntry.archived) {
       out.set(key, [
         {
           type: 'archived-in-platform',
@@ -78,25 +93,29 @@ export function crossReference(
       continue
     }
 
-    // Stack-able signals: platform-permanent (control), platform-too-old,
-    // platform-inactive/launched. A single flag can carry multiple.
     const signals: PlatformSignal[] = []
 
-    if (platform.status === 'launched') {
-      signals.push({
-        type: 'platform-launched',
-        severity: 'error',
-        description: `${platformDisplayName} reports this flag has served one variation for 7+ days — likely ready for removal`,
-      })
-    } else if (platform.status === 'inactive') {
-      signals.push({
-        type: 'platform-inactive',
-        severity: 'warning',
-        description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`,
-      })
+    // Single-env preservation: with one env, this collapses to the
+    // pre-refactor behavior exactly. Multi-env rules are added in
+    // later tasks; here we just iterate one env's status.
+    for (const platform of envMap.values()) {
+      if (platform.status === 'launched') {
+        signals.push({
+          type: 'platform-launched',
+          severity: 'error',
+          description: `${platformDisplayName} reports this flag has served one variation for 7+ days — likely ready for removal`,
+        })
+      } else if (platform.status === 'inactive') {
+        signals.push({
+          type: 'platform-inactive',
+          severity: 'warning',
+          description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`,
+        })
+      }
+      break  // single-env preservation; multi-env handling lands later
     }
 
-    if (platform.permanent) {
+    if (firstEntry.permanent) {
       // Control signal: tells staleness.ts to suppress age + low-usage
       // signals. Filtered out of the user-facing StaleFlag.signals array
       // before display. Kill-switches and other intentionally permanent
@@ -114,12 +133,12 @@ export function crossReference(
     // the user explicitly chose to keep a long-lived flag, so don't
     // contradict them with a too-old warning.
     if (
-      !platform.permanent &&
+      !firstEntry.permanent &&
       thresholdMs != null &&
-      platform.createdAt &&
-      now - platform.createdAt.getTime() > thresholdMs
+      firstEntry.createdAt &&
+      now - firstEntry.createdAt.getTime() > thresholdMs
     ) {
-      const ageDays = Math.floor((now - platform.createdAt.getTime()) / 86_400_000)
+      const ageDays = Math.floor((now - firstEntry.createdAt.getTime()) / 86_400_000)
       signals.push({
         type: 'platform-too-old',
         severity: 'warning',
@@ -136,23 +155,28 @@ export function crossReference(
     // `undefined` means the feature isn't available for this account
     // (tier-gated / endpoint 404'd); `null` means available but no
     // window data yet. Both fall through to no signal.
-    if (!platform.permanent && typeof platform.evaluations30d === 'number') {
-      if (platform.evaluations30d === 0) {
-        signals.push({
-          type: 'platform-zero-evaluations',
-          severity: 'error',
-          description: `0 evaluations in ${platformDisplayName} over the last 30 days — code path is unused`,
-        })
-      } else {
-        const threshold = options.evaluationThreshold ?? 10
-        if (platform.evaluations30d < threshold) {
+    //
+    // Evaluation signals — single-env preservation
+    for (const platform of envMap.values()) {
+      if (!firstEntry.permanent && typeof platform.evaluations30d === 'number') {
+        if (platform.evaluations30d === 0) {
           signals.push({
-            type: 'platform-low-evaluations',
-            severity: 'warning',
-            description: `only ${platform.evaluations30d} evaluation${platform.evaluations30d === 1 ? '' : 's'} in ${platformDisplayName} over the last 30 days (below threshold ${threshold})`,
+            type: 'platform-zero-evaluations',
+            severity: 'error',
+            description: `0 evaluations in ${platformDisplayName} over the last 30 days — code path is unused`,
           })
+        } else {
+          const threshold = options.evaluationThreshold ?? 10
+          if (platform.evaluations30d < threshold) {
+            signals.push({
+              type: 'platform-low-evaluations',
+              severity: 'warning',
+              description: `only ${platform.evaluations30d} evaluation${platform.evaluations30d === 1 ? '' : 's'} in ${platformDisplayName} over the last 30 days (below threshold ${threshold})`,
+            })
+          }
         }
       }
+      break  // single-env preservation
     }
 
     // platform-untouched-stale: the audit log confirmed no activity
@@ -161,12 +185,17 @@ export function crossReference(
     // suppressed for permanent flags — a kill switch untouched for
     // 3 years should still get a periodic review even if the user
     // intends to keep it permanent.
-    if (platform.lastTouched === null) {
-      signals.push({
-        type: 'platform-untouched-stale',
-        severity: 'warning',
-        description: `no activity in ${platformDisplayName} for 90+ days (audit log)`,
-      })
+    //
+    // platform-untouched-stale — single-env preservation
+    for (const platform of envMap.values()) {
+      if (platform.lastTouched === null) {
+        signals.push({
+          type: 'platform-untouched-stale',
+          severity: 'warning',
+          description: `no activity in ${platformDisplayName} for 90+ days (audit log)`,
+        })
+      }
+      break  // single-env preservation
     }
 
     if (signals.length > 0) {

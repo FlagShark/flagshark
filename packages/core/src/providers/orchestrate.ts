@@ -22,6 +22,12 @@ export interface OrchestratePlatformsOptions {
    */
   thresholdDays?: number
   /**
+   * Per-platform low-evaluations threshold passed through to crossReference.
+   * Below this count over the reporting window, platform-low-evaluations fires.
+   * Default in crossReference: 10.
+   */
+  evaluationThreshold?: number
+  /**
    * @internal — test seam. When set, used instead of platform.listFlags().
    * Allows tests to bypass network without monkey-patching globalThis.fetch.
    */
@@ -102,8 +108,20 @@ export async function orchestratePlatforms(
       const flags = opts.listFlagsOverride
         ? await opts.listFlagsOverride(opts.signal)
         : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal })
-      const signals = crossReference(opts.detectedFlags, flags, def.displayName, {
+      // Bridge: wrap the single-env listFlags() result into the PerEnvFlags
+      // shape crossReference now expects. The full multi-env loop arrives
+      // in a later task; for now we pass one env's data under a synthesized
+      // env key.
+      const envName = (parsed.data as { environments?: string[] }).environments?.[0]
+        ?? (parsed.data as { environment?: string }).environment
+        ?? 'default'
+      const perEnv = new Map<string, Map<string, PlatformFlag>>()
+      for (const f of flags) {
+        perEnv.set(f.key, new Map([[envName, f]]))
+      }
+      const signals = crossReference(opts.detectedFlags, perEnv, def.displayName, {
         thresholdDays: opts.thresholdDays,
+        evaluationThreshold: opts.evaluationThreshold,
       })
       mergePlatformSignals(out, signals)
 
