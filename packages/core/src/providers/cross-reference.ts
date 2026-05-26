@@ -228,23 +228,28 @@ export function crossReference(
       }
     }
 
-    // platform-untouched-stale: the audit log confirmed no activity
-    // (toggles, edits, targeting changes) for this flag within the
-    // platform's lookback window. Unlike most signals, this is NOT
-    // suppressed for permanent flags — a kill switch untouched for
-    // 3 years should still get a periodic review even if the user
-    // intends to keep it permanent.
+    // platform-untouched-stale: STRICT all-envs rule.
+    // Untouched only counts if EVERY env's audit log was successfully
+    // fetched AND showed zero activity (lastTouched === null exactly —
+    // not undefined, which means the fetch couldn't confirm). A flag
+    // toggled in staging counts as touched; a flag whose staging audit
+    // log we couldn't read is "unknown", not "untouched".
     //
-    // platform-untouched-stale — single-env preservation
-    for (const platform of envMap.values()) {
-      if (platform.lastTouched === null) {
-        signals.push({
-          type: 'platform-untouched-stale',
-          severity: 'warning',
-          description: `no activity in ${platformDisplayName} for 90+ days (audit log)`,
-        })
-      }
-      break  // single-env preservation
+    // Unlike most signals, this is NOT suppressed for permanent flags —
+    // a kill switch untouched for 3 years should still get a periodic
+    // review even if the user intends to keep it permanent.
+    const allUntouched = allEnvs.length > 0
+      && allEnvs.every((e) => envMap.get(e)!.lastTouched === null)
+    if (allUntouched) {
+      // TODO: '90+ days' is hardcoded to AUDIT_LOG_WINDOW_DAYS in the LD
+      // client (packages/core/src/providers/launchdarkly/client.ts). If
+      // the window becomes a config knob, plumb the actual value through
+      // here so the description doesn't lie.
+      signals.push({
+        type: 'platform-untouched-stale',
+        severity: 'warning',
+        description: `no activity in ${platformDisplayName} ${fmtEnvs(allEnvs, allEnvs)} for 90+ days (audit log)`,
+      })
     }
 
     if (signals.length > 0) {

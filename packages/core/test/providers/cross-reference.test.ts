@@ -632,6 +632,38 @@ describe('crossReference', () => {
       expect(types).toContain('platform-zero-evaluations')
       expect(types).toContain('platform-untouched-stale')
     })
+
+    it('emits platform-untouched-stale when ALL envs have lastTouched=null', () => {
+      const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+      ])]])
+      const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+      const untouched = result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')
+      expect(untouched).toBeDefined()
+      expect(untouched!.description).toContain('everywhere')
+    })
+
+    it('does NOT emit platform-untouched-stale when ANY env has activity', () => {
+      const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: new Date('2026-05-20') }],
+      ])]])
+      const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+      expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
+    })
+
+    it('does NOT emit platform-untouched-stale when ANY env audit-log is unavailable', () => {
+      // Mixing null (confirmed untouched) and undefined (couldn't fetch) =>
+      // we can't claim "untouched in all envs" because one env's audit log
+      // is unknown. Strict rule.
+      const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null /* lastTouched undefined */ }],
+      ])]])
+      const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+      expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
+    })
   })
 })
 
