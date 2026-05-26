@@ -45,7 +45,13 @@ export async function orchestratePlatforms(
     }
 
     const tokenEnv = (rawConfig as { token_env?: string }).token_env ?? def.defaultTokenEnv
-    const token = process.env[tokenEnv]
+    // Trim whitespace before passing to the auth header. A common foot-gun:
+    // tokens copied from a UI or sourced via `.env`/`export` end up with a
+    // trailing newline or leading space, which fetch propagates verbatim
+    // into `Authorization:` and the platform rejects as 401. Trim once
+    // here so every platform's createClient sees a clean string.
+    const rawToken = process.env[tokenEnv]
+    const token = rawToken?.trim() ?? ''
     if (!token) {
       opts.logger.warn(`${def.displayName}: missing ${tokenEnv}; skipping platform integration`)
       continue
@@ -60,7 +66,19 @@ export async function orchestratePlatforms(
       const signals = crossReference(opts.detectedFlags, flags, def.displayName)
       mergePlatformSignals(out, signals)
     } catch (err) {
-      opts.logger.warn(`${def.displayName}: ${(err as Error).message}. Continuing with code-only signals.`)
+      // 401/403 are by far the most common failure mode here and the cause
+      // is almost always confusable token shapes (SDK key vs. API access
+      // token, project-scoped token pointed at the wrong project, project
+      // KEY vs. project NAME in the YAML). Surface a hint inline so users
+      // don't have to guess.
+      const message = (err as Error).message
+      const isAuthError = /\b(401|403|Unauthorized|Forbidden)\b/i.test(message)
+      const hint = isAuthError
+        ? ` (check token type — API access tokens, not SDK keys, and the project key matches a project the token can read)`
+        : ''
+      opts.logger.warn(
+        `${def.displayName}: ${message}${hint}. Continuing with code-only signals.`,
+      )
     }
   }
 
