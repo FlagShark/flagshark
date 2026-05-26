@@ -44624,39 +44624,43 @@ async function fetchAllFlags(config, opts = {}) {
   const fetchFn = opts.fetch ?? globalThis.fetch;
   const apiBase = opts.apiBase ?? DEFAULT_API_BASE;
   const out2 = [];
-  let path2 = buildFirstPath(config.project, config.environment);
-  while (path2) {
-    const res = await fetchFn(new URL(path2, apiBase), {
-      headers: {
-        Authorization: config.token,
-        "LD-API-Version": LD_API_VERSION
-      },
-      signal: opts.signal
-    });
-    if (!res.ok) {
-      throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status);
-    }
-    const json = await res.json();
-    const parsed = FlagsResponseSchema.parse(json);
-    for (const item of parsed.items) {
-      const envData = item.environments?.[config.environment];
-      out2.push({
-        key: item.key,
-        archived: item.archived,
-        lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null
+  for (const archivedOnly of [false, true]) {
+    let path2 = buildFirstPath(config.project, config.environment, archivedOnly);
+    while (path2) {
+      const res = await fetchFn(new URL(path2, apiBase), {
+        headers: {
+          Authorization: config.token,
+          "LD-API-Version": LD_API_VERSION
+        },
+        signal: opts.signal
       });
+      if (!res.ok) {
+        throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status);
+      }
+      const json = await res.json();
+      const parsed = FlagsResponseSchema.parse(json);
+      for (const item of parsed.items) {
+        const envData = item.environments?.[config.environment];
+        out2.push({
+          key: item.key,
+          archived: item.archived,
+          lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null
+        });
+      }
+      path2 = parsed._links?.next?.href;
     }
-    path2 = parsed._links?.next?.href;
   }
   return out2;
 }
-function buildFirstPath(project, environment) {
+function buildFirstPath(project, environment, archived = false) {
   const params = new URLSearchParams({
     env: environment,
     limit: "100",
     offset: "0",
     summary: "1"
   });
+  if (archived)
+    params.set("archived", "true");
   return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`;
 }
 

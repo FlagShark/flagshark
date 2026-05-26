@@ -24,41 +24,55 @@ export async function fetchAllFlags(
   const fetchFn = opts.fetch ?? globalThis.fetch
   const apiBase = opts.apiBase ?? DEFAULT_API_BASE
   const out: PlatformFlag[] = []
-  let path: string | undefined = buildFirstPath(config.project, config.environment)
 
-  while (path) {
-    const res = await fetchFn(new URL(path, apiBase), {
-      headers: {
-        Authorization: config.token,
-        'LD-API-Version': LD_API_VERSION,
-      },
-      signal: opts.signal,
-    })
-    if (!res.ok) {
-      throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status)
-    }
-    const json = await res.json()
-    const parsed = FlagsResponseSchema.parse(json)
-    for (const item of parsed.items) {
-      const envData = item.environments?.[config.environment]
-      out.push({
-        key: item.key,
-        archived: item.archived,
-        lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null,
+  // LD's list endpoint EXCLUDES archived flags by default; passing
+  // `archived=true` flips it to return ONLY archived flags. There is no
+  // "both" mode in the v2 API. So we make two pagination passes — one
+  // for active, one for archived — and union the results. Without this,
+  // any flag archived in LD silently surfaces as `missing-in-platform`
+  // (the exact opposite of `archived-in-platform`), defeating the
+  // archived-flag signal entirely.
+  for (const archivedOnly of [false, true]) {
+    let path: string | undefined = buildFirstPath(
+      config.project,
+      config.environment,
+      archivedOnly,
+    )
+    while (path) {
+      const res = await fetchFn(new URL(path, apiBase), {
+        headers: {
+          Authorization: config.token,
+          'LD-API-Version': LD_API_VERSION,
+        },
+        signal: opts.signal,
       })
+      if (!res.ok) {
+        throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status)
+      }
+      const json = await res.json()
+      const parsed = FlagsResponseSchema.parse(json)
+      for (const item of parsed.items) {
+        const envData = item.environments?.[config.environment]
+        out.push({
+          key: item.key,
+          archived: item.archived,
+          lastModified: envData?.lastModified != null ? new Date(envData.lastModified) : null,
+        })
+      }
+      path = parsed._links?.next?.href
     }
-    path = parsed._links?.next?.href
   }
 
   return out
 }
 
-function buildFirstPath(project: string, environment: string): string {
+function buildFirstPath(project: string, environment: string, archived = false): string {
   const params = new URLSearchParams({
     env: environment,
     limit: '100',
     offset: '0',
     summary: '1',
   })
+  if (archived) params.set('archived', 'true')
   return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`
 }

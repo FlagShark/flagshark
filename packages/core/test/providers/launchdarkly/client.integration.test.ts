@@ -36,7 +36,16 @@ interface RecordedRequest {
 let server: Server
 let apiBase: string
 let recorded: RecordedRequest[] = []
+// fetchAllFlags now makes TWO pagination passes (active + archived), so
+// the mock server is URL-aware: `archived=true` queries return the
+// `archivedResponse` body, everything else returns `nextResponse`. Most
+// tests only care about the active pass and leave `archivedResponse`
+// as an empty page; tests that care about archived flags set both.
 let nextResponse: { status: number; body: unknown } = { status: 200, body: {} }
+let archivedResponse: { status: number; body: unknown } = {
+  status: 200,
+  body: { items: [], totalCount: 0 },
+}
 
 beforeAll(async () => {
   server = createServer((req, res) => {
@@ -47,8 +56,10 @@ beforeAll(async () => {
         Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : v ?? '']),
       ),
     })
-    res.writeHead(nextResponse.status, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify(nextResponse.body))
+    const isArchivedQuery = (req.url ?? '').includes('archived=true')
+    const r = isArchivedQuery ? archivedResponse : nextResponse
+    res.writeHead(r.status, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(r.body))
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as AddressInfo).port
@@ -64,6 +75,7 @@ afterAll(async () => {
 beforeEach(() => {
   recorded = []
   nextResponse = { status: 200, body: { items: [], totalCount: 0 } }
+  archivedResponse = { status: 200, body: { items: [], totalCount: 0 } }
 })
 
 describe('fetchAllFlags — real HTTP integration', () => {
@@ -123,10 +135,11 @@ describe('fetchAllFlags — real HTTP integration', () => {
   })
 
   it('paginates via _links.next.href (relative path → resolved against apiBase)', async () => {
-    // First call returns a next-link; second call (with a different URL)
-    // returns the rest. Pin both URLs hit the same origin and the server
-    // sees two requests in order.
-    let call = 0
+    // The active pass paginates: first response carries a `next` link, the
+    // server replies to the follow-up with the rest. The archived pass is
+    // empty (no archived flags in this scenario). All three requests must
+    // reach the same origin via apiBase-relative URL resolution.
+    let activeCall = 0
     server.removeAllListeners('request')
     server.on('request', (req, res) => {
       recorded.push({
@@ -137,7 +150,12 @@ describe('fetchAllFlags — real HTTP integration', () => {
         ),
       })
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      if (call++ === 0) {
+      const url = req.url ?? ''
+      if (url.includes('archived=true')) {
+        res.end(JSON.stringify({ items: [], totalCount: 0 }))
+        return
+      }
+      if (activeCall++ === 0) {
         res.end(
           JSON.stringify({
             items: [{ key: 'page-1-flag', archived: false }],
@@ -160,8 +178,10 @@ describe('fetchAllFlags — real HTTP integration', () => {
       { apiBase },
     )
     expect(flags.map((f) => f.key)).toEqual(['page-1-flag', 'page-2-flag'])
-    expect(recorded).toHaveLength(2)
+    // 3 requests: active pass page 1 + active page 2 + archived pass.
+    expect(recorded).toHaveLength(3)
     expect(recorded[1].url).toBe('/api/v2/flags/p?offset=1&limit=100&summary=1')
+    expect(recorded[2].url).toContain('archived=true')
     // Reset the handler so following tests use the shared one.
     server.removeAllListeners('request')
     server.on('request', (req, res) => {
@@ -172,9 +192,51 @@ describe('fetchAllFlags — real HTTP integration', () => {
           Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : v ?? '']),
         ),
       })
-      res.writeHead(nextResponse.status, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify(nextResponse.body))
+      const isArchivedQuery = (req.url ?? '').includes('archived=true')
+      const r = isArchivedQuery ? archivedResponse : nextResponse
+      res.writeHead(r.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(r.body))
     })
+  })
+
+  // Regression coverage for the real-LD bug discovered during pre-launch
+  // validation: LD's list endpoint excludes archived flags by default, so
+  // fetchAllFlags now makes a second pass with archived=true and unions
+  // the results. Pre-fix, an archived flag silently surfaced as
+  // `missing-in-platform` (the OPPOSITE of `archived-in-platform`).
+  it('unions active and archived flags from two separate API passes', async () => {
+    nextResponse = {
+      status: 200,
+      body: {
+        items: [
+          { key: 'active-flag', archived: false },
+          { key: 'another-active', archived: false },
+        ],
+        totalCount: 2,
+      },
+    }
+    archivedResponse = {
+      status: 200,
+      body: {
+        items: [{ key: 'archived-flag', archived: true }],
+        totalCount: 1,
+      },
+    }
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 't' },
+      { apiBase },
+    )
+    expect(flags.map((f) => f.key).sort()).toEqual([
+      'active-flag',
+      'another-active',
+      'archived-flag',
+    ])
+    expect(flags.find((f) => f.key === 'archived-flag')?.archived).toBe(true)
+    expect(flags.find((f) => f.key === 'active-flag')?.archived).toBe(false)
+    // Confirm BOTH passes happened.
+    expect(recorded).toHaveLength(2)
+    expect(recorded[0].url).not.toContain('archived=true')
+    expect(recorded[1].url).toContain('archived=true')
   })
 
   it('401 from LD surfaces as LdApiError with status: 401', async () => {
