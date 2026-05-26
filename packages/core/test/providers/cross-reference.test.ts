@@ -665,6 +665,22 @@ describe('crossReference', () => {
       expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
     })
   })
+
+  it('does NOT emit missing-in-platform when flag is present in at least one env', () => {
+    // Flag is missing from staging but present in production — should
+    // NOT be reported as missing.
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null }],
+      // 'staging' intentionally not in the inner Map
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    expect(result.get('FOO')?.find((s) => s.type === 'missing-in-platform')).toBeUndefined()
+  })
+
+  it('emits missing-in-platform when flag is absent from every env', () => {
+    const result = crossReference(detected(['FOO']), new Map(), 'LaunchDarkly', {})
+    expect(result.get('FOO')?.[0].type).toBe('missing-in-platform')
+  })
 })
 
 describe('mergePlatformSignals', () => {
