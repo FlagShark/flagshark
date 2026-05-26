@@ -1,0 +1,62 @@
+name: Live LaunchDarkly validation
+
+# Why this workflow exists separately from CI:
+# The default CI runs against mocks + a local node:http server (great
+# at pinning OUR contract). This workflow hits real app.launchdarkly.com
+# to catch contract drift on LD's side — if they change a field's type
+# or remove an endpoint, this is the early warning.
+#
+# Triggers:
+#   - release: published     → validates immediately after each release
+#                              that the just-published code still works
+#                              against live LD
+#   - workflow_dispatch      → manual one-off for spot-checks
+#   - schedule: weekly       → catches LD-side changes that land after
+#                              our last release; emails the org on
+#                              failure
+#
+# Required repo secret:
+#   LIVE_LAUNCHDARKLY_API_TOKEN  Service token with Reader role for the
+#                                project named LIVE_LD_PROJECT. If unset
+#                                the test self-skips (vitest describe.skipIf),
+#                                so missing-secret yields a passing run.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'LD project key (defaults to "default")'
+        required: false
+        default: 'default'
+      environment:
+        description: 'LD environment key (defaults to "test")'
+        required: false
+        default: 'test'
+  schedule:
+    # Weekly: Monday 09:00 UTC. Tunes to once-per-week so we don't burn
+    # LD API rate-limit budget on routine ops, but frequent enough that
+    # contract drift is caught within a week.
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  live-ld:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.5
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter '@flagshark/core' build
+      - name: Run live LD validation
+        working-directory: packages/core
+        env:
+          LIVE_LAUNCHDARKLY_API_TOKEN: ${{ secrets.LIVE_LAUNCHDARKLY_API_TOKEN }}
+          LIVE_LD_PROJECT: ${{ inputs.project || 'default' }}
+          LIVE_LD_ENVIRONMENT: ${{ inputs.environment || 'test' }}
+        run: bun run test:live
