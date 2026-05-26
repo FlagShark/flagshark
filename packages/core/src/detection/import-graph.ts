@@ -39,6 +39,7 @@
  * precision stays the same as direct-import detection.
  */
 
+import * as fs from 'node:fs'
 import path from 'node:path'
 
 import { Languages, type Language } from './interface.js'
@@ -269,8 +270,6 @@ export interface PathAliases {
  *     "alias is in repo-root tsconfig" pattern.
  */
 export function loadTsconfigAliases(root: string): PathAliases | null {
-  const fs = require('node:fs') as typeof import('node:fs')
-
   // Walk up from `root` looking for tsconfig.json, then jsconfig.json.
   // Stop at the filesystem root. Bound the loop so a pathological setup
   // can't hang us — 32 levels is well past any realistic monorepo depth.
@@ -299,7 +298,6 @@ export function loadTsconfigAliases(root: string): PathAliases | null {
  * comments — handled below) so this works for the long tail.
  */
 function readTsconfigJson(file: string): PathAliases | null {
-  const fs = require('node:fs') as typeof import('node:fs')
   let raw: string
   try {
     raw = fs.readFileSync(file, 'utf-8')
