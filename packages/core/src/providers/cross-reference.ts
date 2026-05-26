@@ -155,6 +155,20 @@ export function crossReference(
       }
     }
 
+    // platform-untouched-stale: the audit log confirmed no activity
+    // (toggles, edits, targeting changes) for this flag within the
+    // platform's lookback window. Unlike most signals, this is NOT
+    // suppressed for permanent flags — a kill switch untouched for
+    // 3 years should still get a periodic review even if the user
+    // intends to keep it permanent.
+    if (platform.lastTouched === null) {
+      signals.push({
+        type: 'platform-untouched-stale',
+        severity: 'warning',
+        description: `no activity in ${platformDisplayName} for 90+ days (audit log)`,
+      })
+    }
+
     if (signals.length > 0) {
       out.set(key, signals)
     }

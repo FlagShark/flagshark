@@ -418,6 +418,80 @@ describe('crossReference', () => {
       expect(types).toContain('platform-zero-evaluations')
     })
   })
+
+  // Audit-log signal (issue #21 item 1).
+  describe('platform-untouched-stale', () => {
+    it('emits when lastTouched is null (audit log confirmed no activity)', () => {
+      const dormant: PlatformFlag = {
+        key: 'OLD_KILLSWITCH',
+        archived: false,
+        lastModified: null,
+        lastTouched: null,
+      }
+      const result = crossReference(detected(['OLD_KILLSWITCH']), [dormant], 'LaunchDarkly')
+      const sig = result.get('OLD_KILLSWITCH')?.[0]
+      expect(sig?.type).toBe('platform-untouched-stale')
+      expect(sig?.severity).toBe('warning')
+      expect(sig?.description).toContain('no activity')
+      expect(sig?.description).toContain('90+ days')
+    })
+
+    it('does NOT emit when lastTouched is a Date (flag was touched recently)', () => {
+      const touched: PlatformFlag = {
+        key: 'ACTIVE_FLAG',
+        archived: false,
+        lastModified: null,
+        lastTouched: new Date(),
+      }
+      const result = crossReference(detected(['ACTIVE_FLAG']), [touched], 'LaunchDarkly')
+      expect(result.has('ACTIVE_FLAG')).toBe(false)
+    })
+
+    it('does NOT emit when lastTouched is undefined (audit log unavailable)', () => {
+      const unknown: PlatformFlag = {
+        key: 'UNKNOWN_ACTIVITY',
+        archived: false,
+        lastModified: null,
+        // lastTouched intentionally undefined
+      }
+      const result = crossReference(detected(['UNKNOWN_ACTIVITY']), [unknown], 'LaunchDarkly')
+      expect(result.has('UNKNOWN_ACTIVITY')).toBe(false)
+    })
+
+    it('STILL fires on permanent flags (unlike most signals)', () => {
+      // Audit-log untouched is the one signal that's MORE useful on
+      // permanent flags. A kill switch untouched for 3 years is worth
+      // reviewing even though the user explicitly opted into permanence.
+      const oldPermanent: PlatformFlag = {
+        key: 'OLD_PERMANENT',
+        archived: false,
+        lastModified: null,
+        permanent: true,
+        lastTouched: null,
+      }
+      const result = crossReference(detected(['OLD_PERMANENT']), [oldPermanent], 'LaunchDarkly')
+      const types = result.get('OLD_PERMANENT')?.map((s) => s.type) ?? []
+      // Both signals fire: platform-permanent (control) and untouched-stale.
+      expect(types).toContain('platform-permanent')
+      expect(types).toContain('platform-untouched-stale')
+    })
+
+    it('stacks with platform-zero-evaluations (both apply)', () => {
+      // The ideal cleanup candidate: not touched AND not evaluated.
+      // Both signals should fire to reinforce confidence.
+      const idealCandidate: PlatformFlag = {
+        key: 'DOUBLE_DEAD',
+        archived: false,
+        lastModified: null,
+        evaluations30d: 0,
+        lastTouched: null,
+      }
+      const result = crossReference(detected(['DOUBLE_DEAD']), [idealCandidate], 'LaunchDarkly')
+      const types = result.get('DOUBLE_DEAD')?.map((s) => s.type) ?? []
+      expect(types).toContain('platform-zero-evaluations')
+      expect(types).toContain('platform-untouched-stale')
+    })
+  })
 })
 
 describe('mergePlatformSignals', () => {

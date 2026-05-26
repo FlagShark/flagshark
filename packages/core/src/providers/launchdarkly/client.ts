@@ -1,6 +1,7 @@
 import pLimit from 'p-limit'
 
 import {
+  AuditLogResponseSchema,
   EvaluationsResponseSchema,
   FlagsResponseSchema,
   FlagStatusesResponseSchema,
@@ -11,6 +12,25 @@ import type { PlatformFlag } from '../interface.js'
 
 const DEFAULT_API_BASE = 'https://app.launchdarkly.com'
 const LD_API_VERSION = '20240415'
+
+// Audit-log fetching parameters.
+//
+//   AUDIT_LOG_WINDOW_DAYS controls the lookback window. A flag with NO
+//   audit entries in the window is considered "untouched" → emit the
+//   platform-untouched-stale signal. 90 days is the default — long
+//   enough that quarterly review cycles still mark genuinely-stale
+//   permanent flags, short enough that rarely-toggled but ACTIVE
+//   flags don't false-positive.
+//
+//   AUDIT_LOG_MAX_PAGES caps pagination. LD's audit-log endpoint has a
+//   max page size of 20; 30 pages × 20 entries = 600-event budget per
+//   scan. For projects with more than 600 audit events in the window
+//   we hit the cap before exhausting the window, and the lastTouched
+//   field stays undefined for every flag — better than false
+//   positives on heavily-active projects.
+const AUDIT_LOG_WINDOW_DAYS = 90
+const AUDIT_LOG_MAX_PAGES = 30
+const AUDIT_LOG_LIMIT = 20 // LD's hard ceiling per page
 
 // Concurrency cap on the per-flag evaluation-counts fetch fan-out.
 // LD's per-token rate limit is documented at "thousands of requests per
@@ -148,6 +168,22 @@ export async function fetchAllFlags(
   // Active flags only — archived flags have no evaluation activity by
   // definition, and probing them wastes API calls.
   await enrichWithEvaluations(out, config, apiBase, headers, fetchFn, opts.signal)
+
+  // Aux 4: per-flag last-touched timestamp from the audit log. Single
+  // paginated endpoint, scoped to the project+env, windowed to the
+  // last AUDIT_LOG_WINDOW_DAYS. Builds a Map<flagKey, lastEventDate>
+  // from up to AUDIT_LOG_MAX_PAGES of entries. Flags absent from the
+  // map after a successful fetch get `lastTouched: null` (confirmed
+  // untouched in the window); flags present get the latest event date.
+  // On failure / page-cap-hit / unavailable endpoint, lastTouched
+  // stays undefined for every flag.
+  const lastTouched = await fetchLastTouchedMap(config, apiBase, headers, fetchFn, opts.signal)
+  if (lastTouched !== null) {
+    for (const flag of out) {
+      if (flag.archived) continue
+      flag.lastTouched = lastTouched.get(flag.key) ?? null
+    }
+  }
 
   return out
 }
@@ -322,4 +358,85 @@ async function fetchFlagStatuses(
     return null
     /* v8 ignore stop */
   }
+}
+
+/**
+ * Best-effort fetch of recent audit-log entries for the configured
+ * project + environment, scoped to flag events. Returns a Map keyed
+ * by flag key whose values are the most recent event timestamp within
+ * the lookback window for that flag.
+ *
+ * `null` return = couldn't fetch (endpoint unavailable, page cap hit
+ * before window exhausted, network error). In that case cross-reference
+ * skips the untouched-stale signal entirely — better than false
+ * positives on heavily-active projects.
+ *
+ * Pagination: LD's audit-log endpoint caps page size at 20 entries. We
+ * paginate up to AUDIT_LOG_MAX_PAGES (30) = 600-entry budget. Audit
+ * events older than (now - AUDIT_LOG_WINDOW_DAYS) are filtered out by
+ * the `after` query param.
+ *
+ * Flag-key extraction: each entry's `target.resources` array contains
+ * resource specifier strings like
+ * `proj/{proj}:env/{env}:flag/{flagKey}`. We extract the trailing
+ * flagKey segment.
+ */
+async function fetchLastTouchedMap(
+  config: FetchAllFlagsConfig,
+  apiBase: string,
+  headers: Record<string, string>,
+  fetchFn: typeof globalThis.fetch,
+  signal: AbortSignal | undefined,
+): Promise<Map<string, Date> | null> {
+  const lastTouched = new Map<string, Date>()
+  const after = Date.now() - AUDIT_LOG_WINDOW_DAYS * 86_400_000
+  const spec = `proj/${config.project}:env/${config.environment}:flag/*`
+  const flagKeyPattern = /:flag\/([^:]+)$/
+
+  const params = new URLSearchParams({
+    spec,
+    after: String(after),
+    limit: String(AUDIT_LOG_LIMIT),
+  })
+  let path: string | undefined = `/api/v2/auditlog?${params.toString()}`
+  let pages = 0
+
+  while (path && pages < AUDIT_LOG_MAX_PAGES) {
+    pages++
+    try {
+      const res = await fetchFn(new URL(path, apiBase), { headers, signal })
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        return null
+      }
+      if (!res.ok) return null
+      const parsed = AuditLogResponseSchema.parse(await res.json())
+      for (const item of parsed.items) {
+        const resources = item.target?.resources ?? []
+        for (const r of resources) {
+          const m = flagKeyPattern.exec(r)
+          if (!m) continue
+          const flagKey = m[1]
+          const date = new Date(item.date)
+          const existing = lastTouched.get(flagKey)
+          if (!existing || date > existing) {
+            lastTouched.set(flagKey, date)
+          }
+        }
+      }
+      path = parsed._links?.next?.href
+    } catch {
+      /* v8 ignore start — defensive catch for malformed JSON / schema
+         drift; not exercised by current fixtures. */
+      return null
+      /* v8 ignore stop */
+    }
+  }
+
+  // Hit the page cap before the API said "no more pages" — we can't
+  // be sure we've seen every flag's recent activity. Return null so
+  // the caller treats every flag as "lastTouched unknown" rather than
+  // emitting false positives.
+  if (path) return null
+
+  return lastTouched
 }

@@ -635,6 +635,163 @@ describe('formatText — platform metadata + new signal types', () => {
     expect(out).toContain('platform-low-evaluations')
   })
 
+  it('renders test-only-references as "Test files only"', () => {
+    const out = formatText(
+      makeResult([
+        staleFlagWithMeta('FIXTURE_ONLY', {
+          signalType: 'test-only-references' as 'low-usage',
+        }),
+      ]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('Test files only')
+  })
+
+  it('renders platform-untouched-stale as a short label', () => {
+    const out = formatText(
+      makeResult([
+        staleFlagWithMeta('STALE_KILLSWITCH', {
+          signalType: 'platform-untouched-stale' as 'low-usage',
+        }),
+      ]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-untouched-stale')
+  })
+
+describe('formatText — verbose mode rich detail cards', () => {
+  // Verbose mode emits a per-flag detail block AFTER the standard
+  // table. Includes everything FlagShark knows about each flag:
+  // location, age, maintainer, tags, platform-status, full signal
+  // descriptions (the table truncates them).
+  function richFlag(name: string, opts: Partial<{
+    age: string
+    maintainer: string
+    tags: string[]
+    platformStatus: 'new' | 'active' | 'inactive' | 'launched'
+    confidence: 'high' | 'medium' | 'low'
+  }> = {}) {
+    return {
+      name,
+      filePath: 'src/checkout.tsx',
+      lineNumber: 42,
+      language: 'typescript',
+      provider: '@launchdarkly/node-server-sdk',
+      signals: [
+        {
+          type: 'platform-launched' as const,
+          severity: 'error' as const,
+          description: 'LaunchDarkly reports this flag has served one variation for 7+ days — likely ready for removal',
+        },
+        {
+          type: 'low-usage' as const,
+          severity: 'warning' as const,
+          description: 'Flag "' + name + '" only appears in 1 file — may have been fully rolled out',
+        },
+      ],
+      age: opts.age,
+      maintainer: opts.maintainer,
+      tags: opts.tags,
+      platformStatus: opts.platformStatus,
+      confidence: opts.confidence,
+    }
+  }
+
+  function makeResult(flags: ReturnType<typeof richFlag>[]) {
+    return {
+      totalFlags: flags.length,
+      filesScanned: 1,
+      staleFlags: flags,
+      detectedProviders: ['@launchdarkly/node-server-sdk'],
+      languageBreakdown: { typescript: 1 },
+      healthScore: 50,
+      scanDuration: 100,
+    }
+  }
+
+  it('omits the detail section entirely without --verbose', () => {
+    const out = formatText(
+      makeResult([richFlag('FLAG_A', { age: '6 months ago' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).not.toContain('Flag details:')
+  })
+
+  it('emits a detail card per flag in --verbose mode', () => {
+    const out = formatText(
+      makeResult([
+        richFlag('FLAG_A', { age: '6 months ago' }),
+        richFlag('FLAG_B', { age: '2 weeks ago' }),
+      ]),
+      { verbose: true, maxDisplay: 10 },
+    )
+    expect(out).toContain('Flag details:')
+    expect(out).toContain('[1] ')
+    expect(out).toContain('[2] ')
+    // Card includes the file location, language, provider, age.
+    expect(out).toContain('File: src/checkout.tsx:42')
+    expect(out).toContain('Language: typescript')
+    expect(out).toContain('Provider: @launchdarkly/node-server-sdk')
+    expect(out).toContain('Added: 6 months ago')
+    // Full signal descriptions are visible (not truncated like the table).
+    expect(out).toContain('served one variation for 7+ days')
+    expect(out).toContain('may have been fully rolled out')
+  })
+
+  it('includes maintainer + tags + platform-status fields when set', () => {
+    const out = formatText(
+      makeResult([
+        richFlag('FLAG_A', {
+          age: '6 months ago',
+          maintainer: 'Jane Doe <jane@example.com>',
+          tags: ['kill-switch', 'auth'],
+          platformStatus: 'launched',
+        }),
+      ]),
+      { verbose: true, maxDisplay: 10 },
+    )
+    expect(out).toContain('Maintainer: Jane Doe <jane@example.com>')
+    expect(out).toContain('Tags: kill-switch, auth')
+    expect(out).toContain('Platform status: launched')
+  })
+
+  it('omits maintainer / tags / platform-status lines when those fields are absent', () => {
+    const out = formatText(
+      makeResult([richFlag('BARE', { age: '6 months ago' })]),
+      { verbose: true, maxDisplay: 10 },
+    )
+    expect(out).not.toContain('Maintainer:')
+    expect(out).not.toContain('Tags:')
+    expect(out).not.toContain('Platform status:')
+  })
+
+  it('surfaces non-default detection confidence', () => {
+    const out = formatText(
+      makeResult([richFlag('LOW_CONF', { age: '6 months ago', confidence: 'low' })]),
+      { verbose: true, maxDisplay: 10 },
+    )
+    expect(out).toContain('Detection confidence: low')
+  })
+
+  it('omits the confidence line when confidence is the default ("high")', () => {
+    const out = formatText(
+      makeResult([richFlag('HI_CONF', { age: '6 months ago', confidence: 'high' })]),
+      { verbose: true, maxDisplay: 10 },
+    )
+    expect(out).not.toContain('Detection confidence')
+  })
+
+  it('lists every signal with its full description', () => {
+    const out = formatText(
+      makeResult([richFlag('MULTI_SIG', { age: '6 months ago' })]),
+      { verbose: true, maxDisplay: 10 },
+    )
+    // Both signals from the fixture, formatted as bullets.
+    expect(out).toContain('• platform-launched (error)')
+    expect(out).toContain('• low-usage (warning)')
+  })
+})
+
   it('renders an unknown signal type by falling through to its description', () => {
     const flag = staleFlagWithMeta('UNKNOWN')
     flag.signals = [

@@ -49,6 +49,10 @@ describe('fetchAllFlags', () => {
         tags: [],
         maintainer: undefined,
         evaluations30d: 0,
+        // Audit-log fetch returned empty items → confirmed-untouched.
+        // Archived flags don't get lastTouched populated (skipped from
+        // the population loop) so key 'B' below has no field at all.
+        lastTouched: null,
       },
       {
         key: 'B',
@@ -178,16 +182,22 @@ describe('fetchAllFlags', () => {
   })
 
   it('URL-encodes project key', async () => {
-    let capturedUrl: string | undefined
+    // Capture EVERY URL hit (auxiliary endpoints — members, statuses,
+    // audit log — also fire from fetchAllFlags) and assert the primary
+    // /flags URL contains the encoded project key. Aux endpoints use
+    // URLSearchParams which encodes spaces as `+` instead of `%20`,
+    // so we have to scope this to the path-style /flags request.
+    const captured: string[] = []
     const fakeFetch: typeof globalThis.fetch = async (url) => {
-      capturedUrl = url.toString()
+      captured.push(url.toString())
       return new Response(JSON.stringify({ items: [], totalCount: 0 }))
     }
     await fetchAllFlags(
       { project: 'has spaces/slash', environment: 'e', token: 't' },
       { fetch: fakeFetch },
     )
-    expect(capturedUrl).toContain('has%20spaces%2Fslash')
+    const flagsUrl = captured.find((u) => u.includes('/api/v2/flags/'))
+    expect(flagsUrl).toContain('has%20spaces%2Fslash')
   })
 
   it('propagates AbortSignal', async () => {

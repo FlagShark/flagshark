@@ -43759,6 +43759,36 @@ function checkLowUsageSignal(flagName, occurrences) {
     description: `Flag "${flagName}" only appears in 1 file \u2014 may have been fully rolled out`
   };
 }
+var TEST_FILE_PATTERNS = [
+  /[._-]test\.[jt]sx?$/i,
+  // foo.test.ts, foo-test.ts, foo_test.ts
+  /[._-]spec\.[jt]sx?$/i,
+  // foo.spec.ts
+  /_test\.go$/,
+  // Go: foo_test.go
+  /(^|\/)test_[^/]+\.py$/i,
+  // Python: test_foo.py
+  /(^|\/)[A-Z][a-zA-Z0-9]*Tests?\.java$/,
+  // Java: FooTest.java / FooTests.java
+  /(^|\/)__(tests|mocks)__\//,
+  // __tests__/ / __mocks__/
+  /(^|\/)(test|tests|spec)\//
+  // /test/, /tests/, /spec/
+];
+function isTestFile(filePath) {
+  return TEST_FILE_PATTERNS.some((p) => p.test(filePath));
+}
+function checkTestOnlyReferencesSignal(flagName, occurrences) {
+  if (occurrences.length === 0)
+    return null;
+  if (!occurrences.every((o) => isTestFile(o.filePath)))
+    return null;
+  return {
+    type: "test-only-references",
+    severity: "warning",
+    description: `Flag "${flagName}" is referenced only in test/spec files \u2014 likely a forgotten test fixture or never-deployed prototype`
+  };
+}
 async function analyzeStaleness(flags2, options) {
   const { thresholdDays = 30, repoRoot } = options;
   const shallow = isShallowRepo(repoRoot);
@@ -43777,6 +43807,7 @@ async function analyzeStaleness(flags2, options) {
   const staleFlags = [];
   for (const [flagName, occurrences] of flags2) {
     const lowUsageSignal = checkLowUsageSignal(flagName, occurrences);
+    const testOnlySignal = checkTestOnlyReferencesSignal(flagName, occurrences);
     const platformSigs = options.platformSignals?.get(flagName);
     const isPermanent = platformSigs?.some((ps) => ps.type === "platform-permanent") ?? false;
     for (const flag of occurrences) {
@@ -43801,6 +43832,9 @@ async function analyzeStaleness(flags2, options) {
       }
       if (lowUsageSignal && !isPermanent) {
         signals.push(lowUsageSignal);
+      }
+      if (testOnlySignal && !isPermanent) {
+        signals.push(testOnlySignal);
       }
       if (platformSigs) {
         for (const ps of platformSigs) {
@@ -44671,6 +44705,18 @@ var EvaluationsResponseSchema = external_exports.object({
   metadata: external_exports.array(external_exports.unknown()).optional(),
   _links: external_exports.unknown().optional()
 }).passthrough();
+var AuditLogEntrySchema = external_exports.object({
+  date: external_exports.number(),
+  target: external_exports.object({
+    resources: external_exports.array(external_exports.string()).optional().default([])
+  }).passthrough().optional()
+}).passthrough();
+var AuditLogResponseSchema = external_exports.object({
+  items: external_exports.array(AuditLogEntrySchema).optional().default([]),
+  _links: external_exports.object({
+    next: external_exports.object({ href: external_exports.string() }).optional()
+  }).optional()
+}).passthrough();
 var MemberItemSchema = external_exports.object({
   _id: external_exports.string(),
   email: external_exports.string(),
@@ -44696,6 +44742,9 @@ var LdApiError = class extends Error {
 // ../core/dist/providers/launchdarkly/client.js
 var DEFAULT_API_BASE = "https://app.launchdarkly.com";
 var LD_API_VERSION = "20240415";
+var AUDIT_LOG_WINDOW_DAYS = 90;
+var AUDIT_LOG_MAX_PAGES = 30;
+var AUDIT_LOG_LIMIT = 20;
 var EVALUATIONS_CONCURRENCY = 5;
 async function fetchAllFlags(config, opts = {}) {
   const fetchFn = opts.fetch ?? globalThis.fetch;
@@ -44762,6 +44811,14 @@ async function fetchAllFlags(config, opts = {}) {
     }
   }
   await enrichWithEvaluations(out2, config, apiBase, headers, fetchFn, opts.signal);
+  const lastTouched = await fetchLastTouchedMap(config, apiBase, headers, fetchFn, opts.signal);
+  if (lastTouched !== null) {
+    for (const flag of out2) {
+      if (flag.archived)
+        continue;
+      flag.lastTouched = lastTouched.get(flag.key) ?? null;
+    }
+  }
   return out2;
 }
 async function enrichWithEvaluations(flags2, config, apiBase, headers, fetchFn, signal) {
@@ -44853,6 +44910,51 @@ async function fetchFlagStatuses(project, environment, apiBase, headers, fetchFn
   } catch {
     return null;
   }
+}
+async function fetchLastTouchedMap(config, apiBase, headers, fetchFn, signal) {
+  const lastTouched = /* @__PURE__ */ new Map();
+  const after = Date.now() - AUDIT_LOG_WINDOW_DAYS * 864e5;
+  const spec = `proj/${config.project}:env/${config.environment}:flag/*`;
+  const flagKeyPattern = /:flag\/([^:]+)$/;
+  const params = new URLSearchParams({
+    spec,
+    after: String(after),
+    limit: String(AUDIT_LOG_LIMIT)
+  });
+  let path2 = `/api/v2/auditlog?${params.toString()}`;
+  let pages = 0;
+  while (path2 && pages < AUDIT_LOG_MAX_PAGES) {
+    pages++;
+    try {
+      const res = await fetchFn(new URL(path2, apiBase), { headers, signal });
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        return null;
+      }
+      if (!res.ok)
+        return null;
+      const parsed = AuditLogResponseSchema.parse(await res.json());
+      for (const item of parsed.items) {
+        const resources = item.target?.resources ?? [];
+        for (const r of resources) {
+          const m = flagKeyPattern.exec(r);
+          if (!m)
+            continue;
+          const flagKey = m[1];
+          const date = new Date(item.date);
+          const existing = lastTouched.get(flagKey);
+          if (!existing || date > existing) {
+            lastTouched.set(flagKey, date);
+          }
+        }
+      }
+      path2 = parsed._links?.next?.href;
+    } catch {
+      return null;
+    }
+  }
+  if (path2)
+    return null;
+  return lastTouched;
 }
 
 // ../core/dist/providers/launchdarkly/definition.js
@@ -44960,6 +45062,13 @@ function crossReference(detectedFlags, platformFlags, platformDisplayName, optio
           });
         }
       }
+    }
+    if (platform.lastTouched === null) {
+      signals.push({
+        type: "platform-untouched-stale",
+        severity: "warning",
+        description: `no activity in ${platformDisplayName} for 90+ days (audit log)`
+      });
     }
     if (signals.length > 0) {
       out2.set(key, signals);
