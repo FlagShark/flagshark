@@ -20,7 +20,12 @@ describe('CLI E2E — config', () => {
       `const client = LaunchDarkly.init('sdk-key')\n` +
       `client.variation('TEST_FOO', user, false)\n`)
     writeFixtureFile(dir, '.flagshark.yml', 'excludes:\n  presets:\n    - test-files\n')
-    commitAll(dir, 'init')
+    // Old commit date so the age signal fires. As of v2.1.1 the low-
+    // usage signal alone no longer marks a flag stale, so single-file
+    // FOO needs another signal to land in the staleFlags array (which
+    // is what the JSON output's `flags` field contains — and what the
+    // assertion below verifies).
+    commitAll(dir, 'init', '2022-01-01T00:00:00')
 
     const r = runCli(['--format', 'json'], { cwd: dir })
     expect(r.exitCode).toBeLessThanOrEqual(1)
