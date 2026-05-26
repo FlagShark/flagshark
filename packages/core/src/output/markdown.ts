@@ -100,6 +100,18 @@ export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOp
   body += `| Scan mode | ${modeLabel} |\n`
   body += `| Scan time | ${result.scanDuration}ms |\n\n`
 
+  // Surface permanent-flag exclusions before the stale-flag tables so a
+  // PR reviewer immediately sees which flags FlagShark consciously
+  // skipped (rather than wondering why a known-stale flag isn't here).
+  if (result.permanentByPlatform && Object.keys(result.permanentByPlatform).length > 0) {
+    for (const [platform, names] of Object.entries(result.permanentByPlatform)) {
+      if (names.length === 0) continue
+      const flagWord = names.length === 1 ? 'flag' : 'flags'
+      const inlineList = names.map((n) => `\`${n}\``).join(', ')
+      body += `> _${names.length} ${flagWord} excluded as permanent in ${platform}: ${inlineList}_\n\n`
+    }
+  }
+
   // Warning-severity stale flags section
   if (warningFlags.length > 0) {
     const displayFlags = warningFlags.slice(0, maxStale)
@@ -135,7 +147,24 @@ function formatRow(flag: StaleFlag, linkPrefix?: string): string {
   const fileCell = linkPrefix
     ? `[${shortPath}:${flag.lineNumber}](${normalizePrefix(linkPrefix)}${shortPath}#L${flag.lineNumber})`
     : `\`${shortPath}:${flag.lineNumber}\``
-  return `\`${flag.name}\` | ${fileCell} | ${flag.age || 'unknown'} | ${signals}`
+
+  // Platform-side metadata appended after the signal list (kept in the
+  // same cell so the table stays 4-column). Tags inline as backticks;
+  // maintainer prefixed with @ for natural-language flow. Status only
+  // surfaces non-default verdicts (not 'active' — already the norm).
+  const metaParts: string[] = []
+  if (flag.tags && flag.tags.length > 0) {
+    metaParts.push(flag.tags.map((t) => `\`${t}\``).join(' '))
+  }
+  if (flag.maintainer) {
+    metaParts.push(`@${flag.maintainer}`)
+  }
+  if (flag.platformStatus && flag.platformStatus !== 'active') {
+    metaParts.push(`_status: ${flag.platformStatus}_`)
+  }
+  const meta = metaParts.length > 0 ? ` <br/> ${metaParts.join(' • ')}` : ''
+
+  return `\`${flag.name}\` | ${fileCell} | ${flag.age || 'unknown'} | ${signals}${meta}`
 }
 
 function normalizePrefix(prefix: string): string {

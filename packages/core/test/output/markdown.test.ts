@@ -261,6 +261,45 @@ describe('formatMarkdown — parseErrorCount surfacing', () => {
     expect(out).not.toContain("couldn't be parsed")
   })
 
+  it('emits a quoted callout per platform that marked flags permanent', () => {
+    // Same UX as text output, but markdown — used by the GitHub Action
+    // PR comment. The block-quote (`> _..._`) style keeps it visually
+    // separate from the stale tables below.
+    const out = formatMarkdown(
+      {
+        ...baseResult(50, 0),
+        permanentByPlatform: { LaunchDarkly: ['kill-switch-billing', 'kill-switch-auth'] },
+      },
+      { scanMode: 'full' },
+    )
+    expect(out).toContain('2 flags excluded as permanent in LaunchDarkly')
+    expect(out).toContain('`kill-switch-billing`')
+    expect(out).toContain('`kill-switch-auth`')
+  })
+
+  it('singularizes "flag" when only one was excluded (markdown)', () => {
+    const out = formatMarkdown(
+      {
+        ...baseResult(50, 0),
+        permanentByPlatform: { LaunchDarkly: ['solo'] },
+      },
+      { scanMode: 'full' },
+    )
+    expect(out).toContain('1 flag excluded as permanent in LaunchDarkly')
+  })
+
+  it('omits empty-array platforms from the markdown callout', () => {
+    const out = formatMarkdown(
+      {
+        ...baseResult(50, 0),
+        permanentByPlatform: { LaunchDarkly: [], Unleash: ['x'] },
+      },
+      { scanMode: 'full' },
+    )
+    expect(out).toContain('excluded as permanent in Unleash')
+    expect(out).not.toContain('excluded as permanent in LaunchDarkly')
+  })
+
   it('hides the percentage in the loud banner when pct < 1', () => {
     // pct = 0.5 (< 1). The percentage suffix should be empty so we don't
     // emit a misleading "0%" annotation. Coverage gate for the
@@ -269,5 +308,73 @@ describe('formatMarkdown — parseErrorCount surfacing', () => {
     expect(out).toContain("couldn't be parsed")
     // rounded=0, banner falls through to the quiet form (rounded <= 5).
     expect(out).not.toContain('(0%)')
+  })
+})
+
+describe('formatMarkdown — platform-side metadata in rows', () => {
+  function staleFlag(opts: {
+    tags?: string[]
+    maintainer?: string
+    platformStatus?: 'new' | 'active' | 'inactive' | 'launched'
+  }) {
+    return {
+      name: 'FLAG_X',
+      filePath: 'src/a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly',
+      signals: [{ type: 'low-usage' as const, severity: 'warning' as const, description: 'old' }],
+      age: '12 months ago',
+      ...opts,
+    }
+  }
+  function makeResult(staleFlags: ReturnType<typeof staleFlag>[]) {
+    return {
+      totalFlags: staleFlags.length,
+      filesScanned: 1,
+      staleFlags,
+      detectedProviders: [],
+      languageBreakdown: {},
+      healthScore: 50,
+      scanDuration: 1,
+    }
+  }
+
+  it('appends tags as backticked tokens after the signal list', () => {
+    const out = formatMarkdown(
+      makeResult([staleFlag({ tags: ['kill-switch', 'auth'] })]),
+      { scanMode: 'full' },
+    )
+    expect(out).toContain('`kill-switch`')
+    expect(out).toContain('`auth`')
+  })
+
+  it('prefixes maintainer with @', () => {
+    const out = formatMarkdown(
+      makeResult([staleFlag({ maintainer: 'Jane Doe <jane@example.com>' })]),
+      { scanMode: 'full' },
+    )
+    expect(out).toContain('@Jane Doe <jane@example.com>')
+  })
+
+  it('shows non-active platformStatus inline', () => {
+    const out = formatMarkdown(
+      makeResult([staleFlag({ platformStatus: 'inactive' })]),
+      { scanMode: 'full' },
+    )
+    expect(out).toContain('status: inactive')
+  })
+
+  it('omits the meta segment entirely when nothing is set', () => {
+    const out = formatMarkdown(makeResult([staleFlag({})]), { scanMode: 'full' })
+    expect(out).not.toContain('<br/>')
+  })
+
+  it('suppresses platformStatus when value is "active"', () => {
+    const out = formatMarkdown(
+      makeResult([staleFlag({ platformStatus: 'active' })]),
+      { scanMode: 'full' },
+    )
+    expect(out).not.toContain('status: active')
   })
 })

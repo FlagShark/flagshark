@@ -34,8 +34,27 @@ describe('fetchAllFlags', () => {
       // `permanent` defaults to `false` because the LD schema defaults
       // `temporary` to `true` (the field is set on every modern flag;
       // when missing we treat the flag as temporary, i.e. NOT permanent).
-      { key: 'A', archived: false, lastModified: null, permanent: false },
-      { key: 'B', archived: true, lastModified: null, permanent: false },
+      // `tags` defaults to []; `createdAt` is null when LD didn't send
+      // `creationDate`; `maintainer` is undefined because no maintainerId
+      // was present in the mocked response.
+      {
+        key: 'A',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+        createdAt: null,
+        tags: [],
+        maintainer: undefined,
+      },
+      {
+        key: 'B',
+        archived: true,
+        lastModified: null,
+        permanent: false,
+        createdAt: null,
+        tags: [],
+        maintainer: undefined,
+      },
     ])
   })
 

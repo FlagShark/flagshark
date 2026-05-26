@@ -257,3 +257,106 @@ describe('analyzeStaleness — platform-permanent suppression', () => {
     expect(stale!.signals.map((s) => s.type)).not.toContain('age')
   })
 })
+
+describe('analyzeStaleness — platform metadata propagation (P3)', () => {
+  // Tags, maintainer, and platform-status flow from the cross-reference
+  // layer through to each emitted StaleFlag so output formatters can
+  // surface them without re-querying the platform.
+
+  it('attaches tags from platformMetadata to the emitted StaleFlag', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'TAGGED_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'TAGGED_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([
+        ['TAGGED_FLAG', { tags: ['kill-switch', 'auth'] }],
+      ]),
+    })
+    const stale = result.find((s) => s.name === 'TAGGED_FLAG')
+    expect(stale).toBeDefined()
+    expect(stale!.tags).toEqual(['kill-switch', 'auth'])
+  })
+
+  it('attaches maintainer from platformMetadata to the emitted StaleFlag', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'OWNED_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'OWNED_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([
+        ['OWNED_FLAG', { maintainer: 'Jane Doe <jane@example.com>' }],
+      ]),
+    })
+    expect(result.find((s) => s.name === 'OWNED_FLAG')!.maintainer).toBe(
+      'Jane Doe <jane@example.com>',
+    )
+  })
+
+  it('attaches platformStatus from platformMetadata to the emitted StaleFlag', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'STATUS_FLAG'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'STATUS_FLAG', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([['STATUS_FLAG', { status: 'launched' }]]),
+    })
+    expect(result.find((s) => s.name === 'STATUS_FLAG')!.platformStatus).toBe('launched')
+  })
+
+  it('leaves tags/maintainer/platformStatus absent when no metadata is provided', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'NO_META'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'NO_META', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      // No platformMetadata.
+    })
+    const stale = result.find((s) => s.name === 'NO_META')
+    expect(stale).toBeDefined()
+    expect(stale!.tags).toBeUndefined()
+    expect(stale!.maintainer).toBeUndefined()
+    expect(stale!.platformStatus).toBeUndefined()
+  })
+
+  it('skips empty-array tags so output formatters don\'t render an empty cell', async () => {
+    const dir = makeTempRepo()
+    dirs.push(dir)
+    writeFixtureFile(dir, 'a.ts', `const x = 'EMPTY_TAGS'\n`)
+    commitAll(dir, 'init')
+
+    const flags: FeatureFlag[] = [
+      { name: 'EMPTY_TAGS', filePath: 'a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' },
+    ]
+    const result = await analyzeStaleness(detectedMap(flags), {
+      thresholdDays: 6,
+      repoRoot: dir,
+      platformMetadata: new Map([['EMPTY_TAGS', { tags: [] }]]),
+    })
+    expect(result.find((s) => s.name === 'EMPTY_TAGS')!.tags).toBeUndefined()
+  })
+})

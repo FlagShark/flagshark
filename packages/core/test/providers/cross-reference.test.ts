@@ -115,6 +115,178 @@ describe('crossReference', () => {
     const result = crossReference(detected(['TEMP_TOGGLE']), [active], 'LaunchDarkly')
     expect(result.has('TEMP_TOGGLE')).toBe(false)
   })
+
+  // P1: platform-too-old. Emitted when the platform reports a
+  // creationDate older than the staleness threshold. Independent of
+  // code age — a recently-pasted reference to an old flag is just as
+  // suspect as an old reference.
+  describe('platform-too-old (P1)', () => {
+    it('emits platform-too-old when createdAt is older than thresholdDays', () => {
+      const oldFlag: PlatformFlag = {
+        key: 'OLD_FLAG',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+        createdAt: new Date(Date.now() - 60 * 86_400_000), // 60 days ago
+      }
+      const result = crossReference(
+        detected(['OLD_FLAG']),
+        [oldFlag],
+        'LaunchDarkly',
+        { thresholdDays: 30 },
+      )
+      const sigs = result.get('OLD_FLAG') ?? []
+      const tooOld = sigs.find((s) => s.type === 'platform-too-old')
+      expect(tooOld).toBeDefined()
+      expect(tooOld?.severity).toBe('warning')
+      expect(tooOld?.description).toContain('60 days ago')
+      expect(tooOld?.description).toContain('30-day threshold')
+    })
+
+    it('does not emit platform-too-old when createdAt is within threshold', () => {
+      const newFlag: PlatformFlag = {
+        key: 'NEW_FLAG',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+        createdAt: new Date(Date.now() - 5 * 86_400_000), // 5 days ago
+      }
+      const result = crossReference(
+        detected(['NEW_FLAG']),
+        [newFlag],
+        'LaunchDarkly',
+        { thresholdDays: 30 },
+      )
+      expect(result.has('NEW_FLAG')).toBe(false)
+    })
+
+    it('does not emit platform-too-old when thresholdDays is unset', () => {
+      const oldFlag: PlatformFlag = {
+        key: 'OLD_FLAG',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+        createdAt: new Date(Date.now() - 365 * 86_400_000),
+      }
+      const result = crossReference(detected(['OLD_FLAG']), [oldFlag], 'LaunchDarkly')
+      // No threshold → no platform-too-old signal, no entry at all.
+      expect(result.has('OLD_FLAG')).toBe(false)
+    })
+
+    it('does not emit platform-too-old when createdAt is missing', () => {
+      const oldButNoCreatedAt: PlatformFlag = {
+        key: 'NO_CREATED',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+      }
+      const result = crossReference(
+        detected(['NO_CREATED']),
+        [oldButNoCreatedAt],
+        'LaunchDarkly',
+        { thresholdDays: 30 },
+      )
+      expect(result.has('NO_CREATED')).toBe(false)
+    })
+
+    it('does not emit platform-too-old on a permanent flag (suppressed)', () => {
+      const oldPermanent: PlatformFlag = {
+        key: 'OLD_KILL_SWITCH',
+        archived: false,
+        lastModified: null,
+        permanent: true,
+        createdAt: new Date(Date.now() - 365 * 86_400_000),
+      }
+      const result = crossReference(
+        detected(['OLD_KILL_SWITCH']),
+        [oldPermanent],
+        'LaunchDarkly',
+        { thresholdDays: 30 },
+      )
+      const sigs = result.get('OLD_KILL_SWITCH') ?? []
+      const types = sigs.map((s) => s.type)
+      // Permanent marker is still emitted; too-old is NOT.
+      expect(types).toContain('platform-permanent')
+      expect(types).not.toContain('platform-too-old')
+    })
+  })
+
+  // P2: platform-inactive + platform-launched. Sourced from LD's
+  // flag-statuses endpoint, which encodes the platform's own
+  // staleness verdict per environment.
+  describe('platform-inactive + platform-launched (P2)', () => {
+    it('emits platform-launched (error) when status is "launched"', () => {
+      const launched: PlatformFlag = {
+        key: 'ROLLED_OUT',
+        archived: false,
+        lastModified: null,
+        status: 'launched',
+      }
+      const result = crossReference(detected(['ROLLED_OUT']), [launched], 'LaunchDarkly')
+      const sig = result.get('ROLLED_OUT')?.[0]
+      expect(sig?.type).toBe('platform-launched')
+      expect(sig?.severity).toBe('error')
+      expect(sig?.description).toContain('one variation for 7+ days')
+    })
+
+    it('emits platform-inactive (warning) when status is "inactive"', () => {
+      const inactive: PlatformFlag = {
+        key: 'DORMANT',
+        archived: false,
+        lastModified: null,
+        status: 'inactive',
+      }
+      const result = crossReference(detected(['DORMANT']), [inactive], 'LaunchDarkly')
+      const sig = result.get('DORMANT')?.[0]
+      expect(sig?.type).toBe('platform-inactive')
+      expect(sig?.severity).toBe('warning')
+      expect(sig?.description).toContain('no evaluations recorded')
+    })
+
+    it('does not emit a status signal when status is "active"', () => {
+      const active: PlatformFlag = {
+        key: 'NORMAL',
+        archived: false,
+        lastModified: null,
+        status: 'active',
+      }
+      const result = crossReference(detected(['NORMAL']), [active], 'LaunchDarkly')
+      expect(result.has('NORMAL')).toBe(false)
+    })
+
+    it('does not emit a status signal when status is "new"', () => {
+      // 'new' means LD doesn't have enough data yet — emitting a stale
+      // signal would be a false positive.
+      const fresh: PlatformFlag = {
+        key: 'BRAND_NEW',
+        archived: false,
+        lastModified: null,
+        status: 'new',
+      }
+      const result = crossReference(detected(['BRAND_NEW']), [fresh], 'LaunchDarkly')
+      expect(result.has('BRAND_NEW')).toBe(false)
+    })
+
+    it('stacks platform-launched with platform-too-old (both apply)', () => {
+      const both: PlatformFlag = {
+        key: 'OLD_AND_LAUNCHED',
+        archived: false,
+        lastModified: null,
+        permanent: false,
+        status: 'launched',
+        createdAt: new Date(Date.now() - 60 * 86_400_000),
+      }
+      const result = crossReference(
+        detected(['OLD_AND_LAUNCHED']),
+        [both],
+        'LaunchDarkly',
+        { thresholdDays: 30 },
+      )
+      const types = result.get('OLD_AND_LAUNCHED')?.map((s) => s.type) ?? []
+      expect(types).toContain('platform-launched')
+      expect(types).toContain('platform-too-old')
+    })
+  })
 })
 
 describe('mergePlatformSignals', () => {

@@ -25,7 +25,7 @@ describe('orchestratePlatforms', () => {
       detectedFlags: detected(['A']),
       logger: silentLogger(),
     })
-    expect(result.size).toBe(0)
+    expect(result.signals.size).toBe(0)
   })
 
   it('warns and skips unknown platform names', async () => {
@@ -35,7 +35,7 @@ describe('orchestratePlatforms', () => {
       detectedFlags: detected(['A']),
       logger,
     })
-    expect(result.size).toBe(0)
+    expect(result.signals.size).toBe(0)
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Unknown platform 'unknown'"))
   })
 
@@ -49,7 +49,7 @@ describe('orchestratePlatforms', () => {
         detectedFlags: detected(['A']),
         logger,
       })
-      expect(result.size).toBe(0)
+      expect(result.signals.size).toBe(0)
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('LAUNCHDARKLY_API_TOKEN'))
     } finally {
       if (prev !== undefined) process.env.LAUNCHDARKLY_API_TOKEN = prev
@@ -65,7 +65,7 @@ describe('orchestratePlatforms', () => {
         detectedFlags: detected(['A']),
         logger,
       })
-      expect(result.size).toBe(0)
+      expect(result.signals.size).toBe(0)
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Invalid config'))
     } finally {
       delete process.env.LAUNCHDARKLY_API_TOKEN
@@ -82,7 +82,7 @@ describe('orchestratePlatforms', () => {
         logger,
         listFlagsOverride: async () => { throw new Error('network down') },
       })
-      expect(result.size).toBe(0)
+      expect(result.signals.size).toBe(0)
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('network down'))
     } finally {
       delete process.env.LAUNCHDARKLY_API_TOKEN
@@ -100,7 +100,7 @@ describe('orchestratePlatforms', () => {
         listFlagsOverride: async () => [],
         noCache: true,
       })
-      expect(result.get('MISSING_FLAG')?.[0].type).toBe('missing-in-platform')
+      expect(result.signals.get('MISSING_FLAG')?.[0].type).toBe('missing-in-platform')
     } finally {
       delete process.env.LAUNCHDARKLY_API_TOKEN
     }
@@ -136,7 +136,7 @@ describe('orchestratePlatforms', () => {
         // no listFlagsOverride — uses loadPlatformFlagsCached
       })
       expect(loadPlatformFlagsCached).toHaveBeenCalled()
-      expect(result.get('FLAG_X')?.[0].type).toBe('missing-in-platform')
+      expect(result.signals.get('FLAG_X')?.[0].type).toBe('missing-in-platform')
     } finally {
       delete process.env.LAUNCHDARKLY_API_TOKEN
     }
@@ -213,5 +213,107 @@ describe('orchestratePlatforms', () => {
     expect(logger.warn).not.toHaveBeenCalledWith(
       expect.stringContaining('API access tokens, not SDK keys'),
     )
+  })
+
+  // The output transparency feature relies on permanentByPlatform being
+  // correctly populated by the orchestrator. This test pins that
+  // contract end-to-end through listFlagsOverride.
+  it('populates permanentByPlatform for matched flags marked permanent', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'e' } },
+        detectedFlags: detected(['KILL_SWITCH_A', 'KILL_SWITCH_B', 'TEMP_FLAG']),
+        logger: silentLogger(),
+        listFlagsOverride: async () => [
+          { key: 'KILL_SWITCH_A', archived: false, lastModified: null, permanent: true },
+          { key: 'KILL_SWITCH_B', archived: false, lastModified: null, permanent: true },
+          { key: 'TEMP_FLAG', archived: false, lastModified: null, permanent: false },
+        ],
+        noCache: true,
+      })
+      // Both kill switches show up in the per-platform list, sorted.
+      expect(result.permanentByPlatform).toEqual({
+        LaunchDarkly: ['KILL_SWITCH_A', 'KILL_SWITCH_B'],
+      })
+      // Signals carry the platform-permanent marker, but TEMP_FLAG (not
+      // permanent) doesn't appear at all.
+      expect(result.signals.get('KILL_SWITCH_A')?.[0].type).toBe('platform-permanent')
+      expect(result.signals.get('KILL_SWITCH_B')?.[0].type).toBe('platform-permanent')
+      expect(result.signals.has('TEMP_FLAG')).toBe(false)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('omits a platform from permanentByPlatform when nothing is marked permanent', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'e' } },
+        detectedFlags: detected(['ACTIVE_FLAG']),
+        logger: silentLogger(),
+        listFlagsOverride: async () => [
+          { key: 'ACTIVE_FLAG', archived: false, lastModified: null, permanent: false },
+        ],
+        noCache: true,
+      })
+      expect(result.permanentByPlatform).toEqual({})
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('populates metadataByFlag with tags / maintainer / status for matched flags', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'e' } },
+        detectedFlags: detected(['TAGGED', 'OWNED', 'UNDECORATED', 'NOT_DETECTED']),
+        logger: silentLogger(),
+        listFlagsOverride: async () => [
+          {
+            key: 'TAGGED',
+            archived: false,
+            lastModified: null,
+            tags: ['kill-switch'],
+            status: 'inactive' as const,
+          },
+          {
+            key: 'OWNED',
+            archived: false,
+            lastModified: null,
+            maintainer: 'Jane <jane@example.com>',
+          },
+          { key: 'UNDECORATED', archived: false, lastModified: null },
+          // Flag exists in the platform but isn't referenced in code — must
+          // be skipped from metadataByFlag.
+          {
+            key: 'PLATFORM_ONLY',
+            archived: false,
+            lastModified: null,
+            tags: ['lonely'],
+          },
+        ],
+        noCache: true,
+      })
+      expect(result.metadataByFlag.get('TAGGED')).toEqual({
+        tags: ['kill-switch'],
+        maintainer: undefined,
+        status: 'inactive',
+      })
+      expect(result.metadataByFlag.get('OWNED')).toEqual({
+        tags: undefined,
+        maintainer: 'Jane <jane@example.com>',
+        status: undefined,
+      })
+      // Flag exists but has no metadata — skipped entirely so we don't
+      // pollute the map with empty entries.
+      expect(result.metadataByFlag.has('UNDECORATED')).toBe(false)
+      // Detected-only consideration: PLATFORM_ONLY wasn't in detectedFlags.
+      expect(result.metadataByFlag.has('PLATFORM_ONLY')).toBe(false)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
   })
 })

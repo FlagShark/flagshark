@@ -15,6 +15,13 @@ export interface OrchestratePlatformsOptions {
   noCache?: boolean
   signal?: AbortSignal
   /**
+   * Staleness threshold in days. Passed through to cross-reference so it
+   * can emit `platform-too-old` for flags whose platform-side creationDate
+   * exceeds the threshold. When omitted, the platform-too-old signal is
+   * never emitted.
+   */
+  thresholdDays?: number
+  /**
    * @internal — test seam. When set, used instead of platform.listFlags().
    * Allows tests to bypass network without monkey-patching globalThis.fetch.
    */
@@ -22,14 +29,46 @@ export interface OrchestratePlatformsOptions {
 }
 
 /**
+ * Returned alongside platform signals: the names of flags excluded from
+ * staleness checks because a platform marked them permanent, indexed by
+ * the platform's displayName. Output formatters surface this directly
+ * so users see WHY a permanent flag isn't in the stale table.
+ */
+export interface OrchestrateResult {
+  signals: Map<string, PlatformSignal[]>
+  permanentByPlatform: Record<string, string[]>
+  /**
+   * Per-flag platform-side metadata (tags, maintainer, status). Keyed
+   * by detected flag name. Populated only for flags that matched a
+   * platform integration AND the platform exposed the data. When
+   * multiple platforms report different metadata for the same flag,
+   * the LAST platform processed wins — the typical case is one
+   * platform per project anyway.
+   */
+  metadataByFlag: Map<
+    string,
+    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+  >
+}
+
+/**
  * Runs each configured platform integration. Logs warnings on individual
- * platform failures and continues. Returns merged signals keyed by flag name.
+ * platform failures and continues. Returns merged signals keyed by flag name
+ * plus a per-platform record of flags marked permanent (suppressed from
+ * staleness; surfaced separately so users see what was excluded and why).
  */
 export async function orchestratePlatforms(
   opts: OrchestratePlatformsOptions,
-): Promise<Map<string, PlatformSignal[]>> {
+): Promise<OrchestrateResult> {
   const out = new Map<string, PlatformSignal[]>()
-  if (!opts.platformsConfig) return out
+  const permanentByPlatform: Record<string, string[]> = {}
+  const metadataByFlag = new Map<
+    string,
+    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+  >()
+  if (!opts.platformsConfig) {
+    return { signals: out, permanentByPlatform, metadataByFlag }
+  }
 
   for (const [name, rawConfig] of Object.entries(opts.platformsConfig)) {
     const def = findPlatform(name)
@@ -63,8 +102,39 @@ export async function orchestratePlatforms(
       const flags = opts.listFlagsOverride
         ? await opts.listFlagsOverride(opts.signal)
         : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal })
-      const signals = crossReference(opts.detectedFlags, flags, def.displayName)
+      const signals = crossReference(opts.detectedFlags, flags, def.displayName, {
+        thresholdDays: opts.thresholdDays,
+      })
       mergePlatformSignals(out, signals)
+
+      // Track which flags this platform marked permanent so output
+      // formatters can show 'N flag(s) excluded as permanent in
+      // <Platform>: a, b, c'. Read the signals MAP we just merged in
+      // (not `signals` directly — same content, but consistent source).
+      const platformPermanent: string[] = []
+      for (const [flagName, sigList] of signals) {
+        if (sigList.some((s) => s.type === 'platform-permanent')) {
+          platformPermanent.push(flagName)
+        }
+      }
+      if (platformPermanent.length > 0) {
+        permanentByPlatform[def.displayName] = platformPermanent.sort()
+      }
+
+      // Surface platform-side metadata (tags, maintainer, activity
+      // status) for every detected flag that matched this platform.
+      // Output formatters consume this to enrich the per-row display
+      // without re-querying the platform.
+      for (const flag of flags) {
+        if (!opts.detectedFlags.has(flag.key)) continue
+        const hasMetadata = (flag.tags && flag.tags.length > 0) || flag.maintainer || flag.status
+        if (!hasMetadata) continue
+        metadataByFlag.set(flag.key, {
+          tags: flag.tags && flag.tags.length > 0 ? flag.tags : undefined,
+          maintainer: flag.maintainer,
+          status: flag.status,
+        })
+      }
     } catch (err) {
       // 401/403 are by far the most common failure mode here and the cause
       // is almost always confusable token shapes (SDK key vs. API access
@@ -82,5 +152,5 @@ export async function orchestratePlatforms(
     }
   }
 
-  return out
+  return { signals: out, permanentByPlatform, metadataByFlag }
 }
