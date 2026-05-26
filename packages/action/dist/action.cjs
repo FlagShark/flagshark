@@ -43826,6 +43826,15 @@ async function analyzeStaleness(flags2, options) {
         if (flag.confidence && flag.confidence !== "high") {
           stale.confidence = flag.confidence;
         }
+        const meta = options.platformMetadata?.get(flagName);
+        if (meta) {
+          if (meta.tags && meta.tags.length > 0)
+            stale.tags = meta.tags;
+          if (meta.maintainer)
+            stale.maintainer = meta.maintainer;
+          if (meta.status)
+            stale.platformStatus = meta.status;
+        }
         staleFlags.push(stale);
       }
     }
@@ -44614,6 +44623,19 @@ var FlagItemSchema = external_exports.object({
   // true because LD's flag-creation UI defaults to "temporary"; existing
   // flags that predate the field send true implicitly.
   temporary: external_exports.boolean().optional().default(true),
+  // Epoch milliseconds when the flag was first created in LD. Lets us
+  // compute platform-side age independently of code age; a flag that's
+  // 18 months old in LD AND still in code is a stronger stale signal
+  // than either alone. Field has been on LD's API since v2 was
+  // introduced, so it should be present on every flag.
+  creationDate: external_exports.number().optional(),
+  // Free-form labels users apply in the LD UI (e.g. 'kill-switch',
+  // 'experiment', 'auth'). Surfaced in FlagShark output so a reviewer
+  // sees the LD-side classification next to the flag name.
+  tags: external_exports.array(external_exports.string()).optional().default([]),
+  // Opaque LD member ID of whoever owns the flag. Resolved to a human
+  // name+email via a separate /api/v2/members lookup.
+  maintainerId: external_exports.string().optional(),
   environments: external_exports.record(external_exports.string(), EnvironmentSchema).optional()
 }).passthrough();
 var FlagsResponseSchema = external_exports.object({
@@ -44622,6 +44644,31 @@ var FlagsResponseSchema = external_exports.object({
   _links: external_exports.object({
     next: external_exports.object({ href: external_exports.string() }).optional()
   }).optional()
+}).passthrough();
+var FlagStatusItemSchema = external_exports.object({
+  name: external_exports.enum(["new", "active", "inactive", "launched"]),
+  // ISO timestamp string of the last evaluation event; null when none.
+  lastRequested: external_exports.string().nullable(),
+  _links: external_exports.object({
+    // The parent link carries the flag key:
+    //   /api/v2/flags/{project}/{flag-key}
+    parent: external_exports.object({ href: external_exports.string() }).optional()
+  }).optional()
+}).passthrough();
+var FlagStatusesResponseSchema = external_exports.object({
+  items: external_exports.array(FlagStatusItemSchema),
+  _links: external_exports.unknown().optional()
+}).passthrough();
+var MemberItemSchema = external_exports.object({
+  _id: external_exports.string(),
+  email: external_exports.string(),
+  firstName: external_exports.string().optional().default(""),
+  lastName: external_exports.string().optional().default("")
+}).passthrough();
+var MembersResponseSchema = external_exports.object({
+  items: external_exports.array(MemberItemSchema),
+  totalCount: external_exports.number().optional(),
+  _links: external_exports.unknown().optional()
 }).passthrough();
 
 // ../core/dist/providers/launchdarkly/errors.js
@@ -44641,16 +44688,12 @@ async function fetchAllFlags(config, opts = {}) {
   const fetchFn = opts.fetch ?? globalThis.fetch;
   const apiBase = opts.apiBase ?? DEFAULT_API_BASE;
   const out2 = [];
+  const headers = { Authorization: config.token, "LD-API-Version": LD_API_VERSION };
+  const maintainerIds = /* @__PURE__ */ new Set();
   for (const archivedOnly of [false, true]) {
     let path2 = buildFirstPath(config.project, config.environment, archivedOnly);
     while (path2) {
-      const res = await fetchFn(new URL(path2, apiBase), {
-        headers: {
-          Authorization: config.token,
-          "LD-API-Version": LD_API_VERSION
-        },
-        signal: opts.signal
-      });
+      const res = await fetchFn(new URL(path2, apiBase), { headers, signal: opts.signal });
       if (!res.ok) {
         throw new LdApiError(`LaunchDarkly API ${res.status} ${res.statusText}`, res.status);
       }
@@ -44658,6 +44701,8 @@ async function fetchAllFlags(config, opts = {}) {
       const parsed = FlagsResponseSchema.parse(json);
       for (const item of parsed.items) {
         const envData = item.environments?.[config.environment];
+        if (item.maintainerId)
+          maintainerIds.add(item.maintainerId);
         out2.push({
           key: item.key,
           archived: item.archived,
@@ -44665,10 +44710,42 @@ async function fetchAllFlags(config, opts = {}) {
           // LD's `temporary` is true when the user wants the flag removed
           // eventually, false when it's permanent. We invert so downstream
           // logic doesn't have to re-reason the polarity every time.
-          permanent: !item.temporary
+          permanent: !item.temporary,
+          createdAt: item.creationDate != null ? new Date(item.creationDate) : null,
+          tags: item.tags,
+          // Resolved below from the /members lookup; left as the opaque id
+          // for now so the producer/consumer split stays clean.
+          maintainer: item.maintainerId
         });
       }
       path2 = parsed._links?.next?.href;
+    }
+  }
+  if (maintainerIds.size > 0) {
+    const members = await fetchMembersMap(apiBase, headers, fetchFn, opts.signal);
+    if (members) {
+      for (const flag of out2) {
+        if (flag.maintainer && members.has(flag.maintainer)) {
+          flag.maintainer = members.get(flag.maintainer);
+        } else if (flag.maintainer) {
+          flag.maintainer = void 0;
+        }
+      }
+    } else {
+      for (const flag of out2) {
+        if (flag.maintainer)
+          flag.maintainer = void 0;
+      }
+    }
+  }
+  const statuses = await fetchFlagStatuses(config.project, config.environment, apiBase, headers, fetchFn, opts.signal);
+  if (statuses) {
+    for (const flag of out2) {
+      const s = statuses.get(flag.key);
+      if (s) {
+        flag.status = s.name;
+        flag.lastRequested = s.lastRequested;
+      }
     }
   }
   return out2;
@@ -44683,6 +44760,47 @@ function buildFirstPath(project, environment, archived = false) {
   if (archived)
     params.set("archived", "true");
   return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`;
+}
+async function fetchMembersMap(apiBase, headers, fetchFn, signal) {
+  try {
+    const url = new URL("/api/v2/members?limit=500", apiBase);
+    const res = await fetchFn(url, { headers, signal });
+    if (!res.ok)
+      return null;
+    const parsed = MembersResponseSchema.parse(await res.json());
+    const map = /* @__PURE__ */ new Map();
+    for (const m of parsed.items) {
+      const name2 = [m.firstName, m.lastName].filter((s) => s).join(" ").trim();
+      const display = name2 ? `${name2} <${m.email}>` : m.email;
+      map.set(m._id, display);
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
+async function fetchFlagStatuses(project, environment, apiBase, headers, fetchFn, signal) {
+  try {
+    const url = new URL(`/api/v2/flag-statuses/${encodeURIComponent(project)}/${encodeURIComponent(environment)}`, apiBase);
+    const res = await fetchFn(url, { headers, signal });
+    if (!res.ok)
+      return null;
+    const parsed = FlagStatusesResponseSchema.parse(await res.json());
+    const out2 = /* @__PURE__ */ new Map();
+    for (const item of parsed.items) {
+      const href = item._links?.parent?.href ?? "";
+      const key = href.includes("/") ? href.slice(href.lastIndexOf("/") + 1) : "";
+      if (!key)
+        continue;
+      out2.set(key, {
+        name: item.name,
+        lastRequested: item.lastRequested ? new Date(item.lastRequested) : null
+      });
+    }
+    return out2;
+  } catch {
+    return null;
+  }
 }
 
 // ../core/dist/providers/launchdarkly/definition.js
@@ -44717,29 +44835,64 @@ function findPlatform(name2) {
 }
 
 // ../core/dist/providers/cross-reference.js
-function crossReference(detectedFlags, platformFlags, platformDisplayName) {
+function crossReference(detectedFlags, platformFlags, platformDisplayName, options = {}) {
   const platformByKey = new Map(platformFlags.map((f) => [f.key, f]));
   const out2 = /* @__PURE__ */ new Map();
+  const now = Date.now();
+  const thresholdMs = options.thresholdDays != null ? options.thresholdDays * 864e5 : null;
   for (const key of detectedFlags.keys()) {
     const platform = platformByKey.get(key);
     if (!platform) {
-      out2.set(key, [{
-        type: "missing-in-platform",
+      out2.set(key, [
+        {
+          type: "missing-in-platform",
+          severity: "error",
+          description: `referenced in code but not found in ${platformDisplayName}`
+        }
+      ]);
+      continue;
+    }
+    if (platform.archived) {
+      out2.set(key, [
+        {
+          type: "archived-in-platform",
+          severity: "warning",
+          description: `archived in ${platformDisplayName}`
+        }
+      ]);
+      continue;
+    }
+    const signals = [];
+    if (platform.status === "launched") {
+      signals.push({
+        type: "platform-launched",
         severity: "error",
-        description: `referenced in code but not found in ${platformDisplayName}`
-      }]);
-    } else if (platform.archived) {
-      out2.set(key, [{
-        type: "archived-in-platform",
+        description: `${platformDisplayName} reports this flag has served one variation for 7+ days \u2014 likely ready for removal`
+      });
+    } else if (platform.status === "inactive") {
+      signals.push({
+        type: "platform-inactive",
         severity: "warning",
-        description: `archived in ${platformDisplayName}`
-      }]);
-    } else if (platform.permanent) {
-      out2.set(key, [{
+        description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`
+      });
+    }
+    if (platform.permanent) {
+      signals.push({
         type: "platform-permanent",
         severity: "info",
         description: `marked permanent in ${platformDisplayName}`
-      }]);
+      });
+    }
+    if (!platform.permanent && thresholdMs != null && platform.createdAt && now - platform.createdAt.getTime() > thresholdMs) {
+      const ageDays = Math.floor((now - platform.createdAt.getTime()) / 864e5);
+      signals.push({
+        type: "platform-too-old",
+        severity: "warning",
+        description: `created in ${platformDisplayName} ${ageDays} days ago \u2014 past the ${options.thresholdDays}-day threshold`
+      });
+    }
+    if (signals.length > 0) {
+      out2.set(key, signals);
     }
   }
   return out2;
@@ -44832,8 +44985,11 @@ async function loadPlatformFlagsCached(client, cacheKey, opts = {}) {
 // ../core/dist/providers/orchestrate.js
 async function orchestratePlatforms(opts) {
   const out2 = /* @__PURE__ */ new Map();
-  if (!opts.platformsConfig)
-    return out2;
+  const permanentByPlatform = {};
+  const metadataByFlag = /* @__PURE__ */ new Map();
+  if (!opts.platformsConfig) {
+    return { signals: out2, permanentByPlatform, metadataByFlag };
+  }
   for (const [name2, rawConfig] of Object.entries(opts.platformsConfig)) {
     const def = findPlatform(name2);
     if (!def) {
@@ -44856,8 +45012,31 @@ async function orchestratePlatforms(opts) {
       const client = def.createClient(parsed.data, token);
       const cacheKey = computeCacheKey(name2, parsed.data, token);
       const flags2 = opts.listFlagsOverride ? await opts.listFlagsOverride(opts.signal) : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal });
-      const signals = crossReference(opts.detectedFlags, flags2, def.displayName);
+      const signals = crossReference(opts.detectedFlags, flags2, def.displayName, {
+        thresholdDays: opts.thresholdDays
+      });
       mergePlatformSignals(out2, signals);
+      const platformPermanent = [];
+      for (const [flagName, sigList] of signals) {
+        if (sigList.some((s) => s.type === "platform-permanent")) {
+          platformPermanent.push(flagName);
+        }
+      }
+      if (platformPermanent.length > 0) {
+        permanentByPlatform[def.displayName] = platformPermanent.sort();
+      }
+      for (const flag of flags2) {
+        if (!opts.detectedFlags.has(flag.key))
+          continue;
+        const hasMetadata = flag.tags && flag.tags.length > 0 || flag.maintainer || flag.status;
+        if (!hasMetadata)
+          continue;
+        metadataByFlag.set(flag.key, {
+          tags: flag.tags && flag.tags.length > 0 ? flag.tags : void 0,
+          maintainer: flag.maintainer,
+          status: flag.status
+        });
+      }
     } catch (err2) {
       const message = err2.message;
       const isAuthError = /\b(401|403|Unauthorized|Forbidden)\b/i.test(message);
@@ -44865,7 +45044,7 @@ async function orchestratePlatforms(opts) {
       opts.logger.warn(`${def.displayName}: ${message}${hint}. Continuing with code-only signals.`);
     }
   }
-  return out2;
+  return { signals: out2, permanentByPlatform, metadataByFlag };
 }
 
 // ../core/dist/scan-repo.js
@@ -44907,14 +45086,25 @@ async function scanRepo(opts) {
   if (config.custom_detectors && config.custom_detectors.length > 0) {
     applyCustomDetectors(files, config.custom_detectors, analysisResult.totalFlags, logger);
   }
-  const platformSignals = await orchestratePlatforms({
+  const { signals: platformSignals, permanentByPlatform, metadataByFlag } = await orchestratePlatforms({
     platformsConfig: config.platforms,
     detectedFlags: analysisResult.totalFlags,
     logger,
     noCache: opts.noCache,
-    signal: opts.signal
+    signal: opts.signal,
+    // Threshold drives the platform-too-old signal in cross-reference.
+    // Same threshold the staleness engine uses for code-age, so the two
+    // dimensions stay aligned ("if code older than N is stale, so is a
+    // platform record older than N").
+    thresholdDays: threshold
   });
-  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, { thresholdDays: threshold, repoRoot: opts.cwd, platformSignals });
+  const staleFlags = await analyzeStaleness(analysisResult.totalFlags, {
+    thresholdDays: threshold,
+    repoRoot: opts.cwd,
+    platformSignals,
+    platformMetadata: metadataByFlag
+  });
+  const excludedPermanent = Array.from(new Set(Object.values(permanentByPlatform).flat())).sort();
   const totalFlags = analysisResult.totalFlags.size;
   const uniqueStaleNames = new Set(staleFlags.map((f) => f.name)).size;
   const healthScore = totalFlags === 0 ? 100 : Math.round((totalFlags - uniqueStaleNames) / totalFlags * 100);
@@ -44956,6 +45146,8 @@ async function scanRepo(opts) {
     excludedCount,
     excludedPaths,
     parseErrorCount: analysisResult.parseErrorCount,
+    excludedPermanent,
+    permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules
   };
 }
@@ -45174,6 +45366,17 @@ function formatMarkdown(result, options) {
   body2 += `| Scan time | ${result.scanDuration}ms |
 
 `;
+  if (result.permanentByPlatform && Object.keys(result.permanentByPlatform).length > 0) {
+    for (const [platform, names] of Object.entries(result.permanentByPlatform)) {
+      if (names.length === 0)
+        continue;
+      const flagWord = names.length === 1 ? "flag" : "flags";
+      const inlineList = names.map((n) => `\`${n}\``).join(", ");
+      body2 += `> _${names.length} ${flagWord} excluded as permanent in ${platform}: ${inlineList}_
+
+`;
+    }
+  }
   if (warningFlags.length > 0) {
     const displayFlags = warningFlags.slice(0, maxStale);
     body2 += `<details${warningFlags.length <= 5 ? " open" : ""}>
@@ -45208,7 +45411,18 @@ function formatRow(flag, linkPrefix) {
   const signals = flag.signals.map((s) => s.description).join(", ");
   const shortPath = flag.filePath.replace(/^\.\//, "");
   const fileCell = linkPrefix ? `[${shortPath}:${flag.lineNumber}](${normalizePrefix(linkPrefix)}${shortPath}#L${flag.lineNumber})` : `\`${shortPath}:${flag.lineNumber}\``;
-  return `\`${flag.name}\` | ${fileCell} | ${flag.age || "unknown"} | ${signals}`;
+  const metaParts = [];
+  if (flag.tags && flag.tags.length > 0) {
+    metaParts.push(flag.tags.map((t) => `\`${t}\``).join(" "));
+  }
+  if (flag.maintainer) {
+    metaParts.push(`@${flag.maintainer}`);
+  }
+  if (flag.platformStatus && flag.platformStatus !== "active") {
+    metaParts.push(`_status: ${flag.platformStatus}_`);
+  }
+  const meta = metaParts.length > 0 ? ` <br/> ${metaParts.join(" \u2022 ")}` : "";
+  return `\`${flag.name}\` | ${fileCell} | ${flag.age || "unknown"} | ${signals}${meta}`;
 }
 function normalizePrefix(prefix) {
   return prefix.endsWith("/") ? prefix : prefix + "/";

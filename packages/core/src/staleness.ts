@@ -5,7 +5,19 @@ import { type FeatureFlag } from './detection/feature-flag.js'
 // ── Public interfaces ──────────────────────────────────────────────
 
 export interface StalenessSignal {
-  type: 'age' | 'hardcoded' | 'low-usage' | 'missing-in-platform' | 'archived-in-platform'
+  // Code-side signals: 'age', 'hardcoded', 'low-usage'.
+  // Platform-side signals (from cross-reference): 'missing-in-platform',
+  // 'archived-in-platform', 'platform-too-old', 'platform-inactive',
+  // 'platform-launched'.
+  type:
+    | 'age'
+    | 'hardcoded'
+    | 'low-usage'
+    | 'missing-in-platform'
+    | 'archived-in-platform'
+    | 'platform-too-old'
+    | 'platform-inactive'
+    | 'platform-launched'
   severity: 'error' | 'warning'
   description: string
 }
@@ -27,6 +39,18 @@ export interface StaleFlag {
    * medium-confidence flags to manual review rather than auto-cleanup.
    */
   confidence?: 'high' | 'medium' | 'low'
+
+  /**
+   * Platform-side metadata propagated through from the cross-reference
+   * layer. Populated only when a platform integration is active AND the
+   * platform exposed the data. Output formatters surface these
+   * alongside each flag so reviewers see who owns it and how the
+   * platform classifies it without a context switch.
+   */
+  tags?: string[]
+  maintainer?: string
+  /** LD's per-environment activity verdict; see PlatformFlag.status. */
+  platformStatus?: 'new' | 'active' | 'inactive' | 'launched'
 }
 
 export interface StalenessOptions {
@@ -36,6 +60,16 @@ export interface StalenessOptions {
   repoRoot: string
   /** Optional: pre-computed platform signals keyed by flag name. */
   platformSignals?: Map<string, import('./providers/interface.js').PlatformSignal[]>
+  /**
+   * Optional: per-flag platform metadata surfaced by the orchestrator.
+   * Drives the tags / maintainer / platformStatus fields on each
+   * emitted StaleFlag. Keyed by detected flag name; values come
+   * straight from the matched PlatformFlag.
+   */
+  platformMetadata?: Map<
+    string,
+    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+  >
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -318,6 +352,19 @@ export async function analyzeStaleness(
         if (flag.confidence && flag.confidence !== 'high') {
           stale.confidence = flag.confidence
         }
+
+        // Attach platform-side metadata when available. Each field is
+        // optional so the StaleFlag shape stays stable for code-only
+        // scans (no platforms configured) and JSON consumers that
+        // never expected these fields aren't broken by their presence
+        // since they're absent unless explicitly populated.
+        const meta = options.platformMetadata?.get(flagName)
+        if (meta) {
+          if (meta.tags && meta.tags.length > 0) stale.tags = meta.tags
+          if (meta.maintainer) stale.maintainer = meta.maintainer
+          if (meta.status) stale.platformStatus = meta.status
+        }
+
         staleFlags.push(stale)
       }
     }

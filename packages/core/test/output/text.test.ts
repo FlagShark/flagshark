@@ -426,6 +426,177 @@ describe('json formatter — severity + errorCount', () => {
   })
 })
 
+describe('formatText — permanentByPlatform surfacing', () => {
+  // Output transparency: users need to see WHY a flag they expected to
+  // be in the stale table isn't there. The permanent-flag exclusion
+  // gets a dedicated line just under the headline count.
+  it('emits an exclusion line for each platform that marked flags permanent', () => {
+    const result = makeScanResult({
+      totalFlags: 5,
+      permanentByPlatform: { LaunchDarkly: ['show-new-checkout', 'killswitch-billing'] },
+    })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('2 flags excluded as permanent in LaunchDarkly')
+    expect(out).toContain('show-new-checkout')
+    expect(out).toContain('killswitch-billing')
+  })
+
+  it('uses singular "flag" when exactly one is excluded', () => {
+    const result = makeScanResult({
+      totalFlags: 1,
+      permanentByPlatform: { LaunchDarkly: ['solo-killswitch'] },
+    })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('1 flag excluded as permanent in LaunchDarkly')
+  })
+
+  it('truncates the inline list at 5 names with a +N more suffix', () => {
+    const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+    const result = makeScanResult({
+      totalFlags: 7,
+      permanentByPlatform: { LaunchDarkly: names },
+    })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('7 flags excluded as permanent in LaunchDarkly: a, b, c, d, e, +2 more')
+  })
+
+  it('omits the line entirely when no platform marked anything permanent', () => {
+    const result = makeScanResult({ totalFlags: 1 })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).not.toContain('excluded as permanent')
+  })
+
+  it('omits per-platform entries that have empty arrays', () => {
+    const result = makeScanResult({
+      totalFlags: 1,
+      permanentByPlatform: { LaunchDarkly: [], Unleash: ['x'] },
+    })
+    const out = formatText(result, { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('1 flag excluded as permanent in Unleash')
+    expect(out).not.toContain('excluded as permanent in LaunchDarkly')
+  })
+})
+
+describe('formatText — platform metadata + new signal types', () => {
+  function staleFlagWithMeta(name: string, opts: Partial<{
+    tags: string[]
+    maintainer: string
+    platformStatus: 'new' | 'active' | 'inactive' | 'launched'
+    signalType: string
+  }> = {}) {
+    return {
+      name,
+      filePath: 'src/a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: '@launchdarkly/node-server-sdk',
+      signals: [
+        {
+          type: (opts.signalType ?? 'low-usage') as 'low-usage',
+          severity: 'warning' as const,
+          description: 'desc',
+        },
+      ],
+      age: 'a year ago',
+      tags: opts.tags,
+      maintainer: opts.maintainer,
+      platformStatus: opts.platformStatus,
+    }
+  }
+
+  function makeResult(staleFlags: ReturnType<typeof staleFlagWithMeta>[]) {
+    return {
+      totalFlags: staleFlags.length,
+      filesScanned: 1,
+      staleFlags,
+      detectedProviders: ['@launchdarkly/node-server-sdk'],
+      languageBreakdown: { typescript: 1 },
+      healthScore: 50,
+      scanDuration: 1,
+    }
+  }
+
+  it('renders platform-too-old as a short label', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('OLD', { signalType: 'platform-too-old' as 'low-usage' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-too-old')
+  })
+
+  it('renders platform-inactive as a short label', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('DORMANT', { signalType: 'platform-inactive' as 'low-usage' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-inactive')
+  })
+
+  it('renders platform-launched as a short label', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('LAUNCHED', { signalType: 'platform-launched' as 'low-usage' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-launched')
+  })
+
+  it('renders an unknown signal type by falling through to its description', () => {
+    const flag = staleFlagWithMeta('UNKNOWN')
+    flag.signals = [
+      { type: 'hardcoded' as 'low-usage', severity: 'warning', description: 'Hardcoded value' },
+    ]
+    const out = formatText(makeResult([flag]), { verbose: false, maxDisplay: 10 })
+    expect(out).toContain('Hardcoded value')
+  })
+
+  it('appends a tags line under the row when tags are present', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('TAGGED', { tags: ['kill-switch', 'auth'] })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('tags: kill-switch, auth')
+  })
+
+  it('appends a maintainer line under the row when maintainer is present', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('OWNED', { maintainer: 'Jane Doe <jane@example.com>' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('maintainer: Jane Doe <jane@example.com>')
+  })
+
+  it('shows non-active platformStatus inline (inactive surfaces)', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('FRESH', { platformStatus: 'new' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).toContain('platform-status: new')
+  })
+
+  it('suppresses the platform-status row when value is "active"', () => {
+    // 'active' is the default normal state; we don't bloat the table
+    // with it. Other fields might still surface a meta row though.
+    const out = formatText(
+      makeResult([staleFlagWithMeta('NORMAL', { platformStatus: 'active' })]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    expect(out).not.toContain('platform-status: active')
+  })
+
+  it('omits the entire meta row when nothing is set', () => {
+    const out = formatText(
+      makeResult([staleFlagWithMeta('PLAIN')]),
+      { verbose: false, maxDisplay: 10 },
+    )
+    // '└─ ' inside a row (after the inset spacing) is the meta marker;
+    // the table's bottom border is a long `└──...──┘` line which uses
+    // the same character. Look for the specific meta-row inset shape.
+    expect(out).not.toContain('└─ tags')
+    expect(out).not.toContain('└─ maintainer')
+    expect(out).not.toContain('└─ platform-status')
+  })
+})
+
 describe('formatText — zero-flags large-repo hint', () => {
   // Coverage gate for text.ts:120-126. The SUSPICIOUS_THRESHOLD hint only
   // fires when both totalFlags === 0 AND filesScanned >= 100 — small repos

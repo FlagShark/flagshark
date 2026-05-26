@@ -15,6 +15,19 @@ const FlagItemSchema = z.object({
   // true because LD's flag-creation UI defaults to "temporary"; existing
   // flags that predate the field send true implicitly.
   temporary: z.boolean().optional().default(true),
+  // Epoch milliseconds when the flag was first created in LD. Lets us
+  // compute platform-side age independently of code age; a flag that's
+  // 18 months old in LD AND still in code is a stronger stale signal
+  // than either alone. Field has been on LD's API since v2 was
+  // introduced, so it should be present on every flag.
+  creationDate: z.number().optional(),
+  // Free-form labels users apply in the LD UI (e.g. 'kill-switch',
+  // 'experiment', 'auth'). Surfaced in FlagShark output so a reviewer
+  // sees the LD-side classification next to the flag name.
+  tags: z.array(z.string()).optional().default([]),
+  // Opaque LD member ID of whoever owns the flag. Resolved to a human
+  // name+email via a separate /api/v2/members lookup.
+  maintainerId: z.string().optional(),
   environments: z.record(z.string(), EnvironmentSchema).optional(),
 }).passthrough()
 
@@ -27,3 +40,48 @@ export const FlagsResponseSchema = z.object({
 }).passthrough()
 
 export type FlagsResponse = z.infer<typeof FlagsResponseSchema>
+
+// ── Flag statuses (P2: LD's per-env staleness verdict) ──────────────────────
+
+// LD's status values for a flag in a given environment:
+//   - 'new': created in the last 7 days; no evaluation events yet
+//   - 'active': serving evaluations as expected
+//   - 'inactive': no evaluation events in 7+ days (and not 'new')
+//   - 'launched': has been serving a single variation for the past 7 days,
+//                 i.e. effectively rolled out
+const FlagStatusItemSchema = z.object({
+  name: z.enum(['new', 'active', 'inactive', 'launched']),
+  // ISO timestamp string of the last evaluation event; null when none.
+  lastRequested: z.string().nullable(),
+  _links: z
+    .object({
+      // The parent link carries the flag key:
+      //   /api/v2/flags/{project}/{flag-key}
+      parent: z.object({ href: z.string() }).optional(),
+    })
+    .optional(),
+}).passthrough()
+
+export const FlagStatusesResponseSchema = z.object({
+  items: z.array(FlagStatusItemSchema),
+  _links: z.unknown().optional(),
+}).passthrough()
+
+export type FlagStatusesResponse = z.infer<typeof FlagStatusesResponseSchema>
+
+// ── Members (P3: maintainer name resolution) ────────────────────────────────
+
+const MemberItemSchema = z.object({
+  _id: z.string(),
+  email: z.string(),
+  firstName: z.string().optional().default(''),
+  lastName: z.string().optional().default(''),
+}).passthrough()
+
+export const MembersResponseSchema = z.object({
+  items: z.array(MemberItemSchema),
+  totalCount: z.number().optional(),
+  _links: z.unknown().optional(),
+}).passthrough()
+
+export type MembersResponse = z.infer<typeof MembersResponseSchema>
