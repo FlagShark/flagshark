@@ -373,7 +373,10 @@ describe('orchestratePlatforms', () => {
               fallthroughVariation: null,
             }]
           }
-          // staging: no enrichment fields at all
+          // staging: no enrichment fields at all (including the post-Task-3
+          // fields on/offVariation, which are implicitly undefined here — that
+          // matters because the skip guard's `== null` check treats both
+          // undefined and null as "no data").
           return [{ key: 'BAR', archived: false, lastModified: null, fallthroughVariation: null }]
         },
       })
@@ -382,6 +385,93 @@ describe('orchestratePlatforms', () => {
       // staging should be filtered out because it has no enrichment fields
       expect(barEnvs!.has('production')).toBe(true)
       expect(barEnvs!.has('staging')).toBe(false)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('populates environmentsByFlag with on/fallthroughVariation/offVariation', async () => {
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      let call = 0
+      const result = await orchestratePlatforms({
+        platformsConfig: {
+          launchdarkly: { project: 'p', environments: ['production', 'staging'] },
+        },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => {
+          call++
+          if (call === 1) {
+            // production: launched, on, 100% to variation 1
+            return [{
+              key: 'FOO',
+              archived: false,
+              lastModified: null,
+              status: 'launched' as const,
+              fallthroughVariation: 1,
+              on: true,
+              offVariation: 0,
+            }]
+          }
+          // staging: split rollout — fallthroughVariation null
+          return [{
+            key: 'FOO',
+            archived: false,
+            lastModified: null,
+            status: 'active' as const,
+            fallthroughVariation: null,
+            on: true,
+            offVariation: 0,
+          }]
+        },
+      })
+      const fooEnvs = result.environmentsByFlag.get('FOO')
+      expect(fooEnvs).toBeDefined()
+      expect(fooEnvs!.size).toBe(2)
+      expect(fooEnvs!.get('production')?.on).toBe(true)
+      expect(fooEnvs!.get('production')?.fallthroughVariation).toBe(1)
+      expect(fooEnvs!.get('production')?.offVariation).toBe(0)
+      expect(fooEnvs!.get('staging')?.fallthroughVariation).toBeNull()
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('keeps env in environmentsByFlag when only the new fields (no status/evals) are populated', async () => {
+    // Regression: the "skip env with no enrichment" guard must include the
+    // new fields, otherwise an env that only has variation/fallthrough
+    // data would be incorrectly dropped from environmentsByFlag.
+    //
+    // ALSO IMPORTANT: this test pins that the guard uses `== null` (not
+    // `===`) — the cached-flag case has `fallthroughVariation: null` as a
+    // stub from cache.ts and must be treated as "no data" (dropped). Live
+    // flags with explicit `on: false` and `offVariation: 0` should NOT be
+    // dropped. This test exercises the latter case.
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: {
+          launchdarkly: { project: 'p', environment: 'production' },
+        },
+        detectedFlags: detected(['BAR']),
+        logger,
+        listFlagsOverride: async () => [{
+          key: 'BAR',
+          archived: false,
+          lastModified: null,
+          // No status, evaluations30d, lastRequested, lastTouched
+          on: false,
+          fallthroughVariation: null,
+          offVariation: 0,
+        }],
+      })
+      const barEnvs = result.environmentsByFlag.get('BAR')
+      expect(barEnvs).toBeDefined()
+      expect(barEnvs!.get('production')?.on).toBe(false)
+      expect(barEnvs!.get('production')?.offVariation).toBe(0)
     } finally {
       delete process.env.LAUNCHDARKLY_API_TOKEN
     }
