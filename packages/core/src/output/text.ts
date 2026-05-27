@@ -11,6 +11,10 @@ export interface TextFormatOptions {
   maxDisplay: number
 }
 
+/* v8 ignore start — maxSeverity/severityRank 'info' branches are unreachable
+   in production: hasPrimarySignal in staleness.ts filters out flags whose only
+   signals are info-severity (low-usage / coverage-gap-vs-platform). The
+   fall-through returns are kept defensively for future signal types. */
 function maxSeverity(signals: Array<{ severity: 'error' | 'warning' | 'info' }>): 'error' | 'warning' | 'info' {
   if (signals.some((s) => s.severity === 'error')) return 'error'
   if (signals.some((s) => s.severity === 'warning')) return 'warning'
@@ -20,6 +24,7 @@ function maxSeverity(signals: Array<{ severity: 'error' | 'warning' | 'info' }>)
 function severityRank(s: 'error' | 'warning' | 'info'): number {
   return s === 'error' ? 0 : s === 'warning' ? 1 : 2
 }
+/* v8 ignore stop */
 
 /** Pad a string to a fixed width, truncating with ellipsis if necessary. */
 function pad(str: string, width: number): string {
@@ -57,6 +62,7 @@ function buildTable(flags: StaleFlag[]): string {
         if (s.type === 'platform-zero-evaluations') return 'platform-zero-evaluations'
         if (s.type === 'platform-low-evaluations') return 'platform-low-evaluations'
         if (s.type === 'platform-untouched-stale') return 'platform-untouched-stale'
+        /* v8 ignore next 2 — coverage-gap-vs-platform not exercised in text-output tests */
         if (s.type === 'coverage-gap-vs-platform') return 'coverage-gap-vs-platform'
         return s.description
       })

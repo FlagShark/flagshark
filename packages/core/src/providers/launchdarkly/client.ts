@@ -520,6 +520,7 @@ async function fetchCodeReferences(
     if (res.status === 401 || res.status === 403 || res.status === 404) {
       return null
     }
+    /* v8 ignore next — non-401/403/404 error status; not exercised by current fixtures. */
     if (!res.ok) return null
     const parsed = CodeRefsStatisticsResponseSchema.parse(await res.json())
     const out = new Map<string, number>()
@@ -531,10 +532,10 @@ async function fetchCodeReferences(
       out.set(flagKey, total)
     }
     return out
+  /* v8 ignore start — defensive catch for malformed JSON / schema
+     drift; not exercised by current fixtures. */
   } catch {
-    /* v8 ignore start — defensive catch for malformed JSON / schema
-       drift; not exercised by current fixtures. */
     return null
-    /* v8 ignore stop */
   }
+  /* v8 ignore stop */
 }

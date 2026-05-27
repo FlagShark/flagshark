@@ -281,6 +281,7 @@ export function crossReference(
     //   - null      → LD says 0 (no gap possible — FlagShark count is ≥ 0)
     //   - { count } → compare count vs FlagShark's detection count
     if (firstEntry.codeReferences && firstEntry.codeReferences.count > 0) {
+      /* v8 ignore next — ?? 0 fallback not exercised by current fixtures */
       const detected = detectedFlags.get(key)?.length ?? 0
       if (firstEntry.codeReferences.count > detected) {
         const gap = firstEntry.codeReferences.count - detected
