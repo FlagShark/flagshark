@@ -44,6 +44,12 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       ...(sf.maintainer ? { maintainer: sf.maintainer } : {}),
       ...(sf.platformStatus ? { platformStatus: sf.platformStatus } : {}),
       ...(sf.variations && sf.variations.length > 0 ? { variations: sf.variations } : {}),
+      // codeReferences uses !== undefined (NOT != null). The null value is
+      // load-bearing — it signals "LD says zero references for this flag"
+      // (no gap possible). Omitting null would conflate it with "field
+      // absent / feature unavailable" (no advisory data). Same pattern as
+      // fallthroughVariation; same rationale.
+      ...(sf.codeReferences !== undefined ? { codeReferences: sf.codeReferences } : {}),
       ...(sf.environments && sf.environments.size > 0
         ? {
             environments: Object.fromEntries(
