@@ -550,4 +550,113 @@ describe('orchestratePlatforms', () => {
       delete process.env.LAUNCHDARKLY_API_TOKEN
     }
   })
+
+  it('populates metadataByFlag.variations when only variations are set (no tags/maintainer/status)', async () => {
+    // Coverage regression for the hasMetadata `|| variations` clause:
+    // when a flag has variations but no other flag-level metadata, the
+    // hasMetadata check must still be satisfied so metadataByFlag picks
+    // up the variations. Without this test, the variations clause in
+    // hasMetadata + the variations ternary in metadataByFlag.set are
+    // uncovered branches.
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'production' } },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => [{
+          key: 'FOO',
+          archived: false,
+          lastModified: null,
+          fallthroughVariation: null,
+          // Deliberately no tags, no maintainer, no status — only variations.
+          variations: [
+            { value: false, name: 'off' },
+            { value: true, name: 'on' },
+          ],
+        }],
+      })
+      const meta = result.metadataByFlag.get('FOO')
+      expect(meta).toBeDefined()
+      expect(meta!.variations).toEqual([
+        { value: false, name: 'off' },
+        { value: true, name: 'on' },
+      ])
+      expect(meta!.tags).toBeUndefined()
+      expect(meta!.maintainer).toBeUndefined()
+      expect(meta!.status).toBeUndefined()
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('preserves env with live fallthroughVariation: null (split rollout) when on/offVariation are also set', async () => {
+    // Load-bearing-null contract: a split rollout produces
+    // fallthroughVariation: null in LD, alongside on: true and a real
+    // offVariation. The skip guard's `== null` check would treat
+    // fallthroughVariation alone as "no data", BUT on and offVariation
+    // being non-nullish keep the env in environmentsByFlag. This
+    // ensures SaaS Piranha sees fallthroughVariation: null in JSON
+    // output and correctly fails closed on the split rollout.
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'production' } },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => [{
+          key: 'FOO',
+          archived: false,
+          lastModified: null,
+          on: true,
+          fallthroughVariation: null,  // split rollout
+          offVariation: 0,
+          // status, evaluations, lastTouched all undefined (e.g. aux fetches failed)
+        }],
+      })
+      const fooEnvs = result.environmentsByFlag.get('FOO')
+      expect(fooEnvs).toBeDefined()
+      expect(fooEnvs!.get('production')?.on).toBe(true)
+      expect(fooEnvs!.get('production')?.fallthroughVariation).toBeNull()
+      expect(fooEnvs!.get('production')?.offVariation).toBe(0)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('drops env when only fallthroughVariation: null is set (cache-stub or missing-envData scenario)', async () => {
+    // Documents the intentional behavior of the skip guard's `== null`
+    // check on fallthroughVariation. When a PlatformFlag has
+    // fallthroughVariation: null as its ONLY value (e.g. from cache.ts's
+    // stub reconstruction, or from a flag whose envData was missing in
+    // the LD response), the env is correctly dropped from
+    // environmentsByFlag — emitting it as `fallthroughVariation: null`
+    // in JSON would falsely signal "split rollout, fail-closed" to SaaS
+    // when the real situation is "no enrichment data available".
+    //
+    // This is the inverse of the test above (Test 2): live null + other
+    // fields keeps the env; stub null alone drops the env.
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'production' } },
+        detectedFlags: detected(['STUB']),
+        logger,
+        listFlagsOverride: async () => [{
+          key: 'STUB',
+          archived: false,
+          lastModified: null,
+          fallthroughVariation: null,  // only field set (e.g. cache stub)
+          // All other fields undefined
+        }],
+      })
+      // Env should be dropped entirely
+      expect(result.environmentsByFlag.has('STUB')).toBe(false)
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
 })
