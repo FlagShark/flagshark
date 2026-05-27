@@ -150,3 +150,82 @@ describe('formatJson — variations', () => {
     expect(json.flags[0]).not.toHaveProperty('variations')
   })
 })
+
+describe('formatJson — per-env variation config', () => {
+  it('emits on/fallthroughVariation/offVariation when populated', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      environments: new Map([
+        ['production', {
+          status: 'launched',
+          on: true,
+          fallthroughVariation: 1,
+          offVariation: 0,
+        }],
+      ]),
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0].environments.production).toMatchObject({
+      on: true,
+      fallthroughVariation: 1,
+      offVariation: 0,
+    })
+  })
+
+  it('preserves fallthroughVariation: null literally (load-bearing for split rollouts)', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      environments: new Map([
+        ['production', {
+          status: 'active',
+          on: true,
+          fallthroughVariation: null,  // split rollout
+          offVariation: 0,
+        }],
+      ]),
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    // Crucial: null must survive serialization, NOT be omitted.
+    // SaaS uses null vs absent to distinguish "split rollout, fail closed"
+    // from "field unknown".
+    expect(json.flags[0].environments.production.fallthroughVariation).toBeNull()
+    expect(Object.prototype.hasOwnProperty.call(
+      json.flags[0].environments.production,
+      'fallthroughVariation',
+    )).toBe(true)
+  })
+
+  it('omits on/offVariation when undefined while preserving other fields', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      environments: new Map([
+        ['production', {
+          status: 'active',
+          // on intentionally undefined
+          // offVariation intentionally undefined
+          // fallthroughVariation also undefined — should be omitted too
+        }],
+      ]),
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0].environments.production).not.toHaveProperty('on')
+    expect(json.flags[0].environments.production).not.toHaveProperty('offVariation')
+    expect(json.flags[0].environments.production).not.toHaveProperty('fallthroughVariation')
+    expect(json.flags[0].environments.production.status).toBe('active')
+  })
+})
