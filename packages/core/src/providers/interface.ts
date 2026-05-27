@@ -177,6 +177,31 @@ export interface PlatformFlag {
    * responses).
    */
   offVariation?: number
+
+  /**
+   * Cross-check data from LaunchDarkly's own code-references feature.
+   * LD's `ld-find-code-refs` CLI scans repos and reports how many code
+   * references exist for each flag. FlagShark cross-checks LD's count
+   * against its own detection count to surface detector blind spots —
+   * flags LD found 12 references for but FlagShark only found 8 indicate
+   * 4 hunks our patterns missed.
+   *
+   * Three-state (matches the evaluations30d convention):
+   *   - undefined → feature not available (tier-gated, not configured for
+   *                 this project, or the aux fetch errored). No signal
+   *                 emitted; the LD client logs a single advisory per scan.
+   *   - null      → feature available; LD has zero references for this
+   *                 flag. No signal — zero refs cannot be a "gap"; FlagShark's
+   *                 detection count is necessarily ≥ 0.
+   *   - { count } → LD found `count` references for this flag (sum of
+   *                 hunkCount across all repos LD scanned).
+   *
+   * Used by cross-reference to emit `coverage-gap-vs-platform` when
+   * count > FlagShark's detection count. LD-says-more direction only —
+   * reverse direction is expected: FlagShark scans test files that
+   * ld-find-code-refs excludes by default.
+   */
+  codeReferences?: { count: number } | null
 }
 
 /** Runtime client for a configured platform. Returned by PlatformDefinition.createClient. */
@@ -231,6 +256,12 @@ export interface PlatformSignal {
    *   because it's based on actual usage, not heuristics.
    * - `platform-low-evaluations` (warning): evaluations below the
    *   configured threshold over the window. Default threshold: 10/30d.
+   * - `coverage-gap-vs-platform` (info): LD's own code-refs feature reports
+   *   more references for this flag than FlagShark detected. Surfaces detector
+   *   blind spots — code patterns LD recognizes that our language detectors
+   *   missed. Doesn't make the flag stale; informational only. Fires only
+   *   when LD count > FlagShark count; reverse direction (FlagShark counts
+   *   more) is expected for projects that test-file-exclude in LD.
    */
   type:
     | 'missing-in-platform'
@@ -242,6 +273,7 @@ export interface PlatformSignal {
     | 'platform-zero-evaluations'
     | 'platform-low-evaluations'
     | 'platform-untouched-stale'
+    | 'coverage-gap-vs-platform'
   severity: 'error' | 'warning' | 'info'
   description: string
 }

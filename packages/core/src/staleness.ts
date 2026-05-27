@@ -10,7 +10,7 @@ export interface StalenessSignal {
   // Code-side signals: 'age', 'hardcoded', 'low-usage'.
   // Platform-side signals (from cross-reference): 'missing-in-platform',
   // 'archived-in-platform', 'platform-too-old', 'platform-inactive',
-  // 'platform-launched'.
+  // 'platform-launched', 'coverage-gap-vs-platform'.
   type:
     | 'age'
     | 'hardcoded'
@@ -24,7 +24,8 @@ export interface StalenessSignal {
     | 'platform-zero-evaluations'
     | 'platform-low-evaluations'
     | 'platform-untouched-stale'
-  severity: 'error' | 'warning'
+    | 'coverage-gap-vs-platform'
+  severity: 'error' | 'warning' | 'info'
   description: string
 }
 
@@ -432,12 +433,9 @@ export async function analyzeStaleness(
       if (platformSigs) {
         for (const ps of platformSigs) {
           if (ps.type === 'platform-permanent') continue
-          // After the platform-permanent filter, the remaining types are
-          // missing-in-platform / archived-in-platform — both narrow to
-          // error/warning severities. Help the type checker see that.
           signals.push({
             type: ps.type,
-            severity: ps.severity as 'error' | 'warning',
+            severity: ps.severity,
             description: ps.description,
           })
         }
@@ -452,7 +450,14 @@ export async function analyzeStaleness(
       // When a flag IS stale for another reason, low-usage stays in
       // the signals list because "this is single-file → small cleanup
       // scope" is useful diagnostic for the reviewer.
-      const hasPrimarySignal = signals.some((s) => s.type !== 'low-usage')
+      // `low-usage` and `coverage-gap-vs-platform` are non-stale-implying
+      // signals — `low-usage` is a contributing signal (only stale when paired
+      // with another), and `coverage-gap-vs-platform` is purely a detector-
+      // quality diagnostic (doesn't make a flag stale; informational only).
+      // A flag with only these signals should not appear in staleFlags.
+      const hasPrimarySignal = signals.some(
+        (s) => s.type !== 'low-usage' && s.type !== 'coverage-gap-vs-platform',
+      )
       if (hasPrimarySignal) {
         const stale: StaleFlag = {
           name: flag.name,

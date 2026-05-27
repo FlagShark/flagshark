@@ -11,12 +11,14 @@ export interface TextFormatOptions {
   maxDisplay: number
 }
 
-function maxSeverity(signals: Array<{ severity: 'error' | 'warning' }>): 'error' | 'warning' {
-  return signals.some((s) => s.severity === 'error') ? 'error' : 'warning'
+function maxSeverity(signals: Array<{ severity: 'error' | 'warning' | 'info' }>): 'error' | 'warning' | 'info' {
+  if (signals.some((s) => s.severity === 'error')) return 'error'
+  if (signals.some((s) => s.severity === 'warning')) return 'warning'
+  return 'info'
 }
 
-function severityRank(s: 'error' | 'warning'): number {
-  return s === 'error' ? 0 : 1
+function severityRank(s: 'error' | 'warning' | 'info'): number {
+  return s === 'error' ? 0 : s === 'warning' ? 1 : 2
 }
 
 /** Pad a string to a fixed width, truncating with ellipsis if necessary. */
@@ -55,6 +57,7 @@ function buildTable(flags: StaleFlag[]): string {
         if (s.type === 'platform-zero-evaluations') return 'platform-zero-evaluations'
         if (s.type === 'platform-low-evaluations') return 'platform-low-evaluations'
         if (s.type === 'platform-untouched-stale') return 'platform-untouched-stale'
+        if (s.type === 'coverage-gap-vs-platform') return 'coverage-gap-vs-platform'
         return s.description
       })
       .join(', ')

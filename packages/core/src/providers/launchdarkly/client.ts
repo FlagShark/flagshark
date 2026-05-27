@@ -2,6 +2,7 @@ import pLimit from 'p-limit'
 
 import {
   AuditLogResponseSchema,
+  CodeRefsStatisticsResponseSchema,
   EvaluationsResponseSchema,
   FlagsResponseSchema,
   FlagStatusesResponseSchema,
@@ -198,6 +199,30 @@ export async function fetchAllFlags(
     for (const flag of out) {
       if (flag.archived) continue
       flag.lastTouched = lastTouched.get(flag.key) ?? null
+    }
+  }
+
+  // Aux 5: LD code-references (cross-check against our own detection).
+  // Single project-scoped call; not env-scoped. Surfaces detector blind
+  // spots when LD finds more references than FlagShark detected. Opt-in
+  // LD feature; when unavailable we log an advisory pointing customers
+  // at the setup docs.
+  const codeRefs = await fetchCodeReferences(config, apiBase, headers, fetchFn, opts.signal)
+  if (codeRefs === null) {
+    // Feature unavailable — single advisory line. info-severity (not
+    // warn) because this isn't a failure, just a missed-opportunity
+    // nudge. The existing logger threading from Task 1 delivers it
+    // through the orchestrator into the scan output.
+    opts.logger?.info(
+      `LaunchDarkly code-references not available for this project — enable it in LD ` +
+      `(Code references → Connect repository) to get coverage-gap diagnostics. ` +
+      `See https://launchdarkly.com/docs/home/observability/code-references for setup.`,
+    )
+  } else {
+    for (const flag of out) {
+      if (flag.archived) continue
+      const count = codeRefs.get(flag.key) ?? 0
+      flag.codeReferences = count > 0 ? { count } : null
     }
   }
 
@@ -460,4 +485,56 @@ async function fetchLastTouchedMap(
   if (path) return null
 
   return lastTouched
+}
+
+/**
+ * Best-effort fetch of LD's per-flag code-references statistics.
+ *
+ * Returns:
+ *   - Map<flagKey, totalHunkCount> on success (possibly empty if no flag
+ *     has refs yet — e.g. CI ran but matched nothing)
+ *   - null when:
+ *       - 401/403/404 (tier-gated / not configured for this project)
+ *       - 5xx / 429 (transient errors)
+ *       - network or JSON parse failure
+ *
+ * Caller distinguishes:
+ *   - null               → feature unavailable; leave codeReferences undefined
+ *                          per flag AND emit the "not configured" advisory
+ *   - empty Map          → feature available but no refs yet; flags get null
+ *   - populated Map      → join by flag key; flags absent get null
+ */
+async function fetchCodeReferences(
+  config: FetchAllFlagsConfig,
+  apiBase: string,
+  headers: Record<string, string>,
+  fetchFn: typeof globalThis.fetch,
+  signal: AbortSignal | undefined,
+): Promise<Map<string, number> | null> {
+  try {
+    const url = new URL(
+      `/api/v2/code-refs/statistics/${encodeURIComponent(config.project)}`,
+      apiBase,
+    )
+    const res = await fetchFn(url, { headers, signal })
+    if (res.status === 401 || res.status === 403 || res.status === 404) {
+      return null
+    }
+    if (!res.ok) return null
+    const parsed = CodeRefsStatisticsResponseSchema.parse(await res.json())
+    const out = new Map<string, number>()
+    for (const [flagKey, repoEntries] of Object.entries(parsed.flags)) {
+      let total = 0
+      for (const entry of repoEntries) {
+        if (typeof entry.hunkCount === 'number') total += entry.hunkCount
+      }
+      out.set(flagKey, total)
+    }
+    return out
+  } catch {
+    /* v8 ignore start — defensive catch for malformed JSON / schema
+       drift; not exercised by current fixtures. */
+    return null
+    /* v8 ignore stop */
+  }
 }
