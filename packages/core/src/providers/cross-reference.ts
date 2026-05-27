@@ -265,6 +265,36 @@ export function crossReference(
       })
     }
 
+    // coverage-gap-vs-platform: LD's code-refs feature reports more
+    // references for this flag than FlagShark detected. The delta is
+    // detector blind spots — code patterns LD recognizes that our
+    // language detectors missed. Info severity: doesn't make the flag
+    // stale, just surfaces a detection-quality issue for triage.
+    //
+    // Fires only LD-says-more. Reverse direction (FlagShark finds more)
+    // is expected: LD's ld-find-code-refs CLI excludes test files,
+    // node_modules, etc. by default — FlagShark scans them.
+    //
+    // Three states of codeReferences (read from firstEntry — the field
+    // is flag-level, identical across envs in LD's data model):
+    //   - undefined → feature unavailable, no signal
+    //   - null      → LD says 0 (no gap possible — FlagShark count is ≥ 0)
+    //   - { count } → compare count vs FlagShark's detection count
+    if (firstEntry.codeReferences && firstEntry.codeReferences.count > 0) {
+      const detected = detectedFlags.get(key)?.length ?? 0
+      if (firstEntry.codeReferences.count > detected) {
+        const gap = firstEntry.codeReferences.count - detected
+        const platCount = firstEntry.codeReferences.count
+        signals.push({
+          type: 'coverage-gap-vs-platform',
+          severity: 'info',
+          description:
+            `${platformDisplayName} detected ${platCount} reference${platCount === 1 ? '' : 's'} ` +
+            `for this flag; FlagShark detected ${detected} (gap: ${gap})`,
+        })
+      }
+    }
+
     if (signals.length > 0) {
       out.set(key, signals)
     }

@@ -723,6 +723,105 @@ describe('crossReference', () => {
     const result = crossReference(detected(['FOO']), new Map(), 'LaunchDarkly', {})
     expect(result.get('FOO')?.[0].type).toBe('missing-in-platform')
   })
+
+  it("emits coverage-gap-vs-platform when LD count > FlagShark count", () => {
+    const detectedMap = new Map<string, FeatureFlag[]>([
+      ['FOO', new Array(8).fill(null).map(() => flag('FOO'))],
+    ])
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', {
+        key: 'FOO', archived: false, lastModified: null,
+        codeReferences: { count: 12 },
+        fallthroughVariation: null,
+      }],
+    ])]])
+    const result = crossReference(detectedMap, perEnv, 'LaunchDarkly', {})
+    const gap = result.get('FOO')?.find((s) => s.type === 'coverage-gap-vs-platform')
+    expect(gap).toBeDefined()
+    expect(gap!.severity).toBe('info')
+    expect(gap!.description).toContain('12 references')
+    expect(gap!.description).toContain('detected 8')
+    expect(gap!.description).toContain('gap: 4')
+  })
+
+  it("does NOT emit coverage-gap-vs-platform when LD count equals FlagShark count", () => {
+    const detectedMap = new Map<string, FeatureFlag[]>([
+      ['FOO', new Array(8).fill(null).map(() => flag('FOO'))],
+    ])
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', {
+        key: 'FOO', archived: false, lastModified: null,
+        codeReferences: { count: 8 },
+        fallthroughVariation: null,
+      }],
+    ])]])
+    const result = crossReference(detectedMap, perEnv, 'LaunchDarkly', {})
+    expect(result.get('FOO')?.find((s) => s.type === 'coverage-gap-vs-platform')).toBeUndefined()
+  })
+
+  it("does NOT emit coverage-gap-vs-platform when LD count < FlagShark count (reverse direction)", () => {
+    const detectedMap = new Map<string, FeatureFlag[]>([
+      ['FOO', new Array(8).fill(null).map(() => flag('FOO'))],
+    ])
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', {
+        key: 'FOO', archived: false, lastModified: null,
+        codeReferences: { count: 4 },
+        fallthroughVariation: null,
+      }],
+    ])]])
+    const result = crossReference(detectedMap, perEnv, 'LaunchDarkly', {})
+    expect(result.get('FOO')?.find((s) => s.type === 'coverage-gap-vs-platform')).toBeUndefined()
+  })
+
+  it("does NOT emit coverage-gap-vs-platform when codeReferences is null (LD-says-zero)", () => {
+    const detectedMap = new Map<string, FeatureFlag[]>([
+      ['FOO', new Array(8).fill(null).map(() => flag('FOO'))],
+    ])
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', {
+        key: 'FOO', archived: false, lastModified: null,
+        codeReferences: null,
+        fallthroughVariation: null,
+      }],
+    ])]])
+    const result = crossReference(detectedMap, perEnv, 'LaunchDarkly', {})
+    expect(result.get('FOO')?.find((s) => s.type === 'coverage-gap-vs-platform')).toBeUndefined()
+  })
+
+  it("does NOT emit coverage-gap-vs-platform when codeReferences is undefined (feature unavailable)", () => {
+    const detectedMap = new Map<string, FeatureFlag[]>([
+      ['FOO', new Array(8).fill(null).map(() => flag('FOO'))],
+    ])
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      // codeReferences omitted from PlatformFlag literal — treated as undefined
+      ['production', {
+        key: 'FOO', archived: false, lastModified: null,
+        fallthroughVariation: null,
+      }],
+    ])]])
+    const result = crossReference(detectedMap, perEnv, 'LaunchDarkly', {})
+    expect(result.get('FOO')?.find((s) => s.type === 'coverage-gap-vs-platform')).toBeUndefined()
+  })
+
+  it("emits coverage-gap-vs-platform with singular 'reference' when LD count is 1", () => {
+    // FlagShark detected 0 (flag in detected map but with empty array); LD found 1.
+    const detectedMap = new Map<string, FeatureFlag[]>([
+      ['FOO', []],
+    ])
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', {
+        key: 'FOO', archived: false, lastModified: null,
+        codeReferences: { count: 1 },
+        fallthroughVariation: null,
+      }],
+    ])]])
+    const result = crossReference(detectedMap, perEnv, 'LaunchDarkly', {})
+    const gap = result.get('FOO')?.find((s) => s.type === 'coverage-gap-vs-platform')
+    expect(gap).toBeDefined()
+    expect(gap!.description).toContain('1 reference')
+    expect(gap!.description).not.toContain('1 references')   // singular, no 's'
+  })
 })
 
 describe('mergePlatformSignals', () => {
