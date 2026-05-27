@@ -157,7 +157,7 @@ describe('fetchAllFlags — real HTTP integration', () => {
     const firstFlagsReq = recorded.find((r) => r.url.startsWith('/api/v2/flags/'))!
     expect(firstFlagsReq.method).toBe('GET')
     expect(firstFlagsReq.url).toBe(
-      '/api/v2/flags/my-project?env=production&limit=100&offset=0&summary=1',
+      '/api/v2/flags/my-project?env=production&limit=100&offset=0&summary=0',
     )
     // Auth header is raw (no Bearer prefix); LD-API-Version is the pinned date.
     expect(firstFlagsReq.headers.authorization).toBe('api-real-token-xyz')
@@ -198,7 +198,7 @@ describe('fetchAllFlags — real HTTP integration', () => {
         body: {
           items: [{ key: 'page-1-flag', archived: false }],
           totalCount: 2,
-          _links: { next: { href: '/api/v2/flags/p?offset=1&limit=100&summary=1' } },
+          _links: { next: { href: '/api/v2/flags/p?offset=1&limit=100&summary=0' } },
         },
       },
       {
@@ -215,7 +215,7 @@ describe('fetchAllFlags — real HTTP integration', () => {
     // /members is skipped because no flag has a maintainerId.
     const flagRequests = recorded.filter((r) => r.url.startsWith('/api/v2/flags/'))
     expect(flagRequests).toHaveLength(3)
-    expect(flagRequests[1].url).toBe('/api/v2/flags/p?offset=1&limit=100&summary=1')
+    expect(flagRequests[1].url).toBe('/api/v2/flags/p?offset=1&limit=100&summary=0')
     expect(flagRequests[2].url).toContain('archived=true')
   })
 

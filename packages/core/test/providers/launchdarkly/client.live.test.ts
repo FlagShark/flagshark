@@ -72,6 +72,27 @@ describe.skipIf(!TOKEN)('fetchAllFlags — LIVE LaunchDarkly API', () => {
       if (f.status !== undefined) {
         expect(['new', 'active', 'inactive', 'launched']).toContain(f.status)
       }
+      // Variation fields (#31). Active LD flags always have variations
+      // (at least 2 for boolean). Archived flags may not — guard against
+      // that.
+      if (!f.archived) {
+        expect(Array.isArray(f.variations)).toBe(true)
+        expect((f.variations ?? []).length).toBeGreaterThanOrEqual(2)
+        // Every variation entry has a value; name is optional.
+        for (const v of (f.variations ?? [])) {
+          expect(v).toHaveProperty('value')
+        }
+        // Per-env fields populated for active flags.
+        expect(typeof f.on).toBe('boolean')
+        expect(typeof f.offVariation).toBe('number')
+        // fallthroughVariation is either a number (100% rollout) or
+        // null (split rollout / absent). Never undefined for active
+        // flags — the client normalizes missing fallthrough to null.
+        expect(
+          f.fallthroughVariation === null
+          || typeof f.fallthroughVariation === 'number',
+        ).toBe(true)
+      }
     }
   })
 

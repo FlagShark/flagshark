@@ -1,5 +1,16 @@
 import type { ZodType, ZodTypeDef } from 'zod'
 
+/**
+ * One variation definition on a flag. The `value` is the runtime value
+ * the variation serves (boolean, string, number, JSON object — anything
+ * the SDK supports). The `name` is the user-defined label shown in the
+ * LD UI ("on", "off", "treatment", etc.).
+ *
+ * Cleanup pipelines look up the substitute value by index — see
+ * PlatformFlag.fallthroughVariation and offVariation.
+ */
+export type FlagVariation = { value: unknown; name?: string }
+
 /** A flag entry as reported by a flag-management platform's API. */
 export interface PlatformFlag {
   key: string
@@ -120,6 +131,51 @@ export interface PlatformFlag {
    * surfacing.
    */
   lastTouched?: Date | null
+
+  /**
+   * Variation definitions for this flag — flag-level (identical across envs
+   * in LD's data model). Indexed by the same integer the per-env
+   * `fallthroughVariation` and `offVariation` fields point at. SaaS-side
+   * cleanup pipelines look up the substitute value via these indices
+   * instead of guessing from code-side default arguments.
+   *
+   * Undefined when the platform doesn't expose variation data (other
+   * providers without an equivalent concept) or when the flag-list
+   * response unexpectedly omits the field.
+   */
+  variations?: FlagVariation[]
+
+  /**
+   * Whether the flag is enabled in the configured env. When false, LD
+   * serves `offVariation` regardless of fallthrough/targeting rules.
+   * Per-env field — the LD client populates this from the configured env's
+   * data on each per-env fetch the orchestrator runs.
+   *
+   * Undefined when envData itself is absent (archived flags or unexpected
+   * API responses).
+   */
+  on?: boolean
+
+  /**
+   * Variation index served by fallthrough when no targeting/rule matches
+   * AND `on: true`.
+   *   - number → 100% rollout to that variation
+   *   - null   → split rollout (`fallthrough.rollout` shape) or fallthrough
+   *              absent. **Preserve null literally in output** — SaaS uses
+   *              it to detect "can't substitute" and fail closed.
+   *
+   * Non-optional: the LD client's `?? null` normalization guarantees this
+   * field is always set (either a number or null) on every returned flag.
+   */
+  fallthroughVariation: number | null
+
+  /**
+   * Variation index served when `on: false`. Required by LD on every
+   * active flag (LD's API rejects flag creation without it). Undefined
+   * when the platform omits the field (archived flags or unexpected API
+   * responses).
+   */
+  offVariation?: number
 }
 
 /** Runtime client for a configured platform. Returned by PlatformDefinition.createClient. */

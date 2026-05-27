@@ -1,7 +1,7 @@
 import { findPlatform } from './registry.js'
 import { crossReference, mergePlatformSignals } from './cross-reference.js'
 import { computeCacheKey, loadPlatformFlagsCached } from './cache.js'
-import type { PlatformSignal, PlatformFlag } from './interface.js'
+import type { PlatformSignal, PlatformFlag, FlagVariation } from './interface.js'
 import type { FeatureFlag } from '../detection/feature-flag.js'
 import type { ScanLogger } from '../scan-repo.js'
 
@@ -37,15 +37,24 @@ export interface OrchestratePlatformsOptions {
 /**
  * Per-env breakdown of platform data for each detected flag, indexed by
  * flag name then env key. Populated only for flags that matched a platform
- * AND had per-env enrichment data (status, evaluations30d, lastRequested,
- * lastTouched). Surfaced to the JSON output formatter so consumers see the
- * full multi-env picture beneath the flat top-level fields.
+ * AND had at least one per-env enrichment field set — currently status,
+ * evaluations30d, lastRequested, lastTouched, on, fallthroughVariation,
+ * or offVariation. Surfaced to the JSON output formatter so consumers see
+ * the full multi-env picture beneath the flat top-level fields.
  */
 export interface PerFlagEnvironmentData {
   status?: 'new' | 'active' | 'inactive' | 'launched'
   evaluations30d?: number | null
   lastRequested?: Date | null
   lastTouched?: Date | null
+  /**
+   * Per-env LD configuration. Surfaced for SaaS-side cleanup pipelines
+   * that need to substitute the correct variation value into code.
+   * See PlatformFlag for field semantics.
+   */
+  on?: boolean
+  fallthroughVariation?: number | null
+  offVariation?: number
 }
 
 export interface OrchestrateResult {
@@ -61,7 +70,12 @@ export interface OrchestrateResult {
    */
   metadataByFlag: Map<
     string,
-    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+    {
+      tags?: string[]
+      maintainer?: string
+      status?: 'new' | 'active' | 'inactive' | 'launched'
+      variations?: FlagVariation[]
+    }
   >
   /**
    * Per-flag, per-env enrichment data. Outer key: detected flag name.
@@ -85,7 +99,12 @@ export async function orchestratePlatforms(
   const permanentByPlatform: Record<string, string[]> = {}
   const metadataByFlag = new Map<
     string,
-    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+    {
+      tags?: string[]
+      maintainer?: string
+      status?: 'new' | 'active' | 'inactive' | 'launched'
+      variations?: FlagVariation[]
+    }
   >()
   const environmentsByFlag = new Map<string, Map<string, PerFlagEnvironmentData>>()
   if (!opts.platformsConfig) {
@@ -170,12 +189,16 @@ export async function orchestratePlatforms(
       // (top-level fields source from environments[envs[0]]).
       for (const flag of firstEnvFlags) {
         if (!opts.detectedFlags.has(flag.key)) continue
-        const hasMetadata = (flag.tags && flag.tags.length > 0) || flag.maintainer || flag.status
+        const hasMetadata = (flag.tags && flag.tags.length > 0)
+          || flag.maintainer
+          || flag.status
+          || (flag.variations && flag.variations.length > 0)
         if (!hasMetadata) continue
         metadataByFlag.set(flag.key, {
           tags: flag.tags && flag.tags.length > 0 ? flag.tags : undefined,
           maintainer: flag.maintainer,
           status: flag.status,
+          variations: flag.variations && flag.variations.length > 0 ? flag.variations : undefined,
         })
       }
 
@@ -187,19 +210,37 @@ export async function orchestratePlatforms(
         if (!opts.detectedFlags.has(flagKey)) continue
         const inner = new Map<string, PerFlagEnvironmentData>()
         for (const [env, pf] of envInnerMap) {
-          // Only include envs where we have at least one enrichment field
-          // populated — otherwise the block is just noise.
+          // Skip envs with no enrichment data to keep environmentsByFlag tight.
+          //
+          // IMPORTANT: uses `== null` (not `===`) deliberately. The cache layer
+          // (packages/core/src/providers/cache.ts) stubs fallthroughVariation as
+          // literal `null` for cached PlatformFlag entries — that stub MUST be
+          // treated as "no data" so cache hits don't emit misleading
+          // fallthroughVariation:null in JSON output (which would signal "split
+          // rollout, fail-closed" to SaaS Piranha). The == null check matches
+          // both the stub null AND the undefined of the other optional fields,
+          // preserving the load-bearing-null semantics.
+          //
+          // If you ever need to distinguish stub null from live null, the right
+          // fix is to make the cache stub more honest (don't pretend to know),
+          // NOT to change == to ===.
           if (
             pf.status == null
             && pf.evaluations30d == null
             && pf.lastRequested == null
             && pf.lastTouched == null
+            && pf.on == null
+            && pf.fallthroughVariation == null
+            && pf.offVariation == null
           ) continue
           inner.set(env, {
             status: pf.status,
             evaluations30d: pf.evaluations30d,
             lastRequested: pf.lastRequested,
             lastTouched: pf.lastTouched,
+            on: pf.on,
+            fallthroughVariation: pf.fallthroughVariation,
+            offVariation: pf.offVariation,
           })
         }
         if (inner.size > 0) {

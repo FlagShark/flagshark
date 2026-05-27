@@ -13,7 +13,7 @@ function detected(names: string[]): Map<string, FeatureFlag[]> {
 }
 
 function platformFlag(key: string, archived = false): PlatformFlag {
-  return { key, archived, lastModified: null }
+  return { key, archived, lastModified: null, fallthroughVariation: null }
 }
 
 /**
@@ -90,6 +90,7 @@ describe('crossReference', () => {
       archived: false,
       lastModified: null,
       permanent: true,
+      fallthroughVariation: null,
     }
     const result = crossReference(detected(['KILL_SWITCH']), singleEnv([permanentFlag]), 'LaunchDarkly')
     expect(result.get('KILL_SWITCH')).toEqual([
@@ -110,6 +111,7 @@ describe('crossReference', () => {
       archived: true,
       lastModified: null,
       permanent: true,
+      fallthroughVariation: null,
     }
     const result = crossReference(
       detected(['OLD_KILL_SWITCH']),
@@ -125,6 +127,7 @@ describe('crossReference', () => {
       archived: false,
       lastModified: null,
       permanent: false,
+      fallthroughVariation: null,
     }
     const result = crossReference(detected(['TEMP_TOGGLE']), singleEnv([active]), 'LaunchDarkly')
     expect(result.has('TEMP_TOGGLE')).toBe(false)
@@ -142,6 +145,7 @@ describe('crossReference', () => {
         lastModified: null,
         permanent: false,
         createdAt: new Date(Date.now() - 60 * 86_400_000), // 60 days ago
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['OLD_FLAG']),
@@ -164,6 +168,7 @@ describe('crossReference', () => {
         lastModified: null,
         permanent: false,
         createdAt: new Date(Date.now() - 5 * 86_400_000), // 5 days ago
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['NEW_FLAG']),
@@ -181,6 +186,7 @@ describe('crossReference', () => {
         lastModified: null,
         permanent: false,
         createdAt: new Date(Date.now() - 365 * 86_400_000),
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['OLD_FLAG']), singleEnv([oldFlag]), 'LaunchDarkly')
       // No threshold → no platform-too-old signal, no entry at all.
@@ -193,6 +199,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         permanent: false,
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['NO_CREATED']),
@@ -210,6 +217,7 @@ describe('crossReference', () => {
         lastModified: null,
         permanent: true,
         createdAt: new Date(Date.now() - 365 * 86_400_000),
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['OLD_KILL_SWITCH']),
@@ -235,6 +243,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         status: 'launched',
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['ROLLED_OUT']), singleEnv([launched]), 'LaunchDarkly')
       const sig = result.get('ROLLED_OUT')?.[0]
@@ -249,6 +258,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         status: 'inactive',
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['DORMANT']), singleEnv([inactive]), 'LaunchDarkly')
       const sig = result.get('DORMANT')?.[0]
@@ -263,6 +273,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         status: 'active',
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['NORMAL']), singleEnv([active]), 'LaunchDarkly')
       expect(result.has('NORMAL')).toBe(false)
@@ -276,6 +287,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         status: 'new',
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['BRAND_NEW']), singleEnv([fresh]), 'LaunchDarkly')
       expect(result.has('BRAND_NEW')).toBe(false)
@@ -289,6 +301,7 @@ describe('crossReference', () => {
         permanent: false,
         status: 'launched',
         createdAt: new Date(Date.now() - 60 * 86_400_000),
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['OLD_AND_LAUNCHED']),
@@ -310,6 +323,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         evaluations30d: 0,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['UNUSED']), singleEnv([unused]), 'LaunchDarkly')
       const sig = result.get('UNUSED')?.[0]
@@ -325,6 +339,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         evaluations30d: 3,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['RARELY_USED']), singleEnv([rare]), 'LaunchDarkly')
       const sig = result.get('RARELY_USED')?.[0]
@@ -339,6 +354,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         evaluations30d: 1,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['ONE']), singleEnv([justOne]), 'LaunchDarkly')
       expect(result.get('ONE')?.[0].description).toContain('only 1 evaluation')
@@ -350,6 +366,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         evaluations30d: 50, // > 10 default, < 100 custom
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['BORDERLINE']),
@@ -366,6 +383,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         evaluations30d: 5_000,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['HEALTHY']), singleEnv([healthy]), 'LaunchDarkly')
       expect(result.has('HEALTHY')).toBe(false)
@@ -377,6 +395,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         // evaluations30d intentionally absent
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['NO_DATA']), singleEnv([noData]), 'LaunchDarkly')
       expect(result.has('NO_DATA')).toBe(false)
@@ -388,6 +407,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         evaluations30d: null,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['NO_WINDOW']), singleEnv([noWindow]), 'LaunchDarkly')
       expect(result.has('NO_WINDOW')).toBe(false)
@@ -400,6 +420,7 @@ describe('crossReference', () => {
         lastModified: null,
         permanent: true,
         evaluations30d: 0,
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['KILL_SWITCH']),
@@ -421,6 +442,7 @@ describe('crossReference', () => {
         lastModified: null,
         status: 'launched',
         evaluations30d: 0,
+        fallthroughVariation: null,
       }
       const result = crossReference(
         detected(['CLEANUP_CANDIDATE']),
@@ -435,8 +457,8 @@ describe('crossReference', () => {
 
   it("emits platform-launched 'in <env>' when only one env reports launched", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched', fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active', fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const signals = result.get('FOO') ?? []
@@ -448,8 +470,8 @@ describe('crossReference', () => {
 
   it("emits platform-launched 'everywhere' when all envs report launched", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched', fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'launched', fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const launched = result.get('FOO')?.find((s) => s.type === 'platform-launched')
@@ -463,9 +485,9 @@ describe('crossReference', () => {
     // order in fmtEnvs (since we have no other source of truth here, the
     // insertion order IS the config-declared order).
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
-      ['test',       { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched', fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active', fallthroughVariation: null }],
+      ['test',       { key: 'FOO', archived: false, lastModified: null, status: 'launched', fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const launched = result.get('FOO')?.find((s) => s.type === 'platform-launched')
@@ -474,8 +496,8 @@ describe('crossReference', () => {
 
   it("emits platform-inactive 'in <env>' when one env reports inactive", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'active', fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive', fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const inactive = result.get('FOO')?.find((s) => s.type === 'platform-inactive')
@@ -485,8 +507,8 @@ describe('crossReference', () => {
 
   it("emits platform-inactive 'everywhere' when all envs are inactive", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'inactive', fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive', fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const inactive = result.get('FOO')?.find((s) => s.type === 'platform-inactive')
@@ -495,8 +517,8 @@ describe('crossReference', () => {
 
   it('suppresses platform-inactive when any env reports launched', () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched', fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive', fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const signals = result.get('FOO') ?? []
@@ -506,8 +528,8 @@ describe('crossReference', () => {
 
   it("emits platform-zero-evaluations 'in <env>' when one env reports 0 evals", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 5000 }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 5000, fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0, fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const zero = result.get('FOO')?.find((s) => s.type === 'platform-zero-evaluations')
@@ -517,8 +539,8 @@ describe('crossReference', () => {
 
   it("emits platform-zero-evaluations 'everywhere' when all envs are 0", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0, fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0, fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const zero = result.get('FOO')?.find((s) => s.type === 'platform-zero-evaluations')
@@ -527,8 +549,8 @@ describe('crossReference', () => {
 
   it('suppresses platform-low-evaluations when any env reports zero', () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3 }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0, fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3, fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
     const signals = result.get('FOO') ?? []
@@ -538,8 +560,8 @@ describe('crossReference', () => {
 
   it("emits platform-low-evaluations 'in <env>' with the lowest count", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9 }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 50 }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9, fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 50, fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
     const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
@@ -553,8 +575,8 @@ describe('crossReference', () => {
     // This exercises the reducer's `b` branch: a.count <= b.count is false,
     // so the reducer returns b (staging) instead of a (production).
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 8 }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3 }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 8, fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3, fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
     const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
@@ -565,8 +587,8 @@ describe('crossReference', () => {
 
   it("emits platform-low-evaluations with 'as few as' when multiple envs are low", () => {
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 7 }],
-      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9 }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 7, fallthroughVariation: null }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9, fallthroughVariation: null }],
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
     const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
@@ -583,6 +605,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         lastTouched: null,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['OLD_KILLSWITCH']), singleEnv([dormant]), 'LaunchDarkly')
       const sig = result.get('OLD_KILLSWITCH')?.[0]
@@ -598,6 +621,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         lastTouched: new Date(),
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['ACTIVE_FLAG']), singleEnv([touched]), 'LaunchDarkly')
       expect(result.has('ACTIVE_FLAG')).toBe(false)
@@ -609,6 +633,7 @@ describe('crossReference', () => {
         archived: false,
         lastModified: null,
         // lastTouched intentionally undefined
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['UNKNOWN_ACTIVITY']), singleEnv([unknown]), 'LaunchDarkly')
       expect(result.has('UNKNOWN_ACTIVITY')).toBe(false)
@@ -624,6 +649,7 @@ describe('crossReference', () => {
         lastModified: null,
         permanent: true,
         lastTouched: null,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['OLD_PERMANENT']), singleEnv([oldPermanent]), 'LaunchDarkly')
       const types = result.get('OLD_PERMANENT')?.map((s) => s.type) ?? []
@@ -641,6 +667,7 @@ describe('crossReference', () => {
         lastModified: null,
         evaluations30d: 0,
         lastTouched: null,
+        fallthroughVariation: null,
       }
       const result = crossReference(detected(['DOUBLE_DEAD']), singleEnv([idealCandidate]), 'LaunchDarkly')
       const types = result.get('DOUBLE_DEAD')?.map((s) => s.type) ?? []
@@ -650,8 +677,8 @@ describe('crossReference', () => {
 
     it('emits platform-untouched-stale when ALL envs have lastTouched=null', () => {
       const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
-        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null, fallthroughVariation: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: null, fallthroughVariation: null }],
       ])]])
       const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
       const untouched = result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')
@@ -661,8 +688,8 @@ describe('crossReference', () => {
 
     it('does NOT emit platform-untouched-stale when ANY env has activity', () => {
       const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
-        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: new Date('2026-05-20') }],
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null, fallthroughVariation: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: new Date('2026-05-20'), fallthroughVariation: null }],
       ])]])
       const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
       expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
@@ -673,8 +700,8 @@ describe('crossReference', () => {
       // we can't claim "untouched in all envs" because one env's audit log
       // is unknown. Strict rule.
       const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
-        ['staging',    { key: 'FOO', archived: false, lastModified: null /* lastTouched undefined */ }],
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null, fallthroughVariation: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null /* lastTouched undefined */, fallthroughVariation: null }],
       ])]])
       const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
       expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
@@ -685,7 +712,7 @@ describe('crossReference', () => {
     // Flag is missing from staging but present in production — should
     // NOT be reported as missing.
     const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
-      ['production', { key: 'FOO', archived: false, lastModified: null }],
+      ['production', { key: 'FOO', archived: false, lastModified: null, fallthroughVariation: null }],
       // 'staging' intentionally not in the inner Map
     ])]])
     const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})

@@ -2,6 +2,7 @@ import { execFileSync, execSync } from 'child_process'
 
 import { type FeatureFlag } from './detection/feature-flag.js'
 import type { PerFlagEnvironmentData } from './providers/orchestrate.js'
+import type { FlagVariation } from './providers/interface.js'
 
 // ── Public interfaces ──────────────────────────────────────────────
 
@@ -58,6 +59,15 @@ export interface StaleFlag {
   platformStatus?: 'new' | 'active' | 'inactive' | 'launched'
 
   /**
+   * Variation definitions for this flag from the platform integration.
+   * Populated only when the platform exposes variation data (LD does;
+   * others may not). Surfaced in JSON output as a top-level per-flag
+   * field so cleanup pipelines can look up the substitute value by
+   * variation index.
+   */
+  variations?: FlagVariation[]
+
+  /**
    * Per-env platform enrichment data for this flag. Populated only
    * when a platform integration is active AND the flag matched in that
    * platform. JSON output renders this as an additive `environments`
@@ -81,7 +91,12 @@ export interface StalenessOptions {
    */
   platformMetadata?: Map<
     string,
-    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+    {
+      tags?: string[]
+      maintainer?: string
+      status?: 'new' | 'active' | 'inactive' | 'launched'
+      variations?: FlagVariation[]
+    }
   >
 
   /**
@@ -464,6 +479,7 @@ export async function analyzeStaleness(
           if (meta.tags && meta.tags.length > 0) stale.tags = meta.tags
           if (meta.maintainer) stale.maintainer = meta.maintainer
           if (meta.status) stale.platformStatus = meta.status
+          if (meta.variations && meta.variations.length > 0) stale.variations = meta.variations
         }
 
         if (options.platformEnvironments) {

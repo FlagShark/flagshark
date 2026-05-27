@@ -43,6 +43,7 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       ...(sf.tags && sf.tags.length > 0 ? { tags: sf.tags } : {}),
       ...(sf.maintainer ? { maintainer: sf.maintainer } : {}),
       ...(sf.platformStatus ? { platformStatus: sf.platformStatus } : {}),
+      ...(sf.variations && sf.variations.length > 0 ? { variations: sf.variations } : {}),
       ...(sf.environments && sf.environments.size > 0
         ? {
             environments: Object.fromEntries(
@@ -59,6 +60,17 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
                   ...(data.lastTouched != null
                     ? { lastTouched: data.lastTouched.toISOString() }
                     : {}),
+                  ...(data.on != null ? { on: data.on } : {}),
+                  // NB: fallthroughVariation uses !== undefined (NOT != null). The null
+                  // value is LOAD-BEARING — it signals "split rollout, fail-closed" to
+                  // SaaS-side cleanup. Omitting null would be indistinguishable from
+                  // "field absent" and would cause SaaS to fall back to its heuristic,
+                  // defeating the whole point of this work. Other fields use != null
+                  // because neither has a meaningful null state.
+                  ...(data.fallthroughVariation !== undefined
+                    ? { fallthroughVariation: data.fallthroughVariation }
+                    : {}),
+                  ...(data.offVariation != null ? { offVariation: data.offVariation } : {}),
                 },
               ]),
             ),

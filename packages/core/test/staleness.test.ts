@@ -321,6 +321,92 @@ describe('analyzeStaleness', () => {
     expect(stale!.environments!.get('staging')?.evaluations30d).toBe(3)
   })
 
+  it('propagates platform variations to StaleFlag.variations via platformMetadata', async () => {
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('FOO', [makeFlag('FOO', 'src/foo.ts', 1)])
+
+    const platformSignals = new Map([
+      ['FOO', [{
+        type: 'archived-in-platform' as const,
+        severity: 'warning' as const,
+        description: 'archived in LaunchDarkly',
+      }]],
+    ])
+
+    const platformMetadata = new Map([
+      ['FOO', {
+        variations: [
+          { value: false, name: 'off' },
+          { value: true, name: 'on' },
+        ],
+      }],
+    ])
+
+    const result = await analyzeStaleness(flags, {
+      thresholdDays: 6,
+      repoRoot: process.cwd(),
+      platformSignals,
+      platformMetadata,
+    })
+
+    const staleFlags = result.filter((f) => f.name === 'FOO')
+    expect(staleFlags.length).toBeGreaterThan(0)
+    expect(staleFlags[0].variations).toEqual([
+      { value: false, name: 'off' },
+      { value: true, name: 'on' },
+    ])
+  })
+
+  it('propagates platform variations alongside tags + maintainer via platformMetadata', async () => {
+    // Multi-field regression: confirms the meta-copy block correctly
+    // populates all three independent fields on the same StaleFlag
+    // when the metadata entry carries them simultaneously. The previous
+    // test only exercised variations in isolation; this test locks in
+    // the combination behavior.
+    //
+    // (Use the same "force a flag stale" setup pattern as the previous
+    // test — adapt the platformMetadata fixture to include tags +
+    // maintainer + variations on the same entry, and extend the
+    // assertion to check all three.)
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('FOO', [makeFlag('FOO', 'src/foo.ts', 1)])
+
+    const platformSignals = new Map([
+      ['FOO', [{
+        type: 'archived-in-platform' as const,
+        severity: 'warning' as const,
+        description: 'archived in LaunchDarkly',
+      }]],
+    ])
+
+    const platformMetadata = new Map([
+      ['FOO', {
+        tags: ['experiment'],
+        maintainer: 'alice@example.com',
+        variations: [
+          { value: false, name: 'off' },
+          { value: true, name: 'on' },
+        ],
+      }],
+    ])
+
+    const result = await analyzeStaleness(flags, {
+      thresholdDays: 6,
+      repoRoot: process.cwd(),
+      platformSignals,
+      platformMetadata,
+    })
+
+    const staleFlags = result.filter((f) => f.name === 'FOO')
+    expect(staleFlags.length).toBeGreaterThan(0)
+    expect(staleFlags[0].tags).toEqual(['experiment'])
+    expect(staleFlags[0].maintainer).toBe('alice@example.com')
+    expect(staleFlags[0].variations).toEqual([
+      { value: false, name: 'off' },
+      { value: true, name: 'on' },
+    ])
+  })
+
   it('handles non-git directory gracefully (isShallowRepo catch — lines 46-47)', async () => {
     // A plain temp dir (not a git repo) causes execSync to throw → catch returns false
     const tempDir = join(os.tmpdir(), `flagshark-not-git-${Date.now()}`)

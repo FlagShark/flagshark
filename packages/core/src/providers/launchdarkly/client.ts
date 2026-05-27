@@ -8,7 +8,7 @@ import {
   MembersResponseSchema,
 } from './types.js'
 import { LdApiError } from './errors.js'
-import type { PlatformFlag } from '../interface.js'
+import type { PlatformFlag, FlagVariation } from '../interface.js'
 
 const DEFAULT_API_BASE = 'https://app.launchdarkly.com'
 const LD_API_VERSION = '20240415'
@@ -110,6 +110,14 @@ export async function fetchAllFlags(
           // Resolved below from the /members lookup; left as the opaque id
           // for now so the producer/consumer split stays clean.
           maintainer: item.maintainerId,
+          // The cast narrows the inferred type from `VariationSchema.passthrough()`
+          // (which infers `Record<string, unknown>` for extra fields) back to the
+          // declared `PlatformFlag.variations` shape. The runtime data is
+          // identical; the cast is a structural type-narrowing only.
+          variations: item.variations as FlagVariation[] | undefined,
+          on: envData?.on,
+          fallthroughVariation: envData?.fallthrough?.variation ?? null,
+          offVariation: envData?.offVariation,
         })
       }
       path = parsed._links?.next?.href
@@ -271,7 +279,12 @@ function buildFirstPath(project: string, environment: string, archived = false):
     env: environment,
     limit: '100',
     offset: '0',
-    summary: '1',
+    // summary=0 returns full flag objects with variations + per-env
+    // fallthrough/on/offVariation. summary=1 (the previous default) only
+    // returned key/tags/lastModified, which was insufficient for SaaS
+    // Piranha to substitute the correct value during cleanup. Payload
+    // grows ~1-5KB per flag — well within reasonable for paginated fetch.
+    summary: '0',
   })
   if (archived) params.set('archived', 'true')
   return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`
