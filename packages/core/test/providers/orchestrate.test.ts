@@ -626,6 +626,58 @@ describe('orchestratePlatforms', () => {
     }
   })
 
+  it('populates metadataByFlag.codeReferences from firstEnvFlags[0].codeReferences', async () => {
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'production' } },
+        detectedFlags: detected(['FOO']),
+        logger,
+        listFlagsOverride: async () => [{
+          key: 'FOO',
+          archived: false,
+          lastModified: null,
+          fallthroughVariation: null,
+          codeReferences: { count: 5 },
+        }],
+      })
+      const meta = result.metadataByFlag.get('FOO')
+      expect(meta).toBeDefined()
+      expect(meta!.codeReferences).toEqual({ count: 5 })
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
+  it('treats codeReferences: null as a "has metadata" reason (does NOT skip the flag)', async () => {
+    // Regression: hasMetadata uses !== undefined for codeReferences so
+    // null (LD-says-zero) is a meaningful "has metadata" state, distinct
+    // from undefined (feature unavailable). The flag must end up in
+    // metadataByFlag even when codeReferences is the ONLY field set.
+    const logger = silentLogger()
+    process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
+    try {
+      const result = await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'production' } },
+        detectedFlags: detected(['BAR']),
+        logger,
+        listFlagsOverride: async () => [{
+          key: 'BAR',
+          archived: false,
+          lastModified: null,
+          fallthroughVariation: null,
+          codeReferences: null,  // LD-says-zero, field IS present
+        }],
+      })
+      const meta = result.metadataByFlag.get('BAR')
+      expect(meta).toBeDefined()
+      expect(meta!.codeReferences).toBeNull()
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+  })
+
   it('drops env when only fallthroughVariation: null is set (cache-stub or missing-envData scenario)', async () => {
     // Documents the intentional behavior of the skip guard's `== null`
     // check on fallthroughVariation. When a PlatformFlag has

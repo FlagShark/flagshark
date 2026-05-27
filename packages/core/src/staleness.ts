@@ -69,6 +69,17 @@ export interface StaleFlag {
   variations?: FlagVariation[]
 
   /**
+   * Cross-check count from the platform's own code-references feature.
+   * Populated when the platform exposes the feature AND it's available
+   * for the project. Surfaced in JSON output for SaaS consumers and
+   * verbose text output for human review.
+   *
+   * See PlatformFlag.codeReferences for the three-state semantics
+   * (undefined / null / { count }).
+   */
+  codeReferences?: { count: number } | null
+
+  /**
    * Per-env platform enrichment data for this flag. Populated only
    * when a platform integration is active AND the flag matched in that
    * platform. JSON output renders this as an additive `environments`
@@ -97,6 +108,7 @@ export interface StalenessOptions {
       maintainer?: string
       status?: 'new' | 'active' | 'inactive' | 'launched'
       variations?: FlagVariation[]
+      codeReferences?: { count: number } | null
     }
   >
 
@@ -485,6 +497,7 @@ export async function analyzeStaleness(
           if (meta.maintainer) stale.maintainer = meta.maintainer
           if (meta.status) stale.platformStatus = meta.status
           if (meta.variations && meta.variations.length > 0) stale.variations = meta.variations
+          if (meta.codeReferences !== undefined) stale.codeReferences = meta.codeReferences
         }
 
         if (options.platformEnvironments) {

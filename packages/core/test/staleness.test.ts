@@ -407,6 +407,36 @@ describe('analyzeStaleness', () => {
     ])
   })
 
+  it('propagates platform codeReferences to StaleFlag.codeReferences via platformMetadata', () => {
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('FOO', [makeFlag('FOO', 'src/foo.ts', 1)])
+
+    const platformSignals = new Map([
+      ['FOO', [{
+        type: 'archived-in-platform' as const,
+        severity: 'warning' as const,
+        description: 'archived in LaunchDarkly',
+      }]],
+    ])
+
+    const platformMetadata = new Map([
+      ['FOO', {
+        codeReferences: { count: 5 },
+      }],
+    ])
+
+    return analyzeStaleness(flags, {
+      thresholdDays: 6,
+      repoRoot: process.cwd(),
+      platformSignals,
+      platformMetadata,
+    }).then((result) => {
+      const staleFlags = result.filter((f) => f.name === 'FOO')
+      expect(staleFlags.length).toBeGreaterThan(0)
+      expect(staleFlags[0].codeReferences).toEqual({ count: 5 })
+    })
+  })
+
   it('handles non-git directory gracefully (isShallowRepo catch — lines 46-47)', async () => {
     // A plain temp dir (not a git repo) causes execSync to throw → catch returns false
     const tempDir = join(os.tmpdir(), `flagshark-not-git-${Date.now()}`)
