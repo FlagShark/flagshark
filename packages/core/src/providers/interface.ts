@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod'
+import type { ZodType, ZodTypeDef } from 'zod'
 
 /** A flag entry as reported by a flag-management platform's API. */
 export interface PlatformFlag {
@@ -139,7 +139,7 @@ export interface PlatformDefinition<TConfig = unknown> {
   /** Env var read for the secret token. User can override via token_env. */
   defaultTokenEnv: string
   /** Zod schema validating this platform's config block. */
-  configSchema: ZodType<TConfig>
+  configSchema: ZodType<TConfig, ZodTypeDef, unknown>
   /** Factory — validated config + resolved token → runtime client. No IO until listFlags() is called. */
   createClient: (config: TConfig, token: string) => PlatformClient
 }

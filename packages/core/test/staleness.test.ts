@@ -284,6 +284,43 @@ describe('analyzeStaleness', () => {
     }
   })
 
+  it('propagates platformEnvironments to StaleFlag.environments', async () => {
+    // Build a flag that will be marked stale via a platform signal, then
+    // pass platformEnvironments — the resulting StaleFlag should carry the
+    // per-env enrichment data through to the output layer.
+    const flags = new Map<string, FeatureFlag[]>()
+    flags.set('ENV_FLAG', [makeFlag('ENV_FLAG', 'src/env.ts', 1)])
+
+    const platformSignals = new Map([
+      ['ENV_FLAG', [{
+        type: 'archived-in-platform' as const,
+        severity: 'warning' as const,
+        description: 'archived in LaunchDarkly',
+      }]],
+    ])
+
+    const platformEnvironments = new Map([
+      ['ENV_FLAG', new Map([
+        ['production', { status: 'launched' as const, evaluations30d: 12000 }],
+        ['staging',    { status: 'active' as const,   evaluations30d: 3 }],
+      ])],
+    ])
+
+    const result = await analyzeStaleness(flags, {
+      thresholdDays: 6,
+      repoRoot: process.cwd(),
+      platformSignals,
+      platformEnvironments,
+    })
+
+    const stale = result.find((f) => f.name === 'ENV_FLAG')
+    expect(stale).toBeDefined()
+    expect(stale!.environments).toBeDefined()
+    expect(stale!.environments!.size).toBe(2)
+    expect(stale!.environments!.get('production')?.status).toBe('launched')
+    expect(stale!.environments!.get('staging')?.evaluations30d).toBe(3)
+  })
+
   it('handles non-git directory gracefully (isShallowRepo catch — lines 46-47)', async () => {
     // A plain temp dir (not a git repo) causes execSync to throw → catch returns false
     const tempDir = join(os.tmpdir(), `flagshark-not-git-${Date.now()}`)

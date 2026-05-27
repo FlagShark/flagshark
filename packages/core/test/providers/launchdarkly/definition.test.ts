@@ -49,7 +49,7 @@ describe('launchdarklyDefinition', () => {
 
   it('createClient returns a PlatformClient with name + displayName', () => {
     const client = launchdarklyDefinition.createClient(
-      { project: 'p', environment: 'e' },
+      { project: 'p', environment: 'e', environments: ['e'] },
       'tok',
     )
     expect(client.name).toBe('launchdarkly')
@@ -57,10 +57,79 @@ describe('launchdarklyDefinition', () => {
     expect(typeof client.listFlags).toBe('function')
   })
 
+  it('configSchema normalizes a single environment to a one-element environments array', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({
+      project: 'p', environment: 'prod',
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.environments).toEqual(['prod'])
+    }
+  })
+
+  it('configSchema accepts an environments array', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({
+      project: 'p', environments: ['prod', 'staging'],
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.environments).toEqual(['prod', 'staging'])
+    }
+  })
+
+  it('configSchema rejects setting both environment and environments', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({
+      project: 'p', environment: 'prod', environments: ['prod'],
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it('configSchema rejects setting neither environment nor environments', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({ project: 'p' })
+    expect(r.success).toBe(false)
+  })
+
+  it('configSchema rejects an empty environments array', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({
+      project: 'p', environments: [],
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it('configSchema rejects an empty string environment', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({
+      project: 'p', environment: '',
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it('configSchema rejects an empty string inside the environments array', () => {
+    const r = launchdarklyDefinition.configSchema.safeParse({
+      project: 'p', environments: ['prod', ''],
+    })
+    expect(r.success).toBe(false)
+  })
+
+  it('createClient falls back to environments[0] when environment is undefined', async () => {
+    const spy = vi.spyOn(clientModule, 'fetchAllFlags').mockResolvedValueOnce([])
+    const client = launchdarklyDefinition.createClient(
+      // Simulate the post-transform shape when the user supplied the
+      // `environments: [...]` form (no `environment` field).
+      { project: 'p', environments: ['prod', 'staging'] } as any,
+      'tok',
+    )
+    await client.listFlags()
+    expect(spy).toHaveBeenCalledWith(
+      { project: 'p', environment: 'prod', token: 'tok' },
+      { apiBase: undefined, signal: undefined },
+    )
+    spy.mockRestore()
+  })
+
   it('createClient.listFlags delegates to fetchAllFlags with correct args', async () => {
     const spy = vi.spyOn(clientModule, 'fetchAllFlags').mockResolvedValueOnce([])
     const client = launchdarklyDefinition.createClient(
-      { project: 'my-proj', environment: 'prod', api_base: 'https://ld.example.com' },
+      { project: 'my-proj', environment: 'prod', environments: ['prod'], api_base: 'https://ld.example.com' },
       'my-token',
     )
     const controller = new AbortController()

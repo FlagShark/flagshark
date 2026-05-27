@@ -241,6 +241,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     signals: platformSignals,
     permanentByPlatform,
     metadataByFlag,
+    environmentsByFlag,
   } = await orchestratePlatforms({
     platformsConfig: config.platforms as Record<string, unknown> | undefined,
     detectedFlags: analysisResult.totalFlags,
@@ -261,6 +262,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
       repoRoot: opts.cwd,
       platformSignals,
       platformMetadata: metadataByFlag,
+      platformEnvironments: environmentsByFlag,
     },
   )
 

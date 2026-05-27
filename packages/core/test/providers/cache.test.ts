@@ -48,6 +48,24 @@ describe('computeCacheKey', () => {
     const k = computeCacheKey('launchdarkly', {}, 'tok')
     expect(k).toMatch(/^v1-launchdarkly-/)
   })
+
+  it('produces different cache keys for different env lists', () => {
+    const single  = computeCacheKey('launchdarkly', { project: 'p', environments: ['prod'] }, 'tok')
+    const double  = computeCacheKey('launchdarkly', { project: 'p', environments: ['prod', 'staging'] }, 'tok')
+    const reversed = computeCacheKey('launchdarkly', { project: 'p', environments: ['staging', 'prod'] }, 'tok')
+    expect(single).not.toBe(double)
+    expect(double).not.toBe(reversed)  // env order is part of the cache identity
+  })
+
+  it('produces different cache keys for the same env list but different synthesized env (orchestrator loop)', () => {
+    // The orchestrator synthesizes `environment: env` per loop iteration
+    // while keeping the rest of the config identical. Two synthesized
+    // configs differing only in environment value must produce
+    // different keys (so each env has its own cache slot).
+    const prod    = computeCacheKey('launchdarkly', { project: 'p', environment: 'prod', environments: ['prod', 'staging'] }, 'tok')
+    const staging = computeCacheKey('launchdarkly', { project: 'p', environment: 'staging', environments: ['prod', 'staging'] }, 'tok')
+    expect(prod).not.toBe(staging)
+  })
 })
 
 describe('writeCache + readCache', () => {

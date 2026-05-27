@@ -22,6 +22,12 @@ export interface OrchestratePlatformsOptions {
    */
   thresholdDays?: number
   /**
+   * Per-platform low-evaluations threshold passed through to crossReference.
+   * Below this count over the reporting window, platform-low-evaluations fires.
+   * Default in crossReference: 10.
+   */
+  evaluationThreshold?: number
+  /**
    * @internal — test seam. When set, used instead of platform.listFlags().
    * Allows tests to bypass network without monkey-patching globalThis.fetch.
    */
@@ -29,11 +35,19 @@ export interface OrchestratePlatformsOptions {
 }
 
 /**
- * Returned alongside platform signals: the names of flags excluded from
- * staleness checks because a platform marked them permanent, indexed by
- * the platform's displayName. Output formatters surface this directly
- * so users see WHY a permanent flag isn't in the stale table.
+ * Per-env breakdown of platform data for each detected flag, indexed by
+ * flag name then env key. Populated only for flags that matched a platform
+ * AND had per-env enrichment data (status, evaluations30d, lastRequested,
+ * lastTouched). Surfaced to the JSON output formatter so consumers see the
+ * full multi-env picture beneath the flat top-level fields.
  */
+export interface PerFlagEnvironmentData {
+  status?: 'new' | 'active' | 'inactive' | 'launched'
+  evaluations30d?: number | null
+  lastRequested?: Date | null
+  lastTouched?: Date | null
+}
+
 export interface OrchestrateResult {
   signals: Map<string, PlatformSignal[]>
   permanentByPlatform: Record<string, string[]>
@@ -49,6 +63,13 @@ export interface OrchestrateResult {
     string,
     { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
   >
+  /**
+   * Per-flag, per-env enrichment data. Outer key: detected flag name.
+   * Inner key: env name. Empty when no platform integration is configured
+   * or when no flag had enrichment data. JSON output uses this to emit
+   * the additive `environments` block.
+   */
+  environmentsByFlag: Map<string, Map<string, PerFlagEnvironmentData>>
 }
 
 /**
@@ -66,8 +87,9 @@ export async function orchestratePlatforms(
     string,
     { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
   >()
+  const environmentsByFlag = new Map<string, Map<string, PerFlagEnvironmentData>>()
   if (!opts.platformsConfig) {
-    return { signals: out, permanentByPlatform, metadataByFlag }
+    return { signals: out, permanentByPlatform, metadataByFlag, environmentsByFlag }
   }
 
   for (const [name, rawConfig] of Object.entries(opts.platformsConfig)) {
@@ -97,20 +119,42 @@ export async function orchestratePlatforms(
     }
 
     try {
-      const client = def.createClient(parsed.data, token)
-      const cacheKey = computeCacheKey(name, parsed.data, token)
-      const flags = opts.listFlagsOverride
-        ? await opts.listFlagsOverride(opts.signal)
-        : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal })
-      const signals = crossReference(opts.detectedFlags, flags, def.displayName, {
+      // Multi-env: parsed.data.environments is always a non-empty array
+      // after the Zod transform (both `environment: 'x'` and
+      // `environments: ['x']` are normalized to environments[]).
+      // Loop serially per env — each iteration runs an isolated
+      // listFlags() with its own concurrency budget and its own cache
+      // entry (computeCacheKey hashes the full config including env).
+      // Serial keeps blast radius constant per env.
+      const envs = (parsed.data as { environments: string[] }).environments
+      const perEnv = new Map<string, Map<string, PlatformFlag>>()
+      let firstEnvFlags: PlatformFlag[] = []
+
+      for (const env of envs) {
+        const envConfig = { ...(parsed.data as Record<string, unknown>), environment: env }
+        const client = def.createClient(envConfig as typeof parsed.data, token)
+        const cacheKey = computeCacheKey(name, envConfig, token)
+        const flags = opts.listFlagsOverride
+          ? await opts.listFlagsOverride(opts.signal)
+          : await loadPlatformFlagsCached(client, cacheKey, {
+              noCache: opts.noCache,
+              signal: opts.signal,
+            })
+        if (env === envs[0]) firstEnvFlags = flags
+        for (const f of flags) {
+          if (!perEnv.has(f.key)) perEnv.set(f.key, new Map())
+          perEnv.get(f.key)!.set(env, f)
+        }
+      }
+
+      const signals = crossReference(opts.detectedFlags, perEnv, def.displayName, {
         thresholdDays: opts.thresholdDays,
+        evaluationThreshold: opts.evaluationThreshold,
       })
       mergePlatformSignals(out, signals)
 
-      // Track which flags this platform marked permanent so output
-      // formatters can show 'N flag(s) excluded as permanent in
-      // <Platform>: a, b, c'. Read the signals MAP we just merged in
-      // (not `signals` directly — same content, but consistent source).
+      // Track flags marked permanent (LD's temporary=false). Flag-level
+      // field — identical across envs — so reading from first env is correct.
       const platformPermanent: string[] = []
       for (const [flagName, sigList] of signals) {
         if (sigList.some((s) => s.type === 'platform-permanent')) {
@@ -121,11 +165,10 @@ export async function orchestratePlatforms(
         permanentByPlatform[def.displayName] = platformPermanent.sort()
       }
 
-      // Surface platform-side metadata (tags, maintainer, activity
-      // status) for every detected flag that matched this platform.
-      // Output formatters consume this to enrich the per-row display
-      // without re-querying the platform.
-      for (const flag of flags) {
+      // metadataByFlag: surface platform-side metadata. For multi-env,
+      // we use the first env's data — matches the JSON output rule
+      // (top-level fields source from environments[envs[0]]).
+      for (const flag of firstEnvFlags) {
         if (!opts.detectedFlags.has(flag.key)) continue
         const hasMetadata = (flag.tags && flag.tags.length > 0) || flag.maintainer || flag.status
         if (!hasMetadata) continue
@@ -134,6 +177,34 @@ export async function orchestratePlatforms(
           maintainer: flag.maintainer,
           status: flag.status,
         })
+      }
+
+      // environmentsByFlag: per-env enrichment for every detected flag
+      // that the platform knew about. Outer key = detected flag name.
+      // Inner key = env name. Populates from the stitched perEnv map
+      // we built above — single source of truth.
+      for (const [flagKey, envInnerMap] of perEnv) {
+        if (!opts.detectedFlags.has(flagKey)) continue
+        const inner = new Map<string, PerFlagEnvironmentData>()
+        for (const [env, pf] of envInnerMap) {
+          // Only include envs where we have at least one enrichment field
+          // populated — otherwise the block is just noise.
+          if (
+            pf.status == null
+            && pf.evaluations30d == null
+            && pf.lastRequested == null
+            && pf.lastTouched == null
+          ) continue
+          inner.set(env, {
+            status: pf.status,
+            evaluations30d: pf.evaluations30d,
+            lastRequested: pf.lastRequested,
+            lastTouched: pf.lastTouched,
+          })
+        }
+        if (inner.size > 0) {
+          environmentsByFlag.set(flagKey, inner)
+        }
       }
     } catch (err) {
       // 401/403 are by far the most common failure mode here and the cause
@@ -152,5 +223,5 @@ export async function orchestratePlatforms(
     }
   }
 
-  return { signals: out, permanentByPlatform, metadataByFlag }
+  return { signals: out, permanentByPlatform, metadataByFlag, environmentsByFlag }
 }

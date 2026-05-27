@@ -43,6 +43,27 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       ...(sf.tags && sf.tags.length > 0 ? { tags: sf.tags } : {}),
       ...(sf.maintainer ? { maintainer: sf.maintainer } : {}),
       ...(sf.platformStatus ? { platformStatus: sf.platformStatus } : {}),
+      ...(sf.environments && sf.environments.size > 0
+        ? {
+            environments: Object.fromEntries(
+              Array.from(sf.environments.entries()).map(([env, data]) => [
+                env,
+                {
+                  ...(data.status != null ? { status: data.status } : {}),
+                  ...(data.evaluations30d != null
+                    ? { evaluations30d: data.evaluations30d }
+                    : {}),
+                  ...(data.lastRequested != null
+                    ? { lastRequested: data.lastRequested.toISOString() }
+                    : {}),
+                  ...(data.lastTouched != null
+                    ? { lastTouched: data.lastTouched.toISOString() }
+                    : {}),
+                },
+              ]),
+            ),
+          }
+        : {}),
     }
   })
 

@@ -1,6 +1,7 @@
 import { execFileSync, execSync } from 'child_process'
 
 import { type FeatureFlag } from './detection/feature-flag.js'
+import type { PerFlagEnvironmentData } from './providers/orchestrate.js'
 
 // ── Public interfaces ──────────────────────────────────────────────
 
@@ -55,6 +56,14 @@ export interface StaleFlag {
   maintainer?: string
   /** LD's per-environment activity verdict; see PlatformFlag.status. */
   platformStatus?: 'new' | 'active' | 'inactive' | 'launched'
+
+  /**
+   * Per-env platform enrichment data for this flag. Populated only
+   * when a platform integration is active AND the flag matched in that
+   * platform. JSON output renders this as an additive `environments`
+   * block per flag.
+   */
+  environments?: Map<string, PerFlagEnvironmentData>
 }
 
 export interface StalenessOptions {
@@ -74,6 +83,14 @@ export interface StalenessOptions {
     string,
     { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
   >
+
+  /**
+   * Per-flag, per-env enrichment data sourced from the platform integration.
+   * When provided, surfaces on each StaleFlag via the `environments` field,
+   * which the JSON formatter renders into the additive `environments` block.
+   * Outer key: detected flag name. Inner key: env name.
+   */
+  platformEnvironments?: Map<string, Map<string, PerFlagEnvironmentData>>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -447,6 +464,13 @@ export async function analyzeStaleness(
           if (meta.tags && meta.tags.length > 0) stale.tags = meta.tags
           if (meta.maintainer) stale.maintainer = meta.maintainer
           if (meta.status) stale.platformStatus = meta.status
+        }
+
+        if (options.platformEnvironments) {
+          const envData = options.platformEnvironments.get(flagName)
+          if (envData && envData.size > 0) {
+            stale.environments = envData
+          }
         }
 
         staleFlags.push(stale)

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { crossReference, mergePlatformSignals } from '../../src/providers/cross-reference.js'
 import type { FeatureFlag } from '../../src/detection/feature-flag.js'
 import type { PlatformFlag, PlatformSignal } from '../../src/providers/interface.js'
+import type { PerEnvFlags } from '../../src/providers/cross-reference.js'
 
 function flag(name: string): FeatureFlag {
   return { name, filePath: 'src/a.ts', lineNumber: 1, language: 'typescript', provider: 'launchdarkly-node-server-sdk' }
@@ -15,9 +16,22 @@ function platformFlag(key: string, archived = false): PlatformFlag {
   return { key, archived, lastModified: null }
 }
 
+/**
+ * Helper: wrap an array of PlatformFlag (the v1 single-env shape) into the
+ * new PerEnvFlags map shape, using a default env name. Existing tests
+ * call this to keep their assertions identical post-refactor.
+ */
+function singleEnv(flags: PlatformFlag[], env = 'production'): PerEnvFlags {
+  const out = new Map<string, Map<string, PlatformFlag>>()
+  for (const f of flags) {
+    out.set(f.key, new Map([[env, f]]))
+  }
+  return out
+}
+
 describe('crossReference', () => {
   it('emits missing-in-platform when flag is in code but not platform', () => {
-    const result = crossReference(detected(['CHECKOUT_V2']), [], 'LaunchDarkly')
+    const result = crossReference(detected(['CHECKOUT_V2']), new Map(), 'LaunchDarkly')
     expect(result.get('CHECKOUT_V2')).toEqual([{
       type: 'missing-in-platform',
       severity: 'error',
@@ -26,7 +40,7 @@ describe('crossReference', () => {
   })
 
   it('emits archived-in-platform when flag exists and is archived', () => {
-    const result = crossReference(detected(['OLD_FLAG']), [platformFlag('OLD_FLAG', true)], 'LaunchDarkly')
+    const result = crossReference(detected(['OLD_FLAG']), singleEnv([platformFlag('OLD_FLAG', true)]), 'LaunchDarkly')
     expect(result.get('OLD_FLAG')).toEqual([{
       type: 'archived-in-platform',
       severity: 'warning',
@@ -35,14 +49,14 @@ describe('crossReference', () => {
   })
 
   it('emits no signal when flag exists and is active', () => {
-    const result = crossReference(detected(['ACTIVE_FLAG']), [platformFlag('ACTIVE_FLAG', false)], 'LaunchDarkly')
+    const result = crossReference(detected(['ACTIVE_FLAG']), singleEnv([platformFlag('ACTIVE_FLAG', false)]), 'LaunchDarkly')
     expect(result.has('ACTIVE_FLAG')).toBe(false)
   })
 
   it('handles multiple detected flags with mixed status', () => {
     const result = crossReference(
       detected(['A', 'B', 'C']),
-      [platformFlag('A', false), platformFlag('B', true)],
+      singleEnv([platformFlag('A', false), platformFlag('B', true)]),
       'LaunchDarkly',
     )
     expect(result.get('A')).toBeUndefined()
@@ -51,17 +65,17 @@ describe('crossReference', () => {
   })
 
   it('does not surface platform flags that have no code reference', () => {
-    const result = crossReference(detected(['A']), [platformFlag('A'), platformFlag('B')], 'LaunchDarkly')
+    const result = crossReference(detected(['A']), singleEnv([platformFlag('A'), platformFlag('B')]), 'LaunchDarkly')
     expect(result.size).toBe(0)
   })
 
   it('uses platformDisplayName in descriptions', () => {
-    const result = crossReference(detected(['X']), [], 'Unleash')
+    const result = crossReference(detected(['X']), new Map(), 'Unleash')
     expect(result.get('X')?.[0].description).toContain('Unleash')
   })
 
   it('returns empty map when no detected flags', () => {
-    const result = crossReference(new Map(), [platformFlag('A')], 'LaunchDarkly')
+    const result = crossReference(new Map(), singleEnv([platformFlag('A')]), 'LaunchDarkly')
     expect(result.size).toBe(0)
   })
 
@@ -77,7 +91,7 @@ describe('crossReference', () => {
       lastModified: null,
       permanent: true,
     }
-    const result = crossReference(detected(['KILL_SWITCH']), [permanentFlag], 'LaunchDarkly')
+    const result = crossReference(detected(['KILL_SWITCH']), singleEnv([permanentFlag]), 'LaunchDarkly')
     expect(result.get('KILL_SWITCH')).toEqual([
       {
         type: 'platform-permanent',
@@ -99,7 +113,7 @@ describe('crossReference', () => {
     }
     const result = crossReference(
       detected(['OLD_KILL_SWITCH']),
-      [archivedPermanent],
+      singleEnv([archivedPermanent]),
       'LaunchDarkly',
     )
     expect(result.get('OLD_KILL_SWITCH')?.[0].type).toBe('archived-in-platform')
@@ -112,7 +126,7 @@ describe('crossReference', () => {
       lastModified: null,
       permanent: false,
     }
-    const result = crossReference(detected(['TEMP_TOGGLE']), [active], 'LaunchDarkly')
+    const result = crossReference(detected(['TEMP_TOGGLE']), singleEnv([active]), 'LaunchDarkly')
     expect(result.has('TEMP_TOGGLE')).toBe(false)
   })
 
@@ -131,7 +145,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['OLD_FLAG']),
-        [oldFlag],
+        singleEnv([oldFlag]),
         'LaunchDarkly',
         { thresholdDays: 30 },
       )
@@ -153,7 +167,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['NEW_FLAG']),
-        [newFlag],
+        singleEnv([newFlag]),
         'LaunchDarkly',
         { thresholdDays: 30 },
       )
@@ -168,7 +182,7 @@ describe('crossReference', () => {
         permanent: false,
         createdAt: new Date(Date.now() - 365 * 86_400_000),
       }
-      const result = crossReference(detected(['OLD_FLAG']), [oldFlag], 'LaunchDarkly')
+      const result = crossReference(detected(['OLD_FLAG']), singleEnv([oldFlag]), 'LaunchDarkly')
       // No threshold → no platform-too-old signal, no entry at all.
       expect(result.has('OLD_FLAG')).toBe(false)
     })
@@ -182,7 +196,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['NO_CREATED']),
-        [oldButNoCreatedAt],
+        singleEnv([oldButNoCreatedAt]),
         'LaunchDarkly',
         { thresholdDays: 30 },
       )
@@ -199,7 +213,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['OLD_KILL_SWITCH']),
-        [oldPermanent],
+        singleEnv([oldPermanent]),
         'LaunchDarkly',
         { thresholdDays: 30 },
       )
@@ -222,7 +236,7 @@ describe('crossReference', () => {
         lastModified: null,
         status: 'launched',
       }
-      const result = crossReference(detected(['ROLLED_OUT']), [launched], 'LaunchDarkly')
+      const result = crossReference(detected(['ROLLED_OUT']), singleEnv([launched]), 'LaunchDarkly')
       const sig = result.get('ROLLED_OUT')?.[0]
       expect(sig?.type).toBe('platform-launched')
       expect(sig?.severity).toBe('error')
@@ -236,7 +250,7 @@ describe('crossReference', () => {
         lastModified: null,
         status: 'inactive',
       }
-      const result = crossReference(detected(['DORMANT']), [inactive], 'LaunchDarkly')
+      const result = crossReference(detected(['DORMANT']), singleEnv([inactive]), 'LaunchDarkly')
       const sig = result.get('DORMANT')?.[0]
       expect(sig?.type).toBe('platform-inactive')
       expect(sig?.severity).toBe('warning')
@@ -250,7 +264,7 @@ describe('crossReference', () => {
         lastModified: null,
         status: 'active',
       }
-      const result = crossReference(detected(['NORMAL']), [active], 'LaunchDarkly')
+      const result = crossReference(detected(['NORMAL']), singleEnv([active]), 'LaunchDarkly')
       expect(result.has('NORMAL')).toBe(false)
     })
 
@@ -263,7 +277,7 @@ describe('crossReference', () => {
         lastModified: null,
         status: 'new',
       }
-      const result = crossReference(detected(['BRAND_NEW']), [fresh], 'LaunchDarkly')
+      const result = crossReference(detected(['BRAND_NEW']), singleEnv([fresh]), 'LaunchDarkly')
       expect(result.has('BRAND_NEW')).toBe(false)
     })
 
@@ -278,7 +292,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['OLD_AND_LAUNCHED']),
-        [both],
+        singleEnv([both]),
         'LaunchDarkly',
         { thresholdDays: 30 },
       )
@@ -297,7 +311,7 @@ describe('crossReference', () => {
         lastModified: null,
         evaluations30d: 0,
       }
-      const result = crossReference(detected(['UNUSED']), [unused], 'LaunchDarkly')
+      const result = crossReference(detected(['UNUSED']), singleEnv([unused]), 'LaunchDarkly')
       const sig = result.get('UNUSED')?.[0]
       expect(sig?.type).toBe('platform-zero-evaluations')
       expect(sig?.severity).toBe('error')
@@ -312,7 +326,7 @@ describe('crossReference', () => {
         lastModified: null,
         evaluations30d: 3,
       }
-      const result = crossReference(detected(['RARELY_USED']), [rare], 'LaunchDarkly')
+      const result = crossReference(detected(['RARELY_USED']), singleEnv([rare]), 'LaunchDarkly')
       const sig = result.get('RARELY_USED')?.[0]
       expect(sig?.type).toBe('platform-low-evaluations')
       expect(sig?.severity).toBe('warning')
@@ -326,8 +340,8 @@ describe('crossReference', () => {
         lastModified: null,
         evaluations30d: 1,
       }
-      const result = crossReference(detected(['ONE']), [justOne], 'LaunchDarkly')
-      expect(result.get('ONE')?.[0].description).toContain('only 1 evaluation in')
+      const result = crossReference(detected(['ONE']), singleEnv([justOne]), 'LaunchDarkly')
+      expect(result.get('ONE')?.[0].description).toContain('only 1 evaluation')
     })
 
     it('honors a custom evaluationThreshold', () => {
@@ -339,7 +353,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['BORDERLINE']),
-        [wouldPassDefault],
+        singleEnv([wouldPassDefault]),
         'LaunchDarkly',
         { evaluationThreshold: 100 },
       )
@@ -353,7 +367,7 @@ describe('crossReference', () => {
         lastModified: null,
         evaluations30d: 5_000,
       }
-      const result = crossReference(detected(['HEALTHY']), [healthy], 'LaunchDarkly')
+      const result = crossReference(detected(['HEALTHY']), singleEnv([healthy]), 'LaunchDarkly')
       expect(result.has('HEALTHY')).toBe(false)
     })
 
@@ -364,7 +378,7 @@ describe('crossReference', () => {
         lastModified: null,
         // evaluations30d intentionally absent
       }
-      const result = crossReference(detected(['NO_DATA']), [noData], 'LaunchDarkly')
+      const result = crossReference(detected(['NO_DATA']), singleEnv([noData]), 'LaunchDarkly')
       expect(result.has('NO_DATA')).toBe(false)
     })
 
@@ -375,7 +389,7 @@ describe('crossReference', () => {
         lastModified: null,
         evaluations30d: null,
       }
-      const result = crossReference(detected(['NO_WINDOW']), [noWindow], 'LaunchDarkly')
+      const result = crossReference(detected(['NO_WINDOW']), singleEnv([noWindow]), 'LaunchDarkly')
       expect(result.has('NO_WINDOW')).toBe(false)
     })
 
@@ -389,7 +403,7 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['KILL_SWITCH']),
-        [permanentButUnused],
+        singleEnv([permanentButUnused]),
         'LaunchDarkly',
       )
       const types = result.get('KILL_SWITCH')?.map((s) => s.type) ?? []
@@ -410,13 +424,155 @@ describe('crossReference', () => {
       }
       const result = crossReference(
         detected(['CLEANUP_CANDIDATE']),
-        [ideal],
+        singleEnv([ideal]),
         'LaunchDarkly',
       )
       const types = result.get('CLEANUP_CANDIDATE')?.map((s) => s.type) ?? []
       expect(types).toContain('platform-launched')
       expect(types).toContain('platform-zero-evaluations')
     })
+  })
+
+  it("emits platform-launched 'in <env>' when only one env reports launched", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const signals = result.get('FOO') ?? []
+    const launched = signals.find((s) => s.type === 'platform-launched')
+    expect(launched).toBeDefined()
+    expect(launched!.description).toContain('in production')
+    expect(launched!.description).not.toContain('everywhere')
+  })
+
+  it("emits platform-launched 'everywhere' when all envs report launched", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const launched = result.get('FOO')?.find((s) => s.type === 'platform-launched')
+    expect(launched!.description).toContain('everywhere')
+  })
+
+  it("emits platform-launched with comma-separated envs in config order", () => {
+    // Build a perEnv map where production and test are launched, staging is
+    // active. The user's configured order is [production, staging, test]
+    // — the perEnv Map's insertion order is what determines render
+    // order in fmtEnvs (since we have no other source of truth here, the
+    // insertion order IS the config-declared order).
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+      ['test',       { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const launched = result.get('FOO')?.find((s) => s.type === 'platform-launched')
+    expect(launched!.description).toContain('in production, test')
+  })
+
+  it("emits platform-inactive 'in <env>' when one env reports inactive", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'active' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const inactive = result.get('FOO')?.find((s) => s.type === 'platform-inactive')
+    expect(inactive).toBeDefined()
+    expect(inactive!.description).toContain('in staging')
+  })
+
+  it("emits platform-inactive 'everywhere' when all envs are inactive", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const inactive = result.get('FOO')?.find((s) => s.type === 'platform-inactive')
+    expect(inactive!.description).toContain('everywhere')
+  })
+
+  it('suppresses platform-inactive when any env reports launched', () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, status: 'launched' }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, status: 'inactive' }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const signals = result.get('FOO') ?? []
+    expect(signals.find((s) => s.type === 'platform-launched')).toBeDefined()
+    expect(signals.find((s) => s.type === 'platform-inactive')).toBeUndefined()
+  })
+
+  it("emits platform-zero-evaluations 'in <env>' when one env reports 0 evals", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 5000 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const zero = result.get('FOO')?.find((s) => s.type === 'platform-zero-evaluations')
+    expect(zero).toBeDefined()
+    expect(zero!.description).toContain('in staging')
+  })
+
+  it("emits platform-zero-evaluations 'everywhere' when all envs are 0", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const zero = result.get('FOO')?.find((s) => s.type === 'platform-zero-evaluations')
+    expect(zero!.description).toContain('everywhere')
+  })
+
+  it('suppresses platform-low-evaluations when any env reports zero', () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 0 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    const signals = result.get('FOO') ?? []
+    expect(signals.find((s) => s.type === 'platform-zero-evaluations')).toBeDefined()
+    expect(signals.find((s) => s.type === 'platform-low-evaluations')).toBeUndefined()
+  })
+
+  it("emits platform-low-evaluations 'in <env>' with the lowest count", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 50 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
+    const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
+    expect(low).toBeDefined()
+    expect(low!.description).toContain('in production')
+    expect(low!.description).toContain('9 evaluations')
+  })
+
+  it("picks the lowest count when the SECOND env in iteration order has fewer evaluations", () => {
+    // Both envs are below threshold; staging (second) has the lower count (3 < 8).
+    // This exercises the reducer's `b` branch: a.count <= b.count is false,
+    // so the reducer returns b (staging) instead of a (production).
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 8 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 3 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
+    const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
+    expect(low).toBeDefined()
+    expect(low!.description).toContain('as few as 3')
+    // Confirms the reducer picked staging's 3, not production's 8.
+  })
+
+  it("emits platform-low-evaluations with 'as few as' when multiple envs are low", () => {
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null, evaluations30d: 7 }],
+      ['staging',    { key: 'FOO', archived: false, lastModified: null, evaluations30d: 9 }],
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', { evaluationThreshold: 10 })
+    const low = result.get('FOO')?.find((s) => s.type === 'platform-low-evaluations')
+    expect(low).toBeDefined()
+    expect(low!.description).toContain('as few as 7')
+    expect(low!.description).toContain('everywhere')
   })
 
   // Audit-log signal (issue #21 item 1).
@@ -428,7 +584,7 @@ describe('crossReference', () => {
         lastModified: null,
         lastTouched: null,
       }
-      const result = crossReference(detected(['OLD_KILLSWITCH']), [dormant], 'LaunchDarkly')
+      const result = crossReference(detected(['OLD_KILLSWITCH']), singleEnv([dormant]), 'LaunchDarkly')
       const sig = result.get('OLD_KILLSWITCH')?.[0]
       expect(sig?.type).toBe('platform-untouched-stale')
       expect(sig?.severity).toBe('warning')
@@ -443,7 +599,7 @@ describe('crossReference', () => {
         lastModified: null,
         lastTouched: new Date(),
       }
-      const result = crossReference(detected(['ACTIVE_FLAG']), [touched], 'LaunchDarkly')
+      const result = crossReference(detected(['ACTIVE_FLAG']), singleEnv([touched]), 'LaunchDarkly')
       expect(result.has('ACTIVE_FLAG')).toBe(false)
     })
 
@@ -454,7 +610,7 @@ describe('crossReference', () => {
         lastModified: null,
         // lastTouched intentionally undefined
       }
-      const result = crossReference(detected(['UNKNOWN_ACTIVITY']), [unknown], 'LaunchDarkly')
+      const result = crossReference(detected(['UNKNOWN_ACTIVITY']), singleEnv([unknown]), 'LaunchDarkly')
       expect(result.has('UNKNOWN_ACTIVITY')).toBe(false)
     })
 
@@ -469,7 +625,7 @@ describe('crossReference', () => {
         permanent: true,
         lastTouched: null,
       }
-      const result = crossReference(detected(['OLD_PERMANENT']), [oldPermanent], 'LaunchDarkly')
+      const result = crossReference(detected(['OLD_PERMANENT']), singleEnv([oldPermanent]), 'LaunchDarkly')
       const types = result.get('OLD_PERMANENT')?.map((s) => s.type) ?? []
       // Both signals fire: platform-permanent (control) and untouched-stale.
       expect(types).toContain('platform-permanent')
@@ -486,11 +642,59 @@ describe('crossReference', () => {
         evaluations30d: 0,
         lastTouched: null,
       }
-      const result = crossReference(detected(['DOUBLE_DEAD']), [idealCandidate], 'LaunchDarkly')
+      const result = crossReference(detected(['DOUBLE_DEAD']), singleEnv([idealCandidate]), 'LaunchDarkly')
       const types = result.get('DOUBLE_DEAD')?.map((s) => s.type) ?? []
       expect(types).toContain('platform-zero-evaluations')
       expect(types).toContain('platform-untouched-stale')
     })
+
+    it('emits platform-untouched-stale when ALL envs have lastTouched=null', () => {
+      const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+      ])]])
+      const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+      const untouched = result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')
+      expect(untouched).toBeDefined()
+      expect(untouched!.description).toContain('everywhere')
+    })
+
+    it('does NOT emit platform-untouched-stale when ANY env has activity', () => {
+      const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null, lastTouched: new Date('2026-05-20') }],
+      ])]])
+      const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+      expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
+    })
+
+    it('does NOT emit platform-untouched-stale when ANY env audit-log is unavailable', () => {
+      // Mixing null (confirmed untouched) and undefined (couldn't fetch) =>
+      // we can't claim "untouched in all envs" because one env's audit log
+      // is unknown. Strict rule.
+      const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+        ['production', { key: 'FOO', archived: false, lastModified: null, lastTouched: null }],
+        ['staging',    { key: 'FOO', archived: false, lastModified: null /* lastTouched undefined */ }],
+      ])]])
+      const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+      expect(result.get('FOO')?.find((s) => s.type === 'platform-untouched-stale')).toBeUndefined()
+    })
+  })
+
+  it('does NOT emit missing-in-platform when flag is present in at least one env', () => {
+    // Flag is missing from staging but present in production — should
+    // NOT be reported as missing.
+    const perEnv = new Map([['FOO', new Map<string, PlatformFlag>([
+      ['production', { key: 'FOO', archived: false, lastModified: null }],
+      // 'staging' intentionally not in the inner Map
+    ])]])
+    const result = crossReference(detected(['FOO']), perEnv, 'LaunchDarkly', {})
+    expect(result.get('FOO')?.find((s) => s.type === 'missing-in-platform')).toBeUndefined()
+  })
+
+  it('emits missing-in-platform when flag is absent from every env', () => {
+    const result = crossReference(detected(['FOO']), new Map(), 'LaunchDarkly', {})
+    expect(result.get('FOO')?.[0].type).toBe('missing-in-platform')
   })
 })
 
