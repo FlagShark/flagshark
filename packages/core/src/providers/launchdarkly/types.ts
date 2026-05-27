@@ -1,7 +1,30 @@
 import { z } from 'zod'
 
+/**
+ * Fallthrough configuration for a flag in a single env. LD's API returns
+ * one of two shapes here:
+ *   - { variation: <index> }                       → 100% rollout to one variation
+ *   - { rollout: { variations: [...], bucketBy } } → split rollout
+ *
+ * We surface `variation` directly; SaaS-side cleanup tools normalize
+ * `rollout`-shape responses to fallthroughVariation: null and fail closed.
+ * Other fields (`mode`, etc.) are tolerated via .passthrough().
+ */
+const FallthroughSchema = z.object({
+  variation: z.number().optional(),
+  rollout: z.unknown().optional(),
+}).passthrough()
+
 const EnvironmentSchema = z.object({
   lastModified: z.number().optional(),
+  // NEW: flag's enabled-state in this env. When false, LD serves
+  // offVariation regardless of fallthrough/targeting.
+  on: z.boolean().optional(),
+  // NEW: see FallthroughSchema above.
+  fallthrough: FallthroughSchema.optional(),
+  // NEW: variation index served when on=false. Required by LD on every
+  // active flag; optional here for defensive parsing.
+  offVariation: z.number().optional(),
 }).passthrough()
 
 const FlagItemSchema = z.object({
@@ -28,6 +51,14 @@ const FlagItemSchema = z.object({
   // Opaque LD member ID of whoever owns the flag. Resolved to a human
   // name+email via a separate /api/v2/members lookup.
   maintainerId: z.string().optional(),
+  // NEW: flag-level variation definitions. Always present in summary=0
+  // responses for active flags (boolean = 2, multivariate = N). Each
+  // entry has at minimum a `value`; `name` is user-defined in the LD
+  // UI. We deliberately drop description and _id (YAGNI).
+  variations: z.array(z.object({
+    value: z.unknown(),
+    name: z.string().optional(),
+  }).passthrough()).optional(),
   environments: z.record(z.string(), EnvironmentSchema).optional(),
 }).passthrough()
 

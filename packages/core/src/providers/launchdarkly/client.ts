@@ -110,7 +110,14 @@ export async function fetchAllFlags(
           // Resolved below from the /members lookup; left as the opaque id
           // for now so the producer/consumer split stays clean.
           maintainer: item.maintainerId,
-        })
+          // NEW: flag-level + per-env config (Task 1 of #31). PlatformFlag
+          // doesn't declare these fields until Task 2; the object is wider
+          // than the declared interface temporarily.
+          variations: item.variations,
+          on: envData?.on,
+          fallthroughVariation: envData?.fallthrough?.variation ?? null,
+          offVariation: envData?.offVariation,
+        } as PlatformFlag)
       }
       path = parsed._links?.next?.href
     }
@@ -271,7 +278,12 @@ function buildFirstPath(project: string, environment: string, archived = false):
     env: environment,
     limit: '100',
     offset: '0',
-    summary: '1',
+    // summary=0 returns full flag objects with variations + per-env
+    // fallthrough/on/offVariation. summary=1 (the previous default) only
+    // returned key/tags/lastModified, which was insufficient for SaaS
+    // Piranha to substitute the correct value during cleanup. Payload
+    // grows ~1-5KB per flag — well within reasonable for paginated fetch.
+    summary: '0',
   })
   if (archived) params.set('archived', 'true')
   return `/api/v2/flags/${encodeURIComponent(project)}?${params.toString()}`

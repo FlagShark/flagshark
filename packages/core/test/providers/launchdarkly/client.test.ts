@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { fetchAllFlags } from '../../../src/providers/launchdarkly/client.js'
 import { LdApiError } from '../../../src/providers/launchdarkly/errors.js'
 
@@ -40,6 +40,10 @@ describe('fetchAllFlags', () => {
       // active flag because the fake-fetch fallback returns an empty
       // series; archived flags are excluded from the evaluation fetch
       // entirely so `evaluations30d` stays undefined on key 'B'.
+      // `variations`/`on`/`offVariation` are undefined (not in this
+      // fixture); `fallthroughVariation` is null because there is no
+      // fallthrough in the fixture (missing fallthrough → null per the
+      // normalization rule introduced in Task 1 of #31).
       {
         key: 'A',
         archived: false,
@@ -53,6 +57,10 @@ describe('fetchAllFlags', () => {
         // Archived flags don't get lastTouched populated (skipped from
         // the population loop) so key 'B' below has no field at all.
         lastTouched: null,
+        variations: undefined,
+        on: undefined,
+        fallthroughVariation: null,
+        offVariation: undefined,
       },
       {
         key: 'B',
@@ -62,6 +70,10 @@ describe('fetchAllFlags', () => {
         createdAt: null,
         tags: [],
         maintainer: undefined,
+        variations: undefined,
+        on: undefined,
+        fallthroughVariation: null,
+        offVariation: undefined,
       },
     ])
   })
@@ -223,5 +235,174 @@ describe('fetchAllFlags', () => {
     } finally {
       globalThis.fetch = original
     }
+  })
+
+  it('extracts variations, on, fallthroughVariation, offVariation from summary=0 response', async () => {
+    // Mock LD returning a flag with the full (summary=0) shape — variations
+    // at top level, plus fallthrough/on/offVariation inside the environments block.
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        items: [{
+          key: 'FOO',
+          archived: false,
+          temporary: true,
+          creationDate: 1700000000000,
+          tags: [],
+          variations: [
+            { value: false, name: 'off' },
+            { value: true, name: 'on' },
+          ],
+          environments: {
+            production: {
+              lastModified: 1700000000000,
+              on: true,
+              fallthrough: { variation: 1 },
+              offVariation: 0,
+            },
+          },
+        }],
+        totalCount: 1,
+      }),
+    })
+      // The aux endpoints (members, flag-statuses, evaluations, audit-log)
+      // need stubs that return ok with empty payloads so the run completes.
+      // totalCount: 0 is required by FlagsResponseSchema for the second
+      // flag-list pass (archived=true); aux endpoints don't parse via
+      // FlagsResponseSchema so its presence is harmless there.
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ items: [], totalCount: 0 }),
+      })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    expect(flags).toHaveLength(1)
+    // Task 1 — PlatformFlag does NOT yet have these fields; use a typed
+    // cast so tsc accepts the assertion. Task 2 will widen the interface
+    // and the casts can be simplified.
+    const f = flags[0] as typeof flags[0] & {
+      variations?: Array<{ value: unknown; name?: string }>
+      on?: boolean
+      fallthroughVariation?: number | null
+      offVariation?: number
+    }
+    expect(f.variations).toEqual([
+      { value: false, name: 'off' },
+      { value: true, name: 'on' },
+    ])
+    expect(f.on).toBe(true)
+    expect(f.fallthroughVariation).toBe(1)
+    expect(f.offVariation).toBe(0)
+  })
+
+  it('normalizes fallthrough.rollout (split rollout) to fallthroughVariation: null', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        items: [{
+          key: 'BAR',
+          archived: false,
+          temporary: true,
+          tags: [],
+          variations: [{ value: false }, { value: true }],
+          environments: {
+            production: {
+              lastModified: 1700000000000,
+              on: true,
+              // Split rollout: rollout present, variation absent.
+              fallthrough: { rollout: { variations: [
+                { variation: 0, weight: 50000 },
+                { variation: 1, weight: 50000 },
+              ]}},
+              offVariation: 0,
+            },
+          },
+        }],
+        totalCount: 1,
+      }),
+    }).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ items: [], totalCount: 0 }),
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    const f = flags[0] as typeof flags[0] & { fallthroughVariation?: number | null }
+    expect(f.fallthroughVariation).toBeNull()
+  })
+
+  it('normalizes missing fallthrough to fallthroughVariation: null', async () => {
+    const fetchFn = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        items: [{
+          key: 'BAZ',
+          archived: false,
+          temporary: true,
+          tags: [],
+          variations: [{ value: false }, { value: true }],
+          environments: {
+            production: {
+              lastModified: 1700000000000,
+              on: true,
+              // fallthrough intentionally omitted
+              offVariation: 0,
+            },
+          },
+        }],
+        totalCount: 1,
+      }),
+    }).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({ items: [], totalCount: 0 }),
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    const f = flags[0] as typeof flags[0] & { fallthroughVariation?: number | null }
+    expect(f.fallthroughVariation).toBeNull()
+  })
+
+  it('flag-list URL uses summary=0 to get full flag objects', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      // totalCount: 0 required by FlagsResponseSchema for both flag-list passes.
+      json: async () => ({ items: [], totalCount: 0 }),
+    })
+
+    await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    // The very first call should be the flag-list call; assert its URL.
+    const firstCallUrl = fetchFn.mock.calls[0][0]
+    const url = firstCallUrl instanceof URL ? firstCallUrl.toString() : String(firstCallUrl)
+    expect(url).toContain('summary=0')
+    expect(url).not.toContain('summary=1')
   })
 })
