@@ -8,7 +8,7 @@ import {
   MembersResponseSchema,
 } from './types.js'
 import { LdApiError } from './errors.js'
-import type { PlatformFlag } from '../interface.js'
+import type { PlatformFlag, FlagVariation } from '../interface.js'
 
 const DEFAULT_API_BASE = 'https://app.launchdarkly.com'
 const LD_API_VERSION = '20240415'
@@ -114,7 +114,7 @@ export async function fetchAllFlags(
           // (which infers `Record<string, unknown>` for extra fields) back to the
           // declared `PlatformFlag.variations` shape. The runtime data is
           // identical; the cast is a structural type-narrowing only.
-          variations: item.variations as Array<{ value: unknown; name?: string }> | undefined,
+          variations: item.variations as FlagVariation[] | undefined,
           on: envData?.on,
           fallthroughVariation: envData?.fallthrough?.variation ?? null,
           offVariation: envData?.offVariation,

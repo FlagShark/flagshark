@@ -1,7 +1,7 @@
 import { findPlatform } from './registry.js'
 import { crossReference, mergePlatformSignals } from './cross-reference.js'
 import { computeCacheKey, loadPlatformFlagsCached } from './cache.js'
-import type { PlatformSignal, PlatformFlag } from './interface.js'
+import type { PlatformSignal, PlatformFlag, FlagVariation } from './interface.js'
 import type { FeatureFlag } from '../detection/feature-flag.js'
 import type { ScanLogger } from '../scan-repo.js'
 
@@ -70,7 +70,12 @@ export interface OrchestrateResult {
    */
   metadataByFlag: Map<
     string,
-    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+    {
+      tags?: string[]
+      maintainer?: string
+      status?: 'new' | 'active' | 'inactive' | 'launched'
+      variations?: FlagVariation[]
+    }
   >
   /**
    * Per-flag, per-env enrichment data. Outer key: detected flag name.
@@ -94,7 +99,12 @@ export async function orchestratePlatforms(
   const permanentByPlatform: Record<string, string[]> = {}
   const metadataByFlag = new Map<
     string,
-    { tags?: string[]; maintainer?: string; status?: 'new' | 'active' | 'inactive' | 'launched' }
+    {
+      tags?: string[]
+      maintainer?: string
+      status?: 'new' | 'active' | 'inactive' | 'launched'
+      variations?: FlagVariation[]
+    }
   >()
   const environmentsByFlag = new Map<string, Map<string, PerFlagEnvironmentData>>()
   if (!opts.platformsConfig) {
@@ -179,12 +189,16 @@ export async function orchestratePlatforms(
       // (top-level fields source from environments[envs[0]]).
       for (const flag of firstEnvFlags) {
         if (!opts.detectedFlags.has(flag.key)) continue
-        const hasMetadata = (flag.tags && flag.tags.length > 0) || flag.maintainer || flag.status
+        const hasMetadata = (flag.tags && flag.tags.length > 0)
+          || flag.maintainer
+          || flag.status
+          || (flag.variations && flag.variations.length > 0)
         if (!hasMetadata) continue
         metadataByFlag.set(flag.key, {
           tags: flag.tags && flag.tags.length > 0 ? flag.tags : undefined,
           maintainer: flag.maintainer,
           status: flag.status,
+          variations: flag.variations && flag.variations.length > 0 ? flag.variations : undefined,
         })
       }
 

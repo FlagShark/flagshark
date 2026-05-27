@@ -43,6 +43,7 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
       ...(sf.tags && sf.tags.length > 0 ? { tags: sf.tags } : {}),
       ...(sf.maintainer ? { maintainer: sf.maintainer } : {}),
       ...(sf.platformStatus ? { platformStatus: sf.platformStatus } : {}),
+      ...(sf.variations && sf.variations.length > 0 ? { variations: sf.variations } : {}),
       ...(sf.environments && sf.environments.size > 0
         ? {
             environments: Object.fromEntries(

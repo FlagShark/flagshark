@@ -101,3 +101,52 @@ describe('formatJson — environments block', () => {
     expect(json.flags[0].environments.production).toEqual({ status: 'active' })
   })
 })
+
+describe('formatJson — variations', () => {
+  it('emits top-level variations when populated', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      variations: [
+        { value: false, name: 'off' },
+        { value: true, name: 'on' },
+      ],
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0].variations).toEqual([
+      { value: false, name: 'off' },
+      { value: true, name: 'on' },
+    ])
+  })
+
+  it('omits variations when absent', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0]).not.toHaveProperty('variations')
+  })
+
+  it('omits variations when present but empty', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      variations: [],
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0]).not.toHaveProperty('variations')
+  })
+})

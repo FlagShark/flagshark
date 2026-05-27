@@ -1,5 +1,16 @@
 import type { ZodType, ZodTypeDef } from 'zod'
 
+/**
+ * One variation definition on a flag. The `value` is the runtime value
+ * the variation serves (boolean, string, number, JSON object — anything
+ * the SDK supports). The `name` is the user-defined label shown in the
+ * LD UI ("on", "off", "treatment", etc.).
+ *
+ * Cleanup pipelines look up the substitute value by index — see
+ * PlatformFlag.fallthroughVariation and offVariation.
+ */
+export type FlagVariation = { value: unknown; name?: string }
+
 /** A flag entry as reported by a flag-management platform's API. */
 export interface PlatformFlag {
   key: string
@@ -132,7 +143,7 @@ export interface PlatformFlag {
    * providers without an equivalent concept) or when the flag-list
    * response unexpectedly omits the field.
    */
-  variations?: Array<{ value: unknown; name?: string }>
+  variations?: FlagVariation[]
 
   /**
    * Whether the flag is enabled in the configured env. When false, LD
