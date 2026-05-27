@@ -70,7 +70,7 @@ describe('computeCacheKey', () => {
 
 describe('writeCache + readCache', () => {
   it('round-trips flags', () => {
-    const flags: PlatformFlag[] = [{ key: 'A', archived: false, lastModified: new Date('2026-01-01') }]
+    const flags: PlatformFlag[] = [{ key: 'A', archived: false, lastModified: new Date('2026-01-01'), fallthroughVariation: null }]
     writeCache('test-key', flags, { cacheDir })
     const out = readCache('test-key', { cacheDir })
     expect(out?.flags).toEqual(flags)
@@ -107,7 +107,7 @@ describe('writeCache + readCache', () => {
     const prev = process.env.XDG_CACHE_HOME
     process.env.XDG_CACHE_HOME = cacheDir
     try {
-      writeCache('xdg-test', [{ key: 'A', archived: false, lastModified: null }])
+      writeCache('xdg-test', [{ key: 'A', archived: false, lastModified: null, fallthroughVariation: null }])
       expect(existsSync(join(cacheDir, 'flagshark', 'xdg-test.json'))).toBe(true)
     } finally {
       if (prev === undefined) delete process.env.XDG_CACHE_HOME
@@ -158,8 +158,32 @@ describe('writeCache + readCache', () => {
     expect(() => writeCache('key', [], { cacheDir: join(blocker, 'sub') })).not.toThrow()
   })
 
+  it('readCache always returns fallthroughVariation: null regardless of written value', () => {
+    // fallthroughVariation is not persisted (writeCache only stores
+    // key/archived/lastModified); readCache stubs it as null to satisfy
+    // the non-optional field on PlatformFlag. The orchestrator's
+    // skip-empty-env guard uses `== null` so this stub is treated as
+    // "no data" and the env block is omitted from output.
+    //
+    // This regression test fails immediately if someone adds
+    // fallthroughVariation to CacheFile without simultaneously updating
+    // the skip-empty-env guard to handle live cached values.
+    writeCache(
+      'stub-contract',
+      [{
+        key: 'A',
+        archived: false,
+        lastModified: new Date('2026-01-01'),
+        fallthroughVariation: 2,  // a real value — should NOT round-trip
+      }],
+      { cacheDir },
+    )
+    const out = readCache('stub-contract', { cacheDir })
+    expect(out?.flags[0].fallthroughVariation).toBeNull()
+  })
+
   it('preserves null lastModified across round-trip', () => {
-    writeCache('null-mod', [{ key: 'A', archived: false, lastModified: null }], { cacheDir })
+    writeCache('null-mod', [{ key: 'A', archived: false, lastModified: null, fallthroughVariation: null }], { cacheDir })
     const out = readCache('null-mod', { cacheDir })
     expect(out?.flags[0].lastModified).toBeNull()
   })
@@ -168,7 +192,7 @@ describe('writeCache + readCache', () => {
 describe('loadPlatformFlagsCached', () => {
   it('calls the client on cache miss', async () => {
     const calls = { count: 0 }
-    const client = fakeClient([{ key: 'A', archived: false, lastModified: null }], { calls })
+    const client = fakeClient([{ key: 'A', archived: false, lastModified: null, fallthroughVariation: null }], { calls })
     const flags = await loadPlatformFlagsCached(client, 'key1', { cacheDir })
     expect(flags).toHaveLength(1)
     expect(calls.count).toBe(1)
@@ -176,7 +200,7 @@ describe('loadPlatformFlagsCached', () => {
 
   it('serves cache hit without calling client', async () => {
     const calls = { count: 0 }
-    const client = fakeClient([{ key: 'A', archived: false, lastModified: null }], { calls })
+    const client = fakeClient([{ key: 'A', archived: false, lastModified: null, fallthroughVariation: null }], { calls })
     await loadPlatformFlagsCached(client, 'key1', { cacheDir })
     await loadPlatformFlagsCached(client, 'key1', { cacheDir })
     expect(calls.count).toBe(1)

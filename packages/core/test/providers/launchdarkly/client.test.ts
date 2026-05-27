@@ -285,22 +285,13 @@ describe('fetchAllFlags', () => {
     )
 
     expect(flags).toHaveLength(1)
-    // Task 1 — PlatformFlag does NOT yet have these fields; use a typed
-    // cast so tsc accepts the assertion. Task 2 will widen the interface
-    // and the casts can be simplified.
-    const f = flags[0] as typeof flags[0] & {
-      variations?: Array<{ value: unknown; name?: string }>
-      on?: boolean
-      fallthroughVariation?: number | null
-      offVariation?: number
-    }
-    expect(f.variations).toEqual([
+    expect(flags[0].variations).toEqual([
       { value: false, name: 'off' },
       { value: true, name: 'on' },
     ])
-    expect(f.on).toBe(true)
-    expect(f.fallthroughVariation).toBe(1)
-    expect(f.offVariation).toBe(0)
+    expect(flags[0].on).toBe(true)
+    expect(flags[0].fallthroughVariation).toBe(1)
+    expect(flags[0].offVariation).toBe(0)
   })
 
   it('normalizes fallthrough.rollout (split rollout) to fallthroughVariation: null', async () => {
@@ -342,8 +333,7 @@ describe('fetchAllFlags', () => {
       { fetch: fetchFn as unknown as typeof globalThis.fetch },
     )
 
-    const f = flags[0] as typeof flags[0] & { fallthroughVariation?: number | null }
-    expect(f.fallthroughVariation).toBeNull()
+    expect(flags[0].fallthroughVariation).toBeNull()
   })
 
   it('normalizes missing fallthrough to fallthroughVariation: null', async () => {
@@ -381,8 +371,7 @@ describe('fetchAllFlags', () => {
       { fetch: fetchFn as unknown as typeof globalThis.fetch },
     )
 
-    const f = flags[0] as typeof flags[0] & { fallthroughVariation?: number | null }
-    expect(f.fallthroughVariation).toBeNull()
+    expect(flags[0].fallthroughVariation).toBeNull()
   })
 
   it('flag-list URL uses summary=0 to get full flag objects', async () => {

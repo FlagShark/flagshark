@@ -110,14 +110,15 @@ export async function fetchAllFlags(
           // Resolved below from the /members lookup; left as the opaque id
           // for now so the producer/consumer split stays clean.
           maintainer: item.maintainerId,
-          // NEW: flag-level + per-env config (Task 1 of #31). PlatformFlag
-          // doesn't declare these fields until Task 2; the object is wider
-          // than the declared interface temporarily.
-          variations: item.variations,
+          // The cast narrows the inferred type from `VariationSchema.passthrough()`
+          // (which infers `Record<string, unknown>` for extra fields) back to the
+          // declared `PlatformFlag.variations` shape. The runtime data is
+          // identical; the cast is a structural type-narrowing only.
+          variations: item.variations as Array<{ value: unknown; name?: string }> | undefined,
           on: envData?.on,
           fallthroughVariation: envData?.fallthrough?.variation ?? null,
           offVariation: envData?.offVariation,
-        } as PlatformFlag)
+        })
       }
       path = parsed._links?.next?.href
     }

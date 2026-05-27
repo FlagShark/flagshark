@@ -232,10 +232,10 @@ describe('orchestratePlatforms', () => {
           call++
           if (call === 1) {
             // production: launched
-            return [{ key: 'FOO', archived: false, lastModified: null, status: 'launched' as const }]
+            return [{ key: 'FOO', archived: false, lastModified: null, status: 'launched' as const, fallthroughVariation: null }]
           }
           // staging: active
-          return [{ key: 'FOO', archived: false, lastModified: null, status: 'active' as const }]
+          return [{ key: 'FOO', archived: false, lastModified: null, status: 'active' as const, fallthroughVariation: null }]
         },
       })
       expect(call).toBe(2)
@@ -258,7 +258,7 @@ describe('orchestratePlatforms', () => {
         detectedFlags: detected(['FOO']),
         logger,
         listFlagsOverride: async () => [
-          { key: 'FOO', archived: false, lastModified: null, status: 'launched' as const },
+          { key: 'FOO', archived: false, lastModified: null, status: 'launched' as const, fallthroughVariation: null },
         ],
       })
       const launched = result.signals.get('FOO')?.find((s) => s.type === 'platform-launched')
@@ -281,9 +281,9 @@ describe('orchestratePlatforms', () => {
         detectedFlags: detected(['KILL_SWITCH_A', 'KILL_SWITCH_B', 'TEMP_FLAG']),
         logger: silentLogger(),
         listFlagsOverride: async () => [
-          { key: 'KILL_SWITCH_A', archived: false, lastModified: null, permanent: true },
-          { key: 'KILL_SWITCH_B', archived: false, lastModified: null, permanent: true },
-          { key: 'TEMP_FLAG', archived: false, lastModified: null, permanent: false },
+          { key: 'KILL_SWITCH_A', archived: false, lastModified: null, permanent: true, fallthroughVariation: null },
+          { key: 'KILL_SWITCH_B', archived: false, lastModified: null, permanent: true, fallthroughVariation: null },
+          { key: 'TEMP_FLAG', archived: false, lastModified: null, permanent: false, fallthroughVariation: null },
         ],
         noCache: true,
       })
@@ -323,6 +323,7 @@ describe('orchestratePlatforms', () => {
               evaluations30d: 12000,
               lastRequested: new Date('2026-05-25T00:00:00Z'),
               lastTouched: new Date('2026-04-01T00:00:00Z'),
+              fallthroughVariation: null,
             }]
           }
           return [{
@@ -333,6 +334,7 @@ describe('orchestratePlatforms', () => {
             evaluations30d: 3,
             lastRequested: new Date('2026-05-26T00:00:00Z'),
             lastTouched: new Date('2026-05-20T00:00:00Z'),
+            fallthroughVariation: null,
           }]
         },
       })
@@ -368,10 +370,11 @@ describe('orchestratePlatforms', () => {
               archived: false,
               lastModified: null,
               status: 'active' as const,
+              fallthroughVariation: null,
             }]
           }
           // staging: no enrichment fields at all
-          return [{ key: 'BAR', archived: false, lastModified: null }]
+          return [{ key: 'BAR', archived: false, lastModified: null, fallthroughVariation: null }]
         },
       })
       const barEnvs = result.environmentsByFlag.get('BAR')
@@ -392,7 +395,7 @@ describe('orchestratePlatforms', () => {
         detectedFlags: detected(['ACTIVE_FLAG']),
         logger: silentLogger(),
         listFlagsOverride: async () => [
-          { key: 'ACTIVE_FLAG', archived: false, lastModified: null, permanent: false },
+          { key: 'ACTIVE_FLAG', archived: false, lastModified: null, permanent: false, fallthroughVariation: null },
         ],
         noCache: true,
       })
@@ -416,14 +419,16 @@ describe('orchestratePlatforms', () => {
             lastModified: null,
             tags: ['kill-switch'],
             status: 'inactive' as const,
+            fallthroughVariation: null,
           },
           {
             key: 'OWNED',
             archived: false,
             lastModified: null,
             maintainer: 'Jane <jane@example.com>',
+            fallthroughVariation: null,
           },
-          { key: 'UNDECORATED', archived: false, lastModified: null },
+          { key: 'UNDECORATED', archived: false, lastModified: null, fallthroughVariation: null },
           // Flag exists in the platform but isn't referenced in code — must
           // be skipped from metadataByFlag.
           {
@@ -431,6 +436,7 @@ describe('orchestratePlatforms', () => {
             archived: false,
             lastModified: null,
             tags: ['lonely'],
+            fallthroughVariation: null,
           },
         ],
         noCache: true,

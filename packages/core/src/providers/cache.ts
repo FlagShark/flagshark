@@ -74,6 +74,15 @@ export function readCache(key: string, opts: CacheOptions = {}): CacheReadResult
     key: f.key,
     archived: f.archived,
     lastModified: f.lastModified ? new Date(f.lastModified) : null,
+    // Stub for the non-optional field. The enriched value is not persisted
+    // to disk (writeCache only stores key/archived/lastModified). On cache
+    // hits, the orchestrator's skip-empty-env guard uses `== null` for all
+    // enrichment fields, so this `null` is treated the same as the
+    // `undefined` of the other per-env fields — the env block is omitted
+    // from output, preserving the load-bearing-null semantics
+    // (`fallthroughVariation: null` in JSON output should ONLY mean "split
+    // rollout, fail closed", never "cached scan without fresh data").
+    fallthroughVariation: null,
   }))
   return { fetchedAt, flags }
 }

@@ -3,7 +3,7 @@ import type { PlatformFlag, PlatformClient, PlatformDefinition, PlatformSignal }
 
 describe('providers/interface types', () => {
   it('PlatformFlag can be constructed', () => {
-    const f: PlatformFlag = { key: 'A', archived: false, lastModified: null }
+    const f: PlatformFlag = { key: 'A', archived: false, lastModified: null, fallthroughVariation: null }
     expect(f.key).toBe('A')
   })
 

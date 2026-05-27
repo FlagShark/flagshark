@@ -1,6 +1,17 @@
 import { z } from 'zod'
 
 /**
+ * One entry in the flag's `variations` array. LD's full response carries
+ * `value`, optional `name`, optional `description`, and an internal `_id`.
+ * We surface only what cleanup consumers need (value + name) and
+ * .passthrough() the rest.
+ */
+const VariationSchema = z.object({
+  value: z.unknown(),
+  name: z.string().optional(),
+}).passthrough()
+
+/**
  * Fallthrough configuration for a flag in a single env. LD's API returns
  * one of two shapes here:
  *   - { variation: <index> }                       → 100% rollout to one variation
@@ -8,7 +19,8 @@ import { z } from 'zod'
  *
  * We surface `variation` directly; SaaS-side cleanup tools normalize
  * `rollout`-shape responses to fallthroughVariation: null and fail closed.
- * Other fields (`mode`, etc.) are tolerated via .passthrough().
+ * Additional fields LD may add (e.g. context-kind metadata, experiment
+ * references) are tolerated via .passthrough().
  */
 const FallthroughSchema = z.object({
   variation: z.number().optional(),
@@ -55,10 +67,7 @@ const FlagItemSchema = z.object({
   // responses for active flags (boolean = 2, multivariate = N). Each
   // entry has at minimum a `value`; `name` is user-defined in the LD
   // UI. We deliberately drop description and _id (YAGNI).
-  variations: z.array(z.object({
-    value: z.unknown(),
-    name: z.string().optional(),
-  }).passthrough()).optional(),
+  variations: z.array(VariationSchema).optional(),
   environments: z.record(z.string(), EnvironmentSchema).optional(),
 }).passthrough()
 
