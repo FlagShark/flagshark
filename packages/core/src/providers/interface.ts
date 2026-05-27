@@ -1,4 +1,5 @@
 import type { ZodType, ZodTypeDef } from 'zod'
+import type { ScanLogger } from '../scan-repo.js'
 
 /**
  * One variation definition on a flag. The `value` is the runtime value
@@ -184,7 +185,7 @@ export interface PlatformClient {
   name: string
   /** Human-readable name used in signal descriptions, e.g. 'LaunchDarkly'. */
   displayName: string
-  listFlags(opts?: { signal?: AbortSignal }): Promise<PlatformFlag[]>
+  listFlags(opts?: { signal?: AbortSignal; logger?: ScanLogger }): Promise<PlatformFlag[]>
 }
 
 /** Registry entry. Each platform implementation exports exactly one of these. */

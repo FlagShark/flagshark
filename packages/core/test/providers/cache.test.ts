@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +9,7 @@ import {
   loadPlatformFlagsCached,
 } from '../../src/providers/cache.js'
 import type { PlatformClient, PlatformFlag } from '../../src/providers/interface.js'
+import type { ScanLogger } from '../../src/scan-repo.js'
 
 let cacheDir: string
 beforeEach(() => { cacheDir = mkdtempSync(join(tmpdir(), 'flagshark-cache-')) })
@@ -228,5 +229,19 @@ describe('loadPlatformFlagsCached', () => {
     await expect(
       loadPlatformFlagsCached(client, 'key-signal', { cacheDir, noCache: true, signal: controller.signal }),
     ).rejects.toThrow('aborted')
+  })
+
+  it('forwards opts.logger to client.listFlags on a cache miss', async () => {
+    const logger: ScanLogger = {
+      debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+    }
+    const listFlags = vi.fn().mockResolvedValue([])
+    const client = {
+      name: 'fake',
+      displayName: 'Fake',
+      listFlags,
+    }
+    await loadPlatformFlagsCached(client, 'key-fwd-logger', { cacheDir, logger })
+    expect(listFlags).toHaveBeenCalledWith({ signal: undefined, logger })
   })
 })

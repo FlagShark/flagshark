@@ -158,6 +158,7 @@ export async function orchestratePlatforms(
           : await loadPlatformFlagsCached(client, cacheKey, {
               noCache: opts.noCache,
               signal: opts.signal,
+              logger: opts.logger,
             })
         if (env === envs[0]) firstEnvFlags = flags
         for (const f of flags) {

@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import type { PlatformClient, PlatformFlag } from './interface.js'
+import type { ScanLogger } from '../scan-repo.js'
 
 export interface CacheOptions {
   /** Override the cache directory. Default: XDG-spec resolution. */
@@ -110,13 +111,13 @@ export function writeCache(key: string, flags: PlatformFlag[], opts: CacheOption
 export async function loadPlatformFlagsCached(
   client: PlatformClient,
   cacheKey: string,
-  opts: CacheOptions & { signal?: AbortSignal } = {},
+  opts: CacheOptions & { signal?: AbortSignal; logger?: ScanLogger } = {},
 ): Promise<PlatformFlag[]> {
   if (!opts.noCache) {
     const cached = readCache(cacheKey, opts)
     if (cached) return cached.flags
   }
-  const flags = await client.listFlags({ signal: opts.signal })
+  const flags = await client.listFlags({ signal: opts.signal, logger: opts.logger })
   writeCache(cacheKey, flags, opts)
   return flags
 }

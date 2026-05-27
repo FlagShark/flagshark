@@ -9,6 +9,7 @@ import {
 } from './types.js'
 import { LdApiError } from './errors.js'
 import type { PlatformFlag, FlagVariation } from '../interface.js'
+import type { ScanLogger } from '../../scan-repo.js'
 
 const DEFAULT_API_BASE = 'https://app.launchdarkly.com'
 const LD_API_VERSION = '20240415'
@@ -50,6 +51,13 @@ export interface FetchAllFlagsOptions {
   apiBase?: string
   fetch?: typeof globalThis.fetch
   signal?: AbortSignal
+  /**
+   * Optional logger for one-line advisory messages emitted by aux
+   * fetches (e.g. code-refs not configured). When unset, advisories
+   * are silently dropped — useful for tests and direct callers that
+   * don't go through the orchestrator.
+   */
+  logger?: ScanLogger
 }
 
 /**
