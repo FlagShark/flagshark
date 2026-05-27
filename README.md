@@ -9,7 +9,7 @@ npx flagshark scan
 ```
 
 ```
-🦈 FlagShark v1.3.0 — scanned 156 files in 2.3s
+🦈 FlagShark v2.3.0 — scanned 156 files in 2.3s
                        (47 excluded via .flagsharkignore + test-files preset)
 
 Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
@@ -181,16 +181,20 @@ Opt-in via `excludes.presets`. Each preset expands to a curated list of common p
 
 ## Platform integration (cross-reference against your flag platform)
 
-FlagShark can cross-reference detected flag keys against your flag-management platform's API to surface platform-side signals. For LaunchDarkly that's six signals total:
+FlagShark can cross-reference detected flag keys against your flag-management platform's API to surface platform-side signals. For LaunchDarkly that's ten signals total:
 
 - **`missing-in-platform`** (error) — flag is referenced in code but doesn't exist in the platform → production-risk bug (SDK falls back to defaults).
 - **`archived-in-platform`** (warning) — flag exists but is archived → safe to remove.
 - **`platform-too-old`** (warning) — flag was created more than `thresholdDays` ago. Independent of code age.
 - **`platform-inactive`** (warning) — LD reports no evaluations recorded in the last 7+ days for this environment.
 - **`platform-launched`** (error) — LD reports the flag has served a single variation for 7+ days. From LD's perspective the conditional code is dead.
+- **`platform-zero-evaluations`** (error) — LD reports zero evaluations in the last 30 days. Real runtime data, not a heuristic.
+- **`platform-low-evaluations`** (warning) — LD reports evaluations below the configured threshold (default 10/30d).
+- **`platform-untouched-stale`** (warning) — LD's audit log confirms zero activity (no toggles, edits, or targeting changes) within the lookback window (default 90 days). Surfaces flags that are functionally abandoned even when usage signals are unreliable.
+- **`coverage-gap-vs-platform`** (info) — LD's own code-references feature found more references for this flag than FlagShark detected. Surfaces detector blind spots — code patterns LD recognizes that our language detectors missed. Informational only; doesn't make a flag stale.
 - **`platform-permanent`** (control) — LD's `temporary: false` marker. Suppresses code-side age + low-usage stale signals. Filtered out before user-facing output; surfaced via "N flag(s) excluded as permanent in LaunchDarkly: …".
 
-Tags and maintainer (from LD) are surfaced alongside each row in text + markdown + JSON output.
+Tags, maintainer, variation values (`variations`), per-env configuration (`on`, `fallthroughVariation`, `offVariation`), and LD code-references count (`codeReferences`) are surfaced alongside each flag in JSON output so downstream cleanup pipelines (e.g. SaaS Piranha) can substitute the correct variation value when removing a flag from code.
 
 ### LaunchDarkly setup
 
@@ -283,6 +287,16 @@ The JSON output exposes two fields whose names sound alike but mean very differe
 
 Each entry in `flags[]` also carries a `confidence` field — see the "Detection confidence tiers" section below for what `high` / `medium` / `low` mean and which to auto-merge.
 
+### Per-flag platform fields (when LaunchDarkly integration is configured)
+
+When the LD integration is on, each entry in `flags[]` may include these additional fields. All are optional and additive — existing consumers ignore unknown keys.
+
+| Field | Shape | Meaning |
+|---|---|---|
+| `variations` | `[{ value, name? }]` | Variation definitions for this flag (flag-level, same across envs). Cleanup pipelines look up the substitute value by variation index. |
+| `codeReferences` | `{ count } \| null` | LD's own `ld-find-code-refs` count for this flag. `null` means LD found zero refs; absent means LD code-refs is not configured for the project (the scan logs a one-line advisory pointing at LD's setup docs). |
+| `environments` | `{ [envKey]: { status, evaluations30d, lastRequested, lastTouched, on, fallthroughVariation, offVariation } }` | Per-env LD state. `fallthroughVariation: null` is load-bearing — it signals a split rollout. Top-level fields source from the first configured env for backward-compat. |
+
 ## Supported languages
 
 | Language | Extensions | Detection |
@@ -322,7 +336,10 @@ For the remaining 9 languages, regex-based detection is used today. Each languag
 A flag is marked stale if **any** signal fires:
 
 1. **`age`** — `git blame` shows the flag's line was last modified more than `threshold` days ago (configurable per-path).
-2. **`low-usage`** — The flag name appears in only one file across the repo, suggesting a completed rollout.
+2. **`low-usage`** — The flag name appears in only one file across the repo, suggesting a completed rollout. Contributing signal only — a flag with `low-usage` alone is not marked stale; it must pair with another signal (e.g. age, a platform-side verdict).
+3. **`test-only-references`** — Every detected occurrence of the flag is in a test file. Production code no longer uses it; the tests are the only thing keeping the flag alive.
+
+Platform-side signals from the LaunchDarkly integration (see "Platform integration" above) layer on top of these code-side signals when a platform token is configured.
 
 ## Detection confidence tiers
 
