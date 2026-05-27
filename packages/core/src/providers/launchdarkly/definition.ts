@@ -44,7 +44,7 @@ export const launchdarklyDefinition: PlatformDefinition<LdConfig> = {
   createClient: (cfg, token) => ({
     name: 'launchdarkly',
     displayName: 'LaunchDarkly',
-    listFlags: ({ signal } = {}) => {
+    listFlags: ({ signal, logger } = {}) => {
       // env is whatever the orchestrator synthesized for this iteration
       // (set on every per-env call), with environments[0] as fallback
       // for direct callers (mainly tests) that pass the raw post-transform
@@ -54,7 +54,7 @@ export const launchdarklyDefinition: PlatformDefinition<LdConfig> = {
         project: cfg.project,
         environment: env,
         token,
-      }, { apiBase: cfg.api_base, signal })
+      }, { apiBase: cfg.api_base, signal, logger })
     },
   }),
 }

@@ -194,3 +194,22 @@ export const MembersResponseSchema = z.object({
 }).passthrough()
 
 export type MembersResponse = z.infer<typeof MembersResponseSchema>
+
+// ── Code references (cross-check FlagShark's detection against LD's) ──
+//
+// Endpoint: GET /api/v2/code-refs/statistics/{projectKey}
+// Response shape: { flags: { [flagKey]: [{ name, hunkCount, fileCount, sourceLink, ... }] } }
+//
+// We extract hunkCount per repo entry and sum across repos for the
+// per-flag count. Other fields are tolerated via .passthrough().
+
+const CodeRefsRepoEntrySchema = z.object({
+  hunkCount: z.number().optional(),
+}).passthrough()
+
+export const CodeRefsStatisticsResponseSchema = z.object({
+  flags: z.record(z.string(), z.array(CodeRefsRepoEntrySchema)).optional().default({}),
+  _links: z.unknown().optional(),
+}).passthrough()
+
+export type CodeRefsStatisticsResponse = z.infer<typeof CodeRefsStatisticsResponseSchema>

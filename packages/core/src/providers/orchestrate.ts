@@ -75,6 +75,7 @@ export interface OrchestrateResult {
       maintainer?: string
       status?: 'new' | 'active' | 'inactive' | 'launched'
       variations?: FlagVariation[]
+      codeReferences?: { count: number } | null
     }
   >
   /**
@@ -104,6 +105,7 @@ export async function orchestratePlatforms(
       maintainer?: string
       status?: 'new' | 'active' | 'inactive' | 'launched'
       variations?: FlagVariation[]
+      codeReferences?: { count: number } | null
     }
   >()
   const environmentsByFlag = new Map<string, Map<string, PerFlagEnvironmentData>>()
@@ -158,6 +160,7 @@ export async function orchestratePlatforms(
           : await loadPlatformFlagsCached(client, cacheKey, {
               noCache: opts.noCache,
               signal: opts.signal,
+              logger: opts.logger,
             })
         if (env === envs[0]) firstEnvFlags = flags
         for (const f of flags) {
@@ -193,12 +196,14 @@ export async function orchestratePlatforms(
           || flag.maintainer
           || flag.status
           || (flag.variations && flag.variations.length > 0)
+          || flag.codeReferences !== undefined
         if (!hasMetadata) continue
         metadataByFlag.set(flag.key, {
           tags: flag.tags && flag.tags.length > 0 ? flag.tags : undefined,
           maintainer: flag.maintainer,
           status: flag.status,
           variations: flag.variations && flag.variations.length > 0 ? flag.variations : undefined,
+          codeReferences: flag.codeReferences,
         })
       }
 

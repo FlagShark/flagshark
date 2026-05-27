@@ -229,3 +229,51 @@ describe('formatJson — per-env variation config', () => {
     expect(json.flags[0].environments.production.status).toBe('active')
   })
 })
+
+describe('formatJson — codeReferences', () => {
+  it('emits codeReferences as object when populated', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      codeReferences: { count: 12 },
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0].codeReferences).toEqual({ count: 12 })
+  })
+
+  it('preserves codeReferences: null literally (LD-says-zero is meaningful)', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      codeReferences: null,
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0].codeReferences).toBeNull()
+    expect(Object.prototype.hasOwnProperty.call(
+      json.flags[0],
+      'codeReferences',
+    )).toBe(true)
+  })
+
+  it('omits codeReferences when undefined (feature unavailable)', () => {
+    const result = baseResult([{
+      name: 'FOO',
+      filePath: 'a.ts',
+      lineNumber: 1,
+      language: 'typescript',
+      provider: 'launchdarkly-node-server-sdk',
+      signals: [],
+      // codeReferences intentionally undefined
+    }])
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.flags[0]).not.toHaveProperty('codeReferences')
+  })
+})

@@ -44,6 +44,9 @@ describe('fetchAllFlags', () => {
       // fixture); `fallthroughVariation` is null because there is no
       // fallthrough in the fixture (missing fallthrough → null per the
       // normalization rule introduced in Task 1 of #31).
+      // `codeReferences` is null for the active flag because the fake-fetch
+      // fallback returns empty items for the code-refs endpoint (feature
+      // available, no references found). Archived flag 'B' is skipped.
       {
         key: 'A',
         archived: false,
@@ -61,6 +64,7 @@ describe('fetchAllFlags', () => {
         on: undefined,
         fallthroughVariation: null,
         offVariation: undefined,
+        codeReferences: null,
       },
       {
         key: 'B',
@@ -393,5 +397,215 @@ describe('fetchAllFlags', () => {
     const url = firstCallUrl instanceof URL ? firstCallUrl.toString() : String(firstCallUrl)
     expect(url).toContain('summary=0')
     expect(url).not.toContain('summary=1')
+  })
+
+  it('populates codeReferences from /code-refs/statistics response (per-flag hunkCount sum)', async () => {
+    const responses = new Map<string, () => unknown>()
+    responses.set('/api/v2/flags/p', () => ({ items: [{
+      key: 'FOO', archived: false, temporary: true, tags: [],
+      variations: [{ value: false }, { value: true }],
+      environments: { production: { lastModified: 1700000000000 } },
+    }], totalCount: 1 }))
+    responses.set('/api/v2/code-refs/statistics/p', () => ({
+      flags: {
+        FOO: [
+          { name: 'frontend', hunkCount: 8 },
+          { name: 'mobile-app', hunkCount: 4 },
+        ],
+      },
+    }))
+
+    const fetchFn = vi.fn(async (urlOrReq: URL | string | Request) => {
+      const url = urlOrReq instanceof URL ? urlOrReq.toString()
+        : typeof urlOrReq === 'string' ? urlOrReq
+        : urlOrReq.url
+      for (const [path, body] of responses) {
+        if (url.includes(path)) {
+          return {
+            ok: true, status: 200, statusText: 'OK',
+            json: async () => body(),
+          } as unknown as Response
+        }
+      }
+      // Default: 200 with empty items (covers members, flag-statuses,
+      // evaluations, audit-log, and the archived=true flag pass).
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ items: [], totalCount: 0 }),
+      } as unknown as Response
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    expect(flags[0].codeReferences).toEqual({ count: 12 })
+  })
+
+  it('sets codeReferences to null when code-refs response has empty flags map', async () => {
+    const fetchFn = vi.fn(async (urlOrReq: URL | string | Request) => {
+      const url = urlOrReq instanceof URL ? urlOrReq.toString()
+        : typeof urlOrReq === 'string' ? urlOrReq
+        : urlOrReq.url
+      if (url.includes('/api/v2/flags/p') && !url.includes('archived=true')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({
+            items: [{
+              key: 'BAR', archived: false, temporary: true, tags: [],
+              variations: [{ value: false }, { value: true }],
+              environments: { production: { lastModified: 1700000000000 } },
+            }],
+            totalCount: 1,
+          }),
+        } as unknown as Response
+      }
+      if (url.includes('/api/v2/code-refs/statistics/p')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({ flags: {} }),
+        } as unknown as Response
+      }
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ items: [], totalCount: 0 }),
+      } as unknown as Response
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    expect(flags[0].codeReferences).toBeNull()
+  })
+
+  it('sets codeReferences to null when a flag is absent from the code-refs response', async () => {
+    const fetchFn = vi.fn(async (urlOrReq: URL | string | Request) => {
+      const url = urlOrReq instanceof URL ? urlOrReq.toString()
+        : typeof urlOrReq === 'string' ? urlOrReq
+        : urlOrReq.url
+      if (url.includes('/api/v2/flags/p') && !url.includes('archived=true')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({
+            items: [{
+              key: 'BAR', archived: false, temporary: true, tags: [],
+              variations: [{ value: false }, { value: true }],
+              environments: { production: { lastModified: 1700000000000 } },
+            }],
+            totalCount: 1,
+          }),
+        } as unknown as Response
+      }
+      if (url.includes('/api/v2/code-refs/statistics/p')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({ flags: { OTHER: [{ name: 'r', hunkCount: 5 }] } }),
+        } as unknown as Response
+      }
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ items: [], totalCount: 0 }),
+      } as unknown as Response
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    expect(flags[0].codeReferences).toBeNull()
+  })
+
+  it('leaves codeReferences undefined and logs advisory when code-refs returns 404', async () => {
+    const logger = {
+      debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+    }
+    const fetchFn = vi.fn(async (urlOrReq: URL | string | Request) => {
+      const url = urlOrReq instanceof URL ? urlOrReq.toString()
+        : typeof urlOrReq === 'string' ? urlOrReq
+        : urlOrReq.url
+      if (url.includes('/api/v2/flags/p') && !url.includes('archived=true')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({
+            items: [{
+              key: 'BAR', archived: false, temporary: true, tags: [],
+              variations: [{ value: false }, { value: true }],
+              environments: { production: { lastModified: 1700000000000 } },
+            }],
+            totalCount: 1,
+          }),
+        } as unknown as Response
+      }
+      if (url.includes('/api/v2/code-refs/statistics/p')) {
+        return {
+          ok: false, status: 404, statusText: 'Not Found',
+          json: async () => ({}),
+        } as unknown as Response
+      }
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ items: [], totalCount: 0 }),
+      } as unknown as Response
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch, logger },
+    )
+
+    expect(flags[0].codeReferences).toBeUndefined()
+    expect(logger.info).toHaveBeenCalledOnce()
+    expect((logger.info as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain('code-references not available')
+    expect((logger.info as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain('launchdarkly.com/docs')
+  })
+
+  it('leaves codeReferences undefined for archived flags', async () => {
+    const fetchFn = vi.fn(async (urlOrReq: URL | string | Request) => {
+      const url = urlOrReq instanceof URL ? urlOrReq.toString()
+        : typeof urlOrReq === 'string' ? urlOrReq
+        : urlOrReq.url
+      if (url.includes('/api/v2/flags/p')) {
+        if (url.includes('archived=true')) {
+          return {
+            ok: true, status: 200, statusText: 'OK',
+            json: async () => ({
+              items: [{
+                key: 'OLD', archived: true, temporary: true, tags: [],
+                variations: [{ value: false }, { value: true }],
+                environments: { production: { lastModified: 1700000000000 } },
+              }],
+              totalCount: 1,
+            }),
+          } as unknown as Response
+        }
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({ items: [], totalCount: 0 }),
+        } as unknown as Response
+      }
+      if (url.includes('/api/v2/code-refs/statistics/p')) {
+        return {
+          ok: true, status: 200, statusText: 'OK',
+          json: async () => ({ flags: { OLD: [{ name: 'r', hunkCount: 7 }] } }),
+        } as unknown as Response
+      }
+      return {
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ items: [], totalCount: 0 }),
+      } as unknown as Response
+    })
+
+    const flags = await fetchAllFlags(
+      { project: 'p', environment: 'production', token: 'tok' },
+      { fetch: fetchFn as unknown as typeof globalThis.fetch },
+    )
+
+    expect(flags[0].key).toBe('OLD')
+    expect(flags[0].archived).toBe(true)
+    expect(flags[0].codeReferences).toBeUndefined()
   })
 })

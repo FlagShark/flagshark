@@ -93,6 +93,14 @@ describe.skipIf(!TOKEN)('fetchAllFlags — LIVE LaunchDarkly API', () => {
           || typeof f.fallthroughVariation === 'number',
         ).toBe(true)
       }
+      // codeReferences is optional — LD's code-refs feature may not be
+      // configured on the live test project. Just verify the type
+      // contract holds (one of: undefined, null, or { count: number }).
+      expect(
+        f.codeReferences === undefined
+        || f.codeReferences === null
+        || (typeof f.codeReferences === 'object' && typeof f.codeReferences.count === 'number'),
+      ).toBe(true)
     }
   })
 
