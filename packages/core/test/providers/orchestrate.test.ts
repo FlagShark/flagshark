@@ -172,7 +172,7 @@ describe('orchestratePlatforms', () => {
     }
   })
 
-  it('appends an actionable auth-type hint when listFlags rejects with 401', async () => {
+  it('appends an SDK-key-vs-api-token hint on 401 when the token does not look like an api- token', async () => {
     process.env.LAUNCHDARKLY_API_TOKEN = 'tok'
     const logger = silentLogger()
     try {
@@ -187,10 +187,35 @@ describe('orchestratePlatforms', () => {
     } finally {
       delete process.env.LAUNCHDARKLY_API_TOKEN
     }
-    // The warn line must include the SDK-key-vs-API-token hint so users
-    // don't have to guess what to check first.
+    // Token shape was already ambiguous; the hint should steer toward
+    // 'use an API access token (api-…)' as the first thing to check.
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('API access tokens, not SDK keys'),
+      expect.stringContaining('use an API access token (api-…), not an SDK key'),
+    )
+  })
+
+  it('appends a project-key-vs-name hint on 401 when the token already has the api- prefix', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'api-deadbeef'
+    const logger = silentLogger()
+    try {
+      await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'My Demo Project', environment: 'demo' } },
+        detectedFlags: detected(['A']),
+        logger,
+        listFlagsOverride: async () => {
+          throw new Error('LaunchDarkly API 401 Unauthorized')
+        },
+      })
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+    // Shape looks right, so the next-most-likely cause is project key vs
+    // name — the hint should call that out specifically.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('token shape is correct'),
+    )
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('project KEY (not name)'),
     )
   })
 
@@ -211,7 +236,69 @@ describe('orchestratePlatforms', () => {
     }
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('500'))
     expect(logger.warn).not.toHaveBeenCalledWith(
-      expect.stringContaining('API access tokens, not SDK keys'),
+      expect.stringContaining('not an SDK key'),
+    )
+  })
+
+  it('preflight-warns when LAUNCHDARKLY_API_TOKEN looks like an SDK key (sdk-…)', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'sdk-12345-abcde'
+    const logger = silentLogger()
+    try {
+      await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'e' } },
+        detectedFlags: detected(['A']),
+        logger,
+        listFlagsOverride: async () => [],
+        noCache: true,
+      })
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+    // Pointed warning fires BEFORE the API call so users see the cause
+    // even if the API surface ever changes status codes.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('looks like an SDK key'),
+    )
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('FlagShark needs an API access token'),
+    )
+  })
+
+  it('preflight-warns when LAUNCHDARKLY_API_TOKEN looks like a mobile key (mob-…)', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'mob-abcdef-12345'
+    const logger = silentLogger()
+    try {
+      await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'e' } },
+        detectedFlags: detected(['A']),
+        logger,
+        listFlagsOverride: async () => [],
+        noCache: true,
+      })
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('looks like an SDK key'),
+    )
+  })
+
+  it('does NOT preflight-warn for tokens that look like API access tokens (api-…)', async () => {
+    process.env.LAUNCHDARKLY_API_TOKEN = 'api-deadbeef-12345'
+    const logger = silentLogger()
+    try {
+      await orchestratePlatforms({
+        platformsConfig: { launchdarkly: { project: 'p', environment: 'e' } },
+        detectedFlags: detected(['A']),
+        logger,
+        listFlagsOverride: async () => [],
+        noCache: true,
+      })
+    } finally {
+      delete process.env.LAUNCHDARKLY_API_TOKEN
+    }
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('looks like an SDK key'),
     )
   })
 
