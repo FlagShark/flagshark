@@ -80,8 +80,20 @@ PY
 done
 
 echo "→ Syncing bun.lock"
+# `bun install` against an existing lockfile treats a workspace package.json
+# version change as "no structural change" and leaves the lockfile's
+# workspaces section (which stores each workspace's resolved version)
+# pointing at the OLD version. `bun pm pack` then reads that stale stored
+# version when rewriting `workspace:*`, so the published tarball ends up
+# depending on the previous release's core (e.g. flagshark@2.3.1 shipped
+# depending on @flagshark/core@2.2.1 — see issue #36 follow-up).
+#
+# Delete the lockfile and regenerate from scratch so the workspaces
+# section is rebuilt from the current package.json files. Slightly slower
+# but the only reliable way to keep packed artifacts honest.
+rm -f bun.lock
 bun install >/dev/null
-echo "  ✓ bun install"
+echo "  ✓ bun install (fresh lockfile)"
 
 echo "→ Verifying"
 for pkg in packages/core packages/cli packages/action; do
@@ -92,6 +104,16 @@ for pkg in packages/core packages/cli packages/action; do
   fi
 done
 echo "  ✓ all three packages report $NEW_VERSION"
+
+# Defense in depth: verify bun.lock's workspaces section now reflects the
+# new version. The lockfile is checked into the repo, so a stale entry
+# here would re-introduce the publish bug on the next release.
+if ! grep -A2 '"name": "@flagshark/core"' bun.lock | grep -q "\"version\": \"$NEW_VERSION\""; then
+  echo "  ✗ bun.lock workspaces section did not pick up @flagshark/core@$NEW_VERSION" >&2
+  echo "    bun.lock workspace metadata is stale; publish would ship wrong core dep" >&2
+  exit 1
+fi
+echo "  ✓ bun.lock workspaces[@flagshark/core] reports $NEW_VERSION"
 
 echo ""
 echo "Done. Next steps (verbatim):"
