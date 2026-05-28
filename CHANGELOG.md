@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.2 — Republish fix: CLI now actually depends on @flagshark/core@2.3.x
+
+- **Hotfix:** `flagshark@2.3.0` and `flagshark@2.3.1` shipped depending on `@flagshark/core@2.2.1` — `bun install` against a pre-existing lockfile treats a workspace `version` bump as a no-op and leaves the lockfile's `workspaces` section pinned to the previous release, which `bun pm pack` then reads when rewriting `workspace:*`. As a result, every CLI feature added since v2.2.1 (multi-env, variation-aware cleanup, code-references cross-check, the v2.3.1 LaunchDarkly React Web SDK detection + token preflight) was unreachable via `npx flagshark@latest scan`. Republished with a corrected lockfile so `npx flagshark@latest` now actually runs the current detection engine.
+- **Tooling:** `scripts/bump-version.sh` now deletes `bun.lock` before reinstalling and verifies the `workspaces` section reports the new version. A new lockstep test asserts that `bun.lock` workspaces metadata matches `package.json` so this class of bug fails CI on the next bump instead of shipping silently.
+
 ## v2.3.1 — LaunchDarkly React Web SDK v4 + clearer 401s
 
 - **Fix: detect `@launchdarkly/react-sdk` (the current React Web SDK).** LaunchDarkly's React SDK is now published under a new package name (`@launchdarkly/react-sdk`, v4+) with a new typed-hook surface. Projects on this package were returning "No feature flags detected" because the detector only matched the older `@launchdarkly/react-client-sdk`. Now detects the new package plus its full hook surface: `useBoolVariation`, `useStringVariation`, `useNumberVariation`, `useJsonVariation`, and the matching `*Detail` variants. Old `@launchdarkly/react-client-sdk` + `useFlag` / `useFlags` keeps working.
