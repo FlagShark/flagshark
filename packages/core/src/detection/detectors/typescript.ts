@@ -120,38 +120,80 @@ export function defaultTypeScriptProviders(): FeatureFlagProvider[] {
     {
       name: 'LaunchDarkly React SDK',
       importPattern: '@launchdarkly/react-client-sdk',
-      // launchdarkly-react-client-sdk is the legacy unscoped package name
-      // still widely used; @launchdarkly/react-client-sdk is the current
-      // scoped name. Both ship the same hooks (useFlag, useFlags,
-      // useLDClient) so they share one provider config.
-      importAliases: ['launchdarkly-react-client-sdk'],
+      // Three accepted package names — LaunchDarkly has shipped the React
+      // SDK under three identities:
+      //   1. `launchdarkly-react-client-sdk` (legacy unscoped, still in use)
+      //   2. `@launchdarkly/react-client-sdk` (scoped rename of #1)
+      //   3. `@launchdarkly/react-sdk`        (the current React Web SDK,
+      //      v4+, published as a fresh package — NOT a substring of #2,
+      //      so the import gate must list it explicitly)
+      // All three share `useLDClient`. #1/#2 use `useFlag(key, default)` +
+      // `useFlags()` destructure. #3 introduced typed variation hooks
+      // (`useBoolVariation`/`useStringVariation`/`useNumberVariation`/
+      // `useJsonVariation`) plus their `*Detail` variants, and deprecated
+      // `useFlags()` (still works in v4 so we keep detecting it). The
+      // method list is the union of all three; the per-method regex only
+      // fires on files that actually call that method, so combining is
+      // safe — a file importing #1 with only `useFlag(...)` won't surface
+      // spurious `useBoolVariation` matches.
+      importAliases: ['launchdarkly-react-client-sdk', '@launchdarkly/react-sdk'],
       description: 'LaunchDarkly React SDK',
       enabled: true,
-      // The React SDK has two flag-shaped surfaces:
-      //   1. `useFlag('flag-key', defaultValue)` — positional flag key,
-      //      handled by the standard pipeline (flagKeyIndex: 0).
-      //   2. `useFlags()` returns an object keyed by every flag; consumers
-      //      destructure or index into it. That second shape can't be
-      //      expressed as a positional arg, so the provider declares
-      //      `useFlagsHook` and the helpers run a second pass that
-      //      extracts flag keys from `const { flagX, flagY } = useFlags()`
-      //      destructures. See detectDestructuredHookFlags in helpers.ts.
-      // useLDClient is documented for completeness (it returns the SDK
-      // client and is used to call `.variation()` on it manually); when
-      // present, the `.variation()` site is detected by the JS SDK
-      // provider above. No standalone extraction is needed here.
       useFlagsHook: 'useFlags',
       methods: [
+        // Old SDK hooks (@launchdarkly/react-client-sdk + legacy unscoped).
         {
           name: 'useFlag',
           flagKeyIndex: 0,
           examples: ["const enabled = useFlag('show-new-checkout', false)"],
         },
-        // useFlags + useLDClient are documented here but produce no
-        // positional-arg matches (flagKeyIndex: -1 → skipped by the main
-        // loop). The useFlags extraction runs via useFlagsHook above.
         { name: 'useFlags', flagKeyIndex: -1, examples: ['const { flagKey } = useFlags()'] },
         { name: 'useLDClient', flagKeyIndex: -1, examples: ['const ldClient = useLDClient()'] },
+
+        // New React Web SDK (@launchdarkly/react-sdk, v4+) typed variation
+        // hooks. Each takes the flag key as the first positional arg.
+        {
+          name: 'useBoolVariation',
+          flagKeyIndex: 0,
+          examples: ["const on = useBoolVariation('show-new-feature', false)"],
+        },
+        {
+          name: 'useStringVariation',
+          flagKeyIndex: 0,
+          examples: ["const theme = useStringVariation('ui-theme', 'light')"],
+        },
+        {
+          name: 'useNumberVariation',
+          flagKeyIndex: 0,
+          examples: ["const max = useNumberVariation('max-items', 10)"],
+        },
+        {
+          name: 'useJsonVariation',
+          flagKeyIndex: 0,
+          examples: ["const cfg = useJsonVariation('my-config', {})"],
+        },
+        // `*Detail` variants return { value, variationIndex, reason }
+        // instead of the bare value. Same first-arg shape.
+        {
+          name: 'useBoolVariationDetail',
+          flagKeyIndex: 0,
+          examples: ["const { value } = useBoolVariationDetail('flag', false)"],
+        },
+        {
+          name: 'useStringVariationDetail',
+          flagKeyIndex: 0,
+          examples: ["const { value } = useStringVariationDetail('flag', 'x')"],
+        },
+        {
+          name: 'useNumberVariationDetail',
+          flagKeyIndex: 0,
+          examples: ["const { value } = useNumberVariationDetail('flag', 0)"],
+        },
+        {
+          name: 'useJsonVariationDetail',
+          flagKeyIndex: 0,
+          examples: ["const { value } = useJsonVariationDetail('flag', {})"],
+        },
       ],
     },
     {

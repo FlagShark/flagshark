@@ -605,3 +605,71 @@ describe('detectFlagsWithRegex — LaunchDarkly React SDK (useFlag + useFlags de
     expect(flags.every((f) => f.confidence === 'medium')).toBe(true)
   })
 })
+
+describe('detectFlagsWithRegex — LaunchDarkly React Web SDK (@launchdarkly/react-sdk, v4+)', () => {
+  // LaunchDarkly's current React Web SDK is published as @launchdarkly/react-sdk
+  // (NOT @launchdarkly/react-client-sdk — the old package). The new SDK has a
+  // different hook surface: typed `useBoolVariation`/`useStringVariation`/
+  // `useNumberVariation`/`useJsonVariation` (each positional-arg) plus their
+  // `*Detail` variants. `useFlags` survives as deprecated in v4. Customer
+  // report: a project importing the new package with these hooks returns 0
+  // detections because the import gate and the methods list both covered only
+  // the old package.
+
+  it('detects useBoolVariation in a file importing @launchdarkly/react-sdk', async () => {
+    const { defaultTypeScriptProviders } = await import('../../src/detection/detectors/typescript.js')
+    const content = [
+      `import { useBoolVariation } from '@launchdarkly/react-sdk'`,
+      `export function Home() {`,
+      `  const showNewFeature = useBoolVariation('show-new-feature', false)`,
+      `  return showNewFeature ? <New /> : <Old />`,
+      `}`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('Home.tsx', content, 'typescript', defaultTypeScriptProviders())
+    expect(flags.map((f) => f.name)).toContain('show-new-feature')
+  })
+
+  it('detects each typed variation hook', async () => {
+    const { defaultTypeScriptProviders } = await import('../../src/detection/detectors/typescript.js')
+    const content = [
+      `import {`,
+      `  useBoolVariation,`,
+      `  useStringVariation,`,
+      `  useNumberVariation,`,
+      `  useJsonVariation,`,
+      `} from '@launchdarkly/react-sdk'`,
+      `const a = useBoolVariation('flag-bool', false)`,
+      `const b = useStringVariation('flag-string', 'x')`,
+      `const c = useNumberVariation('flag-number', 0)`,
+      `const d = useJsonVariation('flag-json', {})`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('typed.tsx', content, 'typescript', defaultTypeScriptProviders())
+    expect(flags.map((f) => f.name).sort()).toEqual([
+      'flag-bool',
+      'flag-json',
+      'flag-number',
+      'flag-string',
+    ])
+  })
+
+  it('detects the *Detail variants (eval-reason hooks)', async () => {
+    const { defaultTypeScriptProviders } = await import('../../src/detection/detectors/typescript.js')
+    const content = [
+      `import { useBoolVariationDetail } from '@launchdarkly/react-sdk'`,
+      `const { value } = useBoolVariationDetail('detail-flag', false)`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('detail.tsx', content, 'typescript', defaultTypeScriptProviders())
+    expect(flags.map((f) => f.name)).toContain('detail-flag')
+  })
+
+  it('keeps detecting useFlag from the old @launchdarkly/react-client-sdk', async () => {
+    // Regression guard: adding the new package must not break the old one.
+    const { defaultTypeScriptProviders } = await import('../../src/detection/detectors/typescript.js')
+    const content = [
+      `import { useFlag } from '@launchdarkly/react-client-sdk'`,
+      `const v = useFlag('old-sdk-flag', false)`,
+    ].join('\n')
+    const flags = detectFlagsWithRegex('old.tsx', content, 'typescript', defaultTypeScriptProviders())
+    expect(flags.map((f) => f.name)).toContain('old-sdk-flag')
+  })
+})
