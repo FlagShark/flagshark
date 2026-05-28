@@ -66,4 +66,25 @@ describe('repo-level lockstep version assertion', () => {
     const semver = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
     expect(core.version).toMatch(semver)
   })
+
+  it('bun.lock workspaces section reports the same version as package.json', () => {
+    // The publish bug class that v2.3.1 hit: `bun install` against an
+    // existing lockfile treats a workspace package.json version bump as
+    // a no-op and leaves the lockfile's workspaces section pinned to the
+    // OLD version. `bun pm pack` then rewrites `workspace:*` using the
+    // stale stored version, so flagshark@2.3.1 shipped depending on
+    // @flagshark/core@2.2.1 — the new SDK detection + token preflight
+    // never reached users. scripts/bump-version.sh now deletes the
+    // lockfile before reinstalling; this test enforces the invariant.
+    const lock = readFileSync(join(REPO_ROOT, 'bun.lock'), 'utf-8')
+    // bun.lock isn't strict JSON (it has trailing commas + comments) so
+    // a string-window regex over the workspace entry is the cheap parse.
+    // Capture the version field within the @flagshark/core workspace
+    // block — match the workspace path key to anchor.
+    const coreBlock = lock.match(
+      /"packages\/core":\s*\{[^}]*"name":\s*"@flagshark\/core"[^}]*"version":\s*"([^"]+)"/,
+    )
+    expect(coreBlock, 'bun.lock has @flagshark/core workspace entry').not.toBeNull()
+    expect(coreBlock![1], 'bun.lock workspaces[@flagshark/core].version').toBe(core.version)
+  })
 })
