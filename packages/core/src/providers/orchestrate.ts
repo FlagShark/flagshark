@@ -139,6 +139,22 @@ export async function orchestratePlatforms(
       continue
     }
 
+    // Preflight token-shape check (LaunchDarkly only). LD ships two token
+    // families with distinct prefixes: SDK keys (`sdk-…`, mobile keys
+    // `mob-…`) are for the runtime SDK and rejected by the REST API; API
+    // access tokens (`api-…`) are what FlagShark needs. The mistake is
+    // common because LD shows both in adjacent UI surfaces. We still
+    // attempt the request (in case LD ever changes formats) but emit a
+    // pointed warning up-front so the 401 below isn't the only signal.
+    if (name === 'launchdarkly' && /^(sdk-|mob-)/.test(token)) {
+      opts.logger.warn(
+        `${def.displayName}: ${tokenEnv} looks like an SDK key (${token.slice(0, 4)}…). ` +
+        `FlagShark needs an API access token (api-…). ` +
+        `Create one at Account settings → Authorization → API access tokens ` +
+        `(needs Reader role on the project at minimum).`,
+      )
+    }
+
     try {
       // Multi-env: parsed.data.environments is always a non-empty array
       // after the Zod transform (both `environment: 'x'` and
@@ -257,12 +273,27 @@ export async function orchestratePlatforms(
       // is almost always confusable token shapes (SDK key vs. API access
       // token, project-scoped token pointed at the wrong project, project
       // KEY vs. project NAME in the YAML). Surface a hint inline so users
-      // don't have to guess.
+      // don't have to guess. If we already preflighted the prefix above
+      // and it looked correct (`api-…`), the next-most-likely cause is
+      // project key vs. name, so steer the hint there instead of repeating
+      // the SDK-key warning.
       const message = (err as Error).message
       const isAuthError = /\b(401|403|Unauthorized|Forbidden)\b/i.test(message)
-      const hint = isAuthError
-        ? ` (check token type — API access tokens, not SDK keys, and the project key matches a project the token can read)`
-        : ''
+      let hint = ''
+      if (isAuthError) {
+        if (name === 'launchdarkly' && token.startsWith('api-')) {
+          hint =
+            ` (token shape is correct — verify the project KEY (not name) in .flagshark.yml ` +
+            `matches a project the token can read; the project key is shown in LD under ` +
+            `Account settings → Projects, in the second column)`
+        } else if (name === 'launchdarkly') {
+          hint =
+            ` (use an API access token (api-…), not an SDK key; verify the project KEY ` +
+            `(not display name) in .flagshark.yml matches a project the token can read)`
+        } else {
+          hint = ` (check token type and that it has read access to the configured project)`
+        }
+      }
       opts.logger.warn(
         `${def.displayName}: ${message}${hint}. Continuing with code-only signals.`,
       )
