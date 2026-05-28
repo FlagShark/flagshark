@@ -290,9 +290,13 @@ export async function orchestratePlatforms(
           hint =
             ` (use an API access token (api-…), not an SDK key; verify the project KEY ` +
             `(not display name) in .flagshark.yml matches a project the token can read)`
+        /* v8 ignore start -- defensive fallback for future non-LD platforms;
+           launchdarkly is the only registered platform today, and unknown
+           platform names bail at the findPlatform() check above. */
         } else {
           hint = ` (check token type and that it has read access to the configured project)`
         }
+        /* v8 ignore stop */
       }
       opts.logger.warn(
         `${def.displayName}: ${message}${hint}. Continuing with code-only signals.`,
