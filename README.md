@@ -9,7 +9,7 @@ npx flagshark scan
 ```
 
 ```
-🦈 FlagShark v2.3.0 — scanned 156 files in 2.3s
+🦈 FlagShark v2.3.1 — scanned 156 files in 2.3s
                        (47 excluded via .flagsharkignore + test-files preset)
 
 Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
