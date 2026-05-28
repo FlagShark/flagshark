@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.1 — LaunchDarkly React Web SDK v4 + clearer 401s
+
+- **Fix: detect `@launchdarkly/react-sdk` (the current React Web SDK).** LaunchDarkly's React SDK is now published under a new package name (`@launchdarkly/react-sdk`, v4+) with a new typed-hook surface. Projects on this package were returning "No feature flags detected" because the detector only matched the older `@launchdarkly/react-client-sdk`. Now detects the new package plus its full hook surface: `useBoolVariation`, `useStringVariation`, `useNumberVariation`, `useJsonVariation`, and the matching `*Detail` variants. Old `@launchdarkly/react-client-sdk` + `useFlag` / `useFlags` keeps working.
+- **New: token-shape preflight for LaunchDarkly.** When `LAUNCHDARKLY_API_TOKEN` looks like an SDK key (`sdk-…`) or mobile key (`mob-…`) instead of an API access token (`api-…`), FlagShark now emits a pointed warning up-front instead of leaving users to guess from the eventual 401. The 401 hint itself is also smarter: if the token shape already looks correct, it steers toward project key vs. display name (the next-most-likely cause) rather than repeating the SDK-key advice.
+
 ## v2.3.0 — LaunchDarkly integration: multi-env, variation-aware, code-refs cross-check
 
 - **New: multi-environment cross-check.** Configure `environments: [production, staging, test]` (or keep the legacy single-`environment` form) and FlagShark cross-references each flag against every configured env. Signals carry env attribution: `launched in production`, `inactive everywhere`, `zero evaluations in staging`. A flag has to be stale in EVERY env to be a cleanup candidate — mid-rollout flags (`launched` in one env, still `active` in another) get surfaced for human review instead of bad mechanical substitution.

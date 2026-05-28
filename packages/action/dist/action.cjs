@@ -37255,38 +37255,79 @@ function defaultTypeScriptProviders() {
     {
       name: "LaunchDarkly React SDK",
       importPattern: "@launchdarkly/react-client-sdk",
-      // launchdarkly-react-client-sdk is the legacy unscoped package name
-      // still widely used; @launchdarkly/react-client-sdk is the current
-      // scoped name. Both ship the same hooks (useFlag, useFlags,
-      // useLDClient) so they share one provider config.
-      importAliases: ["launchdarkly-react-client-sdk"],
+      // Three accepted package names — LaunchDarkly has shipped the React
+      // SDK under three identities:
+      //   1. `launchdarkly-react-client-sdk` (legacy unscoped, still in use)
+      //   2. `@launchdarkly/react-client-sdk` (scoped rename of #1)
+      //   3. `@launchdarkly/react-sdk`        (the current React Web SDK,
+      //      v4+, published as a fresh package — NOT a substring of #2,
+      //      so the import gate must list it explicitly)
+      // All three share `useLDClient`. #1/#2 use `useFlag(key, default)` +
+      // `useFlags()` destructure. #3 introduced typed variation hooks
+      // (`useBoolVariation`/`useStringVariation`/`useNumberVariation`/
+      // `useJsonVariation`) plus their `*Detail` variants, and deprecated
+      // `useFlags()` (still works in v4 so we keep detecting it). The
+      // method list is the union of all three; the per-method regex only
+      // fires on files that actually call that method, so combining is
+      // safe — a file importing #1 with only `useFlag(...)` won't surface
+      // spurious `useBoolVariation` matches.
+      importAliases: ["launchdarkly-react-client-sdk", "@launchdarkly/react-sdk"],
       description: "LaunchDarkly React SDK",
       enabled: true,
-      // The React SDK has two flag-shaped surfaces:
-      //   1. `useFlag('flag-key', defaultValue)` — positional flag key,
-      //      handled by the standard pipeline (flagKeyIndex: 0).
-      //   2. `useFlags()` returns an object keyed by every flag; consumers
-      //      destructure or index into it. That second shape can't be
-      //      expressed as a positional arg, so the provider declares
-      //      `useFlagsHook` and the helpers run a second pass that
-      //      extracts flag keys from `const { flagX, flagY } = useFlags()`
-      //      destructures. See detectDestructuredHookFlags in helpers.ts.
-      // useLDClient is documented for completeness (it returns the SDK
-      // client and is used to call `.variation()` on it manually); when
-      // present, the `.variation()` site is detected by the JS SDK
-      // provider above. No standalone extraction is needed here.
       useFlagsHook: "useFlags",
       methods: [
+        // Old SDK hooks (@launchdarkly/react-client-sdk + legacy unscoped).
         {
           name: "useFlag",
           flagKeyIndex: 0,
           examples: ["const enabled = useFlag('show-new-checkout', false)"]
         },
-        // useFlags + useLDClient are documented here but produce no
-        // positional-arg matches (flagKeyIndex: -1 → skipped by the main
-        // loop). The useFlags extraction runs via useFlagsHook above.
         { name: "useFlags", flagKeyIndex: -1, examples: ["const { flagKey } = useFlags()"] },
-        { name: "useLDClient", flagKeyIndex: -1, examples: ["const ldClient = useLDClient()"] }
+        { name: "useLDClient", flagKeyIndex: -1, examples: ["const ldClient = useLDClient()"] },
+        // New React Web SDK (@launchdarkly/react-sdk, v4+) typed variation
+        // hooks. Each takes the flag key as the first positional arg.
+        {
+          name: "useBoolVariation",
+          flagKeyIndex: 0,
+          examples: ["const on = useBoolVariation('show-new-feature', false)"]
+        },
+        {
+          name: "useStringVariation",
+          flagKeyIndex: 0,
+          examples: ["const theme = useStringVariation('ui-theme', 'light')"]
+        },
+        {
+          name: "useNumberVariation",
+          flagKeyIndex: 0,
+          examples: ["const max = useNumberVariation('max-items', 10)"]
+        },
+        {
+          name: "useJsonVariation",
+          flagKeyIndex: 0,
+          examples: ["const cfg = useJsonVariation('my-config', {})"]
+        },
+        // `*Detail` variants return { value, variationIndex, reason }
+        // instead of the bare value. Same first-arg shape.
+        {
+          name: "useBoolVariationDetail",
+          flagKeyIndex: 0,
+          examples: ["const { value } = useBoolVariationDetail('flag', false)"]
+        },
+        {
+          name: "useStringVariationDetail",
+          flagKeyIndex: 0,
+          examples: ["const { value } = useStringVariationDetail('flag', 'x')"]
+        },
+        {
+          name: "useNumberVariationDetail",
+          flagKeyIndex: 0,
+          examples: ["const { value } = useNumberVariationDetail('flag', 0)"]
+        },
+        {
+          name: "useJsonVariationDetail",
+          flagKeyIndex: 0,
+          examples: ["const { value } = useJsonVariationDetail('flag', {})"]
+        }
       ]
     },
     {
@@ -43847,7 +43888,7 @@ async function analyzeStaleness(flags2, options) {
           });
         }
       }
-      const hasPrimarySignal = signals.some((s) => s.type !== "low-usage");
+      const hasPrimarySignal = signals.some((s) => s.type !== "low-usage" && s.type !== "coverage-gap-vs-platform");
       if (hasPrimarySignal) {
         const stale = {
           name: flag.name,
@@ -43869,6 +43910,16 @@ async function analyzeStaleness(flags2, options) {
             stale.maintainer = meta.maintainer;
           if (meta.status)
             stale.platformStatus = meta.status;
+          if (meta.variations && meta.variations.length > 0)
+            stale.variations = meta.variations;
+          if (meta.codeReferences !== void 0)
+            stale.codeReferences = meta.codeReferences;
+        }
+        if (options.platformEnvironments) {
+          const envData = options.platformEnvironments.get(flagName);
+          if (envData && envData.size > 0) {
+            stale.environments = envData;
+          }
         }
         staleFlags.push(stale);
       }
@@ -44644,8 +44695,24 @@ async function loadIgnoreFile(startDir) {
 }
 
 // ../core/dist/providers/launchdarkly/types.js
+var VariationSchema = external_exports.object({
+  value: external_exports.unknown(),
+  name: external_exports.string().optional()
+}).passthrough();
+var FallthroughSchema = external_exports.object({
+  variation: external_exports.number().optional(),
+  rollout: external_exports.unknown().optional()
+}).passthrough();
 var EnvironmentSchema = external_exports.object({
-  lastModified: external_exports.number().optional()
+  lastModified: external_exports.number().optional(),
+  // NEW: flag's enabled-state in this env. When false, LD serves
+  // offVariation regardless of fallthrough/targeting.
+  on: external_exports.boolean().optional(),
+  // NEW: see FallthroughSchema above.
+  fallthrough: FallthroughSchema.optional(),
+  // NEW: variation index served when on=false. Required by LD on every
+  // active flag; optional here for defensive parsing.
+  offVariation: external_exports.number().optional()
 }).passthrough();
 var FlagItemSchema = external_exports.object({
   key: external_exports.string(),
@@ -44671,6 +44738,11 @@ var FlagItemSchema = external_exports.object({
   // Opaque LD member ID of whoever owns the flag. Resolved to a human
   // name+email via a separate /api/v2/members lookup.
   maintainerId: external_exports.string().optional(),
+  // NEW: flag-level variation definitions. Always present in summary=0
+  // responses for active flags (boolean = 2, multivariate = N). Each
+  // entry has at minimum a `value`; `name` is user-defined in the LD
+  // UI. We deliberately drop description and _id (YAGNI).
+  variations: external_exports.array(VariationSchema).optional(),
   environments: external_exports.record(external_exports.string(), EnvironmentSchema).optional()
 }).passthrough();
 var FlagsResponseSchema = external_exports.object({
@@ -44728,6 +44800,13 @@ var MembersResponseSchema = external_exports.object({
   totalCount: external_exports.number().optional(),
   _links: external_exports.unknown().optional()
 }).passthrough();
+var CodeRefsRepoEntrySchema = external_exports.object({
+  hunkCount: external_exports.number().optional()
+}).passthrough();
+var CodeRefsStatisticsResponseSchema = external_exports.object({
+  flags: external_exports.record(external_exports.string(), external_exports.array(CodeRefsRepoEntrySchema)).optional().default({}),
+  _links: external_exports.unknown().optional()
+}).passthrough();
 
 // ../core/dist/providers/launchdarkly/errors.js
 var LdApiError = class extends Error {
@@ -44777,7 +44856,15 @@ async function fetchAllFlags(config, opts = {}) {
           tags: item.tags,
           // Resolved below from the /members lookup; left as the opaque id
           // for now so the producer/consumer split stays clean.
-          maintainer: item.maintainerId
+          maintainer: item.maintainerId,
+          // The cast narrows the inferred type from `VariationSchema.passthrough()`
+          // (which infers `Record<string, unknown>` for extra fields) back to the
+          // declared `PlatformFlag.variations` shape. The runtime data is
+          // identical; the cast is a structural type-narrowing only.
+          variations: item.variations,
+          on: envData?.on,
+          fallthroughVariation: envData?.fallthrough?.variation ?? null,
+          offVariation: envData?.offVariation
         });
       }
       path2 = parsed._links?.next?.href;
@@ -44817,6 +44904,17 @@ async function fetchAllFlags(config, opts = {}) {
       if (flag.archived)
         continue;
       flag.lastTouched = lastTouched.get(flag.key) ?? null;
+    }
+  }
+  const codeRefs = await fetchCodeReferences(config, apiBase, headers, fetchFn, opts.signal);
+  if (codeRefs === null) {
+    opts.logger?.info(`LaunchDarkly code-references not available for this project \u2014 enable it in LD (Code references \u2192 Connect repository) to get coverage-gap diagnostics. See https://launchdarkly.com/docs/home/observability/code-references for setup.`);
+  } else {
+    for (const flag of out2) {
+      if (flag.archived)
+        continue;
+      const count = codeRefs.get(flag.key) ?? 0;
+      flag.codeReferences = count > 0 ? { count } : null;
     }
   }
   return out2;
@@ -44864,7 +44962,12 @@ function buildFirstPath(project, environment, archived = false) {
     env: environment,
     limit: "100",
     offset: "0",
-    summary: "1"
+    // summary=0 returns full flag objects with variations + per-env
+    // fallthrough/on/offVariation. summary=1 (the previous default) only
+    // returned key/tags/lastModified, which was insufficient for SaaS
+    // Piranha to substitute the correct value during cleanup. Payload
+    // grows ~1-5KB per flag — well within reasonable for paginated fetch.
+    summary: "0"
   });
   if (archived)
     params.set("archived", "true");
@@ -44956,27 +45059,66 @@ async function fetchLastTouchedMap(config, apiBase, headers, fetchFn, signal) {
     return null;
   return lastTouched;
 }
+async function fetchCodeReferences(config, apiBase, headers, fetchFn, signal) {
+  try {
+    const url = new URL(`/api/v2/code-refs/statistics/${encodeURIComponent(config.project)}`, apiBase);
+    const res = await fetchFn(url, { headers, signal });
+    if (res.status === 401 || res.status === 403 || res.status === 404) {
+      return null;
+    }
+    if (!res.ok)
+      return null;
+    const parsed = CodeRefsStatisticsResponseSchema.parse(await res.json());
+    const out2 = /* @__PURE__ */ new Map();
+    for (const [flagKey, repoEntries] of Object.entries(parsed.flags)) {
+      let total = 0;
+      for (const entry of repoEntries) {
+        if (typeof entry.hunkCount === "number")
+          total += entry.hunkCount;
+      }
+      out2.set(flagKey, total);
+    }
+    return out2;
+  } catch {
+    return null;
+  }
+}
 
 // ../core/dist/providers/launchdarkly/definition.js
 var launchdarklyConfigSchema = external_exports.object({
   project: external_exports.string(),
-  environment: external_exports.string(),
+  environment: external_exports.string().min(1).optional(),
+  environments: external_exports.array(external_exports.string().min(1)).nonempty().optional(),
   api_base: external_exports.string().url().optional(),
   token_env: external_exports.string().optional()
-});
+}).refine((cfg) => !!cfg.environment !== !!cfg.environments, { message: "set exactly one of 'environment' or 'environments'" }).transform((cfg) => ({
+  ...cfg,
+  environments: cfg.environments ?? [cfg.environment]
+}));
 var launchdarklyDefinition = {
   name: "launchdarkly",
   displayName: "LaunchDarkly",
   defaultTokenEnv: "LAUNCHDARKLY_API_TOKEN",
   configSchema: launchdarklyConfigSchema,
+  // createClient operates on ONE environment at a time. The orchestrator
+  // synthesizes a per-iteration `environment: env` config before calling
+  // createClient, so cfg.environment is normally set at this point. The
+  // cfg.environments[0] fallback below covers two cases: tests that
+  // bypass the orchestrator and call createClient directly with the raw
+  // post-transform config (where environment may be undefined for the
+  // array form), and any future caller that uses the same pattern.
+  // Keeping the client single-env preserves the fetchAllFlags contract.
   createClient: (cfg, token) => ({
     name: "launchdarkly",
     displayName: "LaunchDarkly",
-    listFlags: ({ signal } = {}) => fetchAllFlags({
-      project: cfg.project,
-      environment: cfg.environment,
-      token
-    }, { apiBase: cfg.api_base, signal })
+    listFlags: ({ signal, logger } = {}) => {
+      const env = cfg.environment ?? cfg.environments[0];
+      return fetchAllFlags({
+        project: cfg.project,
+        environment: env,
+        token
+      }, { apiBase: cfg.api_base, signal, logger });
+    }
   })
 };
 
@@ -44989,14 +45131,19 @@ function findPlatform(name2) {
 }
 
 // ../core/dist/providers/cross-reference.js
-function crossReference(detectedFlags, platformFlags, platformDisplayName, options = {}) {
-  const platformByKey = new Map(platformFlags.map((f) => [f.key, f]));
+function fmtEnvs(triggered, all) {
+  if (triggered.length === all.length && triggered.length > 0)
+    return "everywhere";
+  const ordered = all.filter((e) => triggered.includes(e));
+  return `in ${ordered.join(", ")}`;
+}
+function crossReference(detectedFlags, platformFlagsByEnv, platformDisplayName, options = {}) {
   const out2 = /* @__PURE__ */ new Map();
   const now = Date.now();
   const thresholdMs = options.thresholdDays != null ? options.thresholdDays * 864e5 : null;
   for (const key of detectedFlags.keys()) {
-    const platform = platformByKey.get(key);
-    if (!platform) {
+    const envMap = platformFlagsByEnv.get(key);
+    if (!envMap || envMap.size === 0) {
       out2.set(key, [
         {
           type: "missing-in-platform",
@@ -45006,7 +45153,8 @@ function crossReference(detectedFlags, platformFlags, platformDisplayName, optio
       ]);
       continue;
     }
-    if (platform.archived) {
+    const firstEntry = envMap.values().next().value;
+    if (firstEntry.archived) {
       out2.set(key, [
         {
           type: "archived-in-platform",
@@ -45017,58 +45165,94 @@ function crossReference(detectedFlags, platformFlags, platformDisplayName, optio
       continue;
     }
     const signals = [];
-    if (platform.status === "launched") {
+    const allEnvs = Array.from(envMap.keys());
+    const launchedEnvs = allEnvs.filter((e) => envMap.get(e).status === "launched");
+    if (launchedEnvs.length > 0) {
+      const where = fmtEnvs(launchedEnvs, allEnvs);
       signals.push({
         type: "platform-launched",
         severity: "error",
-        description: `${platformDisplayName} reports this flag has served one variation for 7+ days \u2014 likely ready for removal`
-      });
-    } else if (platform.status === "inactive") {
-      signals.push({
-        type: "platform-inactive",
-        severity: "warning",
-        description: `no evaluations recorded in ${platformDisplayName} in the last 7+ days`
+        description: `${platformDisplayName} reports this flag has served one variation for 7+ days ${where} \u2014 likely ready for removal`
       });
     }
-    if (platform.permanent) {
+    if (launchedEnvs.length === 0) {
+      const inactiveEnvs = allEnvs.filter((e) => envMap.get(e).status === "inactive");
+      if (inactiveEnvs.length > 0) {
+        const where = fmtEnvs(inactiveEnvs, allEnvs);
+        signals.push({
+          type: "platform-inactive",
+          severity: "warning",
+          description: `no evaluations recorded in ${platformDisplayName} ${where} in the last 7+ days`
+        });
+      }
+    }
+    if (firstEntry.permanent) {
       signals.push({
         type: "platform-permanent",
         severity: "info",
         description: `marked permanent in ${platformDisplayName}`
       });
     }
-    if (!platform.permanent && thresholdMs != null && platform.createdAt && now - platform.createdAt.getTime() > thresholdMs) {
-      const ageDays = Math.floor((now - platform.createdAt.getTime()) / 864e5);
+    if (!firstEntry.permanent && thresholdMs != null && firstEntry.createdAt && now - firstEntry.createdAt.getTime() > thresholdMs) {
+      const ageDays = Math.floor((now - firstEntry.createdAt.getTime()) / 864e5);
       signals.push({
         type: "platform-too-old",
         severity: "warning",
         description: `created in ${platformDisplayName} ${ageDays} days ago \u2014 past the ${options.thresholdDays}-day threshold`
       });
     }
-    if (!platform.permanent && typeof platform.evaluations30d === "number") {
-      if (platform.evaluations30d === 0) {
+    if (!firstEntry.permanent) {
+      const zeroEnvs = [];
+      const lowByEnv = [];
+      const threshold = options.evaluationThreshold ?? 10;
+      for (const env of allEnvs) {
+        const evals = envMap.get(env).evaluations30d;
+        if (typeof evals !== "number")
+          continue;
+        if (evals === 0) {
+          zeroEnvs.push(env);
+        } else if (evals < threshold) {
+          lowByEnv.push({ env, count: evals });
+        }
+      }
+      if (zeroEnvs.length > 0) {
+        const where = fmtEnvs(zeroEnvs, allEnvs);
         signals.push({
           type: "platform-zero-evaluations",
           severity: "error",
-          description: `0 evaluations in ${platformDisplayName} over the last 30 days \u2014 code path is unused`
+          description: `${platformDisplayName} reports 0 evaluations ${where} over the last 30 days \u2014 code path is unused`
         });
-      } else {
-        const threshold = options.evaluationThreshold ?? 10;
-        if (platform.evaluations30d < threshold) {
-          signals.push({
-            type: "platform-low-evaluations",
-            severity: "warning",
-            description: `only ${platform.evaluations30d} evaluation${platform.evaluations30d === 1 ? "" : "s"} in ${platformDisplayName} over the last 30 days (below threshold ${threshold})`
-          });
-        }
+      } else if (lowByEnv.length > 0) {
+        const lowEnvs = lowByEnv.map((e) => e.env);
+        const lowest = lowByEnv.reduce((a, b) => a.count <= b.count ? a : b);
+        const where = fmtEnvs(lowEnvs, allEnvs);
+        const countPhrase = lowByEnv.length > 1 ? `as few as ${lowest.count}` : `only ${lowest.count}`;
+        signals.push({
+          type: "platform-low-evaluations",
+          severity: "warning",
+          description: `${platformDisplayName} reports ${countPhrase} evaluation${lowest.count === 1 ? "" : "s"} ${where} over the last 30 days (below threshold ${threshold})`
+        });
       }
     }
-    if (platform.lastTouched === null) {
+    const allUntouched = allEnvs.length > 0 && allEnvs.every((e) => envMap.get(e).lastTouched === null);
+    if (allUntouched) {
       signals.push({
         type: "platform-untouched-stale",
         severity: "warning",
-        description: `no activity in ${platformDisplayName} for 90+ days (audit log)`
+        description: `no activity in ${platformDisplayName} ${fmtEnvs(allEnvs, allEnvs)} for 90+ days (audit log)`
       });
+    }
+    if (firstEntry.codeReferences && firstEntry.codeReferences.count > 0) {
+      const detected = detectedFlags.get(key)?.length ?? 0;
+      if (firstEntry.codeReferences.count > detected) {
+        const gap = firstEntry.codeReferences.count - detected;
+        const platCount = firstEntry.codeReferences.count;
+        signals.push({
+          type: "coverage-gap-vs-platform",
+          severity: "info",
+          description: `${platformDisplayName} detected ${platCount} reference${platCount === 1 ? "" : "s"} for this flag; FlagShark detected ${detected} (gap: ${gap})`
+        });
+      }
     }
     if (signals.length > 0) {
       out2.set(key, signals);
@@ -45130,7 +45314,16 @@ function readCache(key, opts = {}) {
   const flags2 = parsed.flags.map((f) => ({
     key: f.key,
     archived: f.archived,
-    lastModified: f.lastModified ? new Date(f.lastModified) : null
+    lastModified: f.lastModified ? new Date(f.lastModified) : null,
+    // Stub for the non-optional field. The enriched value is not persisted
+    // to disk (writeCache only stores key/archived/lastModified). On cache
+    // hits, the orchestrator's skip-empty-env guard uses `== null` for all
+    // enrichment fields, so this `null` is treated the same as the
+    // `undefined` of the other per-env fields — the env block is omitted
+    // from output, preserving the load-bearing-null semantics
+    // (`fallthroughVariation: null` in JSON output should ONLY mean "split
+    // rollout, fail closed", never "cached scan without fresh data").
+    fallthroughVariation: null
   }));
   return { fetchedAt, flags: flags2 };
 }
@@ -45156,7 +45349,7 @@ async function loadPlatformFlagsCached(client, cacheKey, opts = {}) {
     if (cached)
       return cached.flags;
   }
-  const flags2 = await client.listFlags({ signal: opts.signal });
+  const flags2 = await client.listFlags({ signal: opts.signal, logger: opts.logger });
   writeCache(cacheKey, flags2, opts);
   return flags2;
 }
@@ -45166,8 +45359,9 @@ async function orchestratePlatforms(opts) {
   const out2 = /* @__PURE__ */ new Map();
   const permanentByPlatform = {};
   const metadataByFlag = /* @__PURE__ */ new Map();
+  const environmentsByFlag = /* @__PURE__ */ new Map();
   if (!opts.platformsConfig) {
-    return { signals: out2, permanentByPlatform, metadataByFlag };
+    return { signals: out2, permanentByPlatform, metadataByFlag, environmentsByFlag };
   }
   for (const [name2, rawConfig] of Object.entries(opts.platformsConfig)) {
     const def = findPlatform(name2);
@@ -45187,12 +45381,33 @@ async function orchestratePlatforms(opts) {
       opts.logger.warn(`${def.displayName}: missing ${tokenEnv}; skipping platform integration`);
       continue;
     }
+    if (name2 === "launchdarkly" && /^(sdk-|mob-)/.test(token)) {
+      opts.logger.warn(`${def.displayName}: ${tokenEnv} looks like an SDK key (${token.slice(0, 4)}\u2026). FlagShark needs an API access token (api-\u2026). Create one at Account settings \u2192 Authorization \u2192 API access tokens (needs Reader role on the project at minimum).`);
+    }
     try {
-      const client = def.createClient(parsed.data, token);
-      const cacheKey = computeCacheKey(name2, parsed.data, token);
-      const flags2 = opts.listFlagsOverride ? await opts.listFlagsOverride(opts.signal) : await loadPlatformFlagsCached(client, cacheKey, { noCache: opts.noCache, signal: opts.signal });
-      const signals = crossReference(opts.detectedFlags, flags2, def.displayName, {
-        thresholdDays: opts.thresholdDays
+      const envs = parsed.data.environments;
+      const perEnv = /* @__PURE__ */ new Map();
+      let firstEnvFlags = [];
+      for (const env of envs) {
+        const envConfig = { ...parsed.data, environment: env };
+        const client = def.createClient(envConfig, token);
+        const cacheKey = computeCacheKey(name2, envConfig, token);
+        const flags2 = opts.listFlagsOverride ? await opts.listFlagsOverride(opts.signal) : await loadPlatformFlagsCached(client, cacheKey, {
+          noCache: opts.noCache,
+          signal: opts.signal,
+          logger: opts.logger
+        });
+        if (env === envs[0])
+          firstEnvFlags = flags2;
+        for (const f of flags2) {
+          if (!perEnv.has(f.key))
+            perEnv.set(f.key, /* @__PURE__ */ new Map());
+          perEnv.get(f.key).set(env, f);
+        }
+      }
+      const signals = crossReference(opts.detectedFlags, perEnv, def.displayName, {
+        thresholdDays: opts.thresholdDays,
+        evaluationThreshold: opts.evaluationThreshold
       });
       mergePlatformSignals(out2, signals);
       const platformPermanent = [];
@@ -45204,26 +45419,58 @@ async function orchestratePlatforms(opts) {
       if (platformPermanent.length > 0) {
         permanentByPlatform[def.displayName] = platformPermanent.sort();
       }
-      for (const flag of flags2) {
+      for (const flag of firstEnvFlags) {
         if (!opts.detectedFlags.has(flag.key))
           continue;
-        const hasMetadata = flag.tags && flag.tags.length > 0 || flag.maintainer || flag.status;
+        const hasMetadata = flag.tags && flag.tags.length > 0 || flag.maintainer || flag.status || flag.variations && flag.variations.length > 0 || flag.codeReferences !== void 0;
         if (!hasMetadata)
           continue;
         metadataByFlag.set(flag.key, {
           tags: flag.tags && flag.tags.length > 0 ? flag.tags : void 0,
           maintainer: flag.maintainer,
-          status: flag.status
+          status: flag.status,
+          variations: flag.variations && flag.variations.length > 0 ? flag.variations : void 0,
+          codeReferences: flag.codeReferences
         });
+      }
+      for (const [flagKey, envInnerMap] of perEnv) {
+        if (!opts.detectedFlags.has(flagKey))
+          continue;
+        const inner = /* @__PURE__ */ new Map();
+        for (const [env, pf] of envInnerMap) {
+          if (pf.status == null && pf.evaluations30d == null && pf.lastRequested == null && pf.lastTouched == null && pf.on == null && pf.fallthroughVariation == null && pf.offVariation == null)
+            continue;
+          inner.set(env, {
+            status: pf.status,
+            evaluations30d: pf.evaluations30d,
+            lastRequested: pf.lastRequested,
+            lastTouched: pf.lastTouched,
+            on: pf.on,
+            fallthroughVariation: pf.fallthroughVariation,
+            offVariation: pf.offVariation
+          });
+        }
+        if (inner.size > 0) {
+          environmentsByFlag.set(flagKey, inner);
+        }
       }
     } catch (err2) {
       const message = err2.message;
       const isAuthError = /\b(401|403|Unauthorized|Forbidden)\b/i.test(message);
-      const hint = isAuthError ? ` (check token type \u2014 API access tokens, not SDK keys, and the project key matches a project the token can read)` : "";
+      let hint = "";
+      if (isAuthError) {
+        if (name2 === "launchdarkly" && token.startsWith("api-")) {
+          hint = ` (token shape is correct \u2014 verify the project KEY (not name) in .flagshark.yml matches a project the token can read; the project key is shown in LD under Account settings \u2192 Projects, in the second column)`;
+        } else if (name2 === "launchdarkly") {
+          hint = ` (use an API access token (api-\u2026), not an SDK key; verify the project KEY (not display name) in .flagshark.yml matches a project the token can read)`;
+        } else {
+          hint = ` (check token type and that it has read access to the configured project)`;
+        }
+      }
       opts.logger.warn(`${def.displayName}: ${message}${hint}. Continuing with code-only signals.`);
     }
   }
-  return { signals: out2, permanentByPlatform, metadataByFlag };
+  return { signals: out2, permanentByPlatform, metadataByFlag, environmentsByFlag };
 }
 
 // ../core/dist/scan-repo.js
@@ -45265,7 +45512,7 @@ async function scanRepo(opts) {
   if (config.custom_detectors && config.custom_detectors.length > 0) {
     applyCustomDetectors(files, config.custom_detectors, analysisResult.totalFlags, logger);
   }
-  const { signals: platformSignals, permanentByPlatform, metadataByFlag } = await orchestratePlatforms({
+  const { signals: platformSignals, permanentByPlatform, metadataByFlag, environmentsByFlag } = await orchestratePlatforms({
     platformsConfig: config.platforms,
     detectedFlags: analysisResult.totalFlags,
     logger,
@@ -45281,7 +45528,8 @@ async function scanRepo(opts) {
     thresholdDays: threshold,
     repoRoot: opts.cwd,
     platformSignals,
-    platformMetadata: metadataByFlag
+    platformMetadata: metadataByFlag,
+    platformEnvironments: environmentsByFlag
   });
   const excludedPermanent = Array.from(new Set(Object.values(permanentByPlatform).flat())).sort();
   const totalFlags = analysisResult.totalFlags.size;
