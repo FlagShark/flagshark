@@ -1,0 +1,10 @@
+# Exclude test fixtures from FlagShark scans.
+#
+# The tree-sitter and regex detector fixtures contain real-looking SDK calls
+# (e.g. `ld.variation("checkout-redesign")`, `posthog.isFeatureEnabled(...)`)
+# used to verify the detectors work. When the public OSS scoreboard scans
+# this repo, those fixtures would otherwise be reported as ~50 stale flags
+# and drown out any real signal.
+packages/core/test/fixtures/**
+packages/*/test/fixtures/**
+packages/*/__fixtures__/**
