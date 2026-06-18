@@ -32040,264 +32040,6 @@ function defaultCPPProviders() {
   ];
 }
 
-// ../core/dist/detection/detectors/csharp.js
-var CSharpDetector = class {
-  providers;
-  constructor(providers) {
-    this.providers = providers ?? defaultCSharpProviders();
-  }
-  language() {
-    return Languages.CSharp;
-  }
-  fileExtensions() {
-    return [".cs", ".csx"];
-  }
-  supportsFile(filename) {
-    const lower = filename.toLowerCase();
-    return lower.endsWith(".cs") || lower.endsWith(".csx");
-  }
-  detectFlags(filename, content) {
-    return detectFlagsWithRegex(filename, content, this.language(), this.providers);
-  }
-  getProviders() {
-    return this.providers;
-  }
-};
-function defaultCSharpProviders() {
-  return [
-    {
-      name: "LaunchDarkly .NET SDK",
-      importPattern: "LaunchDarkly.Sdk",
-      description: "LaunchDarkly .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "BoolVariation",
-          flagKeyIndex: 0,
-          examples: ['client.BoolVariation("flag-key", context, false)']
-        },
-        {
-          name: "StringVariation",
-          flagKeyIndex: 0,
-          examples: ['client.StringVariation("flag-key", context, "default")']
-        },
-        {
-          name: "IntVariation",
-          flagKeyIndex: 0,
-          examples: ['client.IntVariation("flag-key", context, 0)']
-        },
-        {
-          name: "DoubleVariation",
-          flagKeyIndex: 0,
-          examples: ['client.DoubleVariation("flag-key", context, 0.0)']
-        },
-        {
-          name: "JsonVariation",
-          flagKeyIndex: 0,
-          examples: ['client.JsonVariation("flag-key", context, LdValue.Null)']
-        }
-      ]
-    },
-    {
-      name: "Unleash .NET SDK",
-      importPattern: "Unleash",
-      description: "Unleash .NET SDK",
-      enabled: true,
-      methods: [
-        { name: "IsEnabled", flagKeyIndex: 0, examples: ['unleash.IsEnabled("feature-toggle")'] },
-        { name: "GetVariant", flagKeyIndex: 0, examples: ['unleash.GetVariant("feature-toggle")'] }
-      ]
-    },
-    {
-      name: "Split.io .NET SDK",
-      importPattern: "Splitio.Services.Client",
-      description: "Split.io .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "GetTreatment",
-          flagKeyIndex: 1,
-          examples: ['client.GetTreatment(key, "split-name")']
-        },
-        {
-          name: "GetTreatments",
-          flagKeyIndex: 1,
-          examples: ['client.GetTreatments(key, new List<string>{"split1", "split2"})']
-        }
-      ]
-    },
-    {
-      name: "Optimizely .NET SDK",
-      importPattern: "OptimizelySDK",
-      description: "Optimizely Feature Experimentation .NET SDK",
-      enabled: true,
-      methods: [
-        { name: "Decide", flagKeyIndex: 0, examples: ['user.Decide("flag-key", options)'] },
-        {
-          name: "IsFeatureEnabled",
-          flagKeyIndex: 0,
-          examples: ['optimizely.IsFeatureEnabled("feature-key", userId)']
-        }
-      ]
-    },
-    {
-      name: "Flagsmith .NET SDK",
-      importPattern: "Flagsmith",
-      description: "Flagsmith .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "HasFeatureFlag",
-          flagKeyIndex: 0,
-          examples: ['flags.HasFeatureFlag("feature-name")']
-        },
-        {
-          name: "GetFeatureValue",
-          flagKeyIndex: 0,
-          examples: ['flags.GetFeatureValue("feature-name")']
-        }
-      ]
-    },
-    {
-      name: "ConfigCat .NET SDK",
-      importPattern: "ConfigCat.Client",
-      description: "ConfigCat .NET SDK",
-      enabled: true,
-      methods: [
-        { name: "GetValue", flagKeyIndex: 0, examples: ['client.GetValue("flag-key", false)'] },
-        {
-          name: "GetValueAsync",
-          flagKeyIndex: 0,
-          examples: ['await client.GetValueAsync("flag-key", false)']
-        }
-      ]
-    },
-    {
-      name: "Statsig .NET SDK",
-      importPattern: "Statsig",
-      description: "Statsig .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "CheckGate",
-          flagKeyIndex: 1,
-          examples: ['StatsigServer.CheckGate(user, "gate-name")']
-        },
-        {
-          name: "GetExperiment",
-          flagKeyIndex: 1,
-          examples: ['StatsigServer.GetExperiment(user, "experiment-name")']
-        },
-        {
-          name: "GetConfig",
-          flagKeyIndex: 1,
-          examples: ['StatsigServer.GetConfig(user, "config-name")']
-        }
-      ]
-    },
-    {
-      name: "GrowthBook .NET SDK",
-      importPattern: "GrowthBook",
-      description: "GrowthBook .NET SDK",
-      enabled: true,
-      methods: [
-        { name: "IsOn", flagKeyIndex: 0, examples: ['gb.IsOn("feature-key")'] },
-        {
-          name: "GetFeatureValue",
-          flagKeyIndex: 0,
-          examples: ['gb.GetFeatureValue<string>("feature-key", fallbackValue)']
-        }
-      ]
-    },
-    {
-      name: "DevCycle .NET SDK",
-      importPattern: "DevCycle.SDK.Server",
-      description: "DevCycle .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "VariableValue",
-          flagKeyIndex: 1,
-          examples: ['client.VariableValue(user, "variable-key", defaultValue)']
-        },
-        {
-          name: "Variable",
-          flagKeyIndex: 1,
-          examples: ['client.Variable(user, "variable-key", defaultValue)']
-        }
-      ]
-    },
-    {
-      name: "Eppo .NET SDK",
-      importPattern: "Eppo",
-      description: "Eppo .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "GetBooleanAssignment",
-          flagKeyIndex: 0,
-          examples: ['eppoClient.GetBooleanAssignment("flag-key", subjectKey, defaultValue)']
-        },
-        {
-          name: "GetStringAssignment",
-          flagKeyIndex: 0,
-          examples: ['eppoClient.GetStringAssignment("flag-key", subjectKey, defaultValue)']
-        }
-      ]
-    },
-    {
-      name: "PostHog .NET SDK",
-      importPattern: "PostHog",
-      description: "PostHog .NET SDK",
-      enabled: true,
-      methods: [
-        {
-          name: "IsFeatureEnabled",
-          flagKeyIndex: 0,
-          examples: ['posthog.IsFeatureEnabled("flag-key", distinctId)']
-        },
-        {
-          name: "GetFeatureFlag",
-          flagKeyIndex: 0,
-          examples: ['posthog.GetFeatureFlag("flag-key", distinctId)']
-        }
-      ]
-    },
-    {
-      name: "Microsoft Feature Management",
-      importPattern: "Microsoft.FeatureManagement",
-      description: "Microsoft Feature Management for .NET",
-      enabled: true,
-      methods: [
-        {
-          name: "IsEnabledAsync",
-          flagKeyIndex: 0,
-          examples: ['await featureManager.IsEnabledAsync("feature-name")']
-        },
-        {
-          name: "IsEnabled",
-          flagKeyIndex: 0,
-          examples: ['featureManager.IsEnabled("feature-name")']
-        }
-      ]
-    },
-    {
-      name: "Custom Feature Flags",
-      description: "Common custom C# feature flag patterns",
-      enabled: true,
-      methods: [
-        {
-          name: "IsFeatureEnabled",
-          flagKeyIndex: 0,
-          examples: ['IsFeatureEnabled("feature-name")']
-        },
-        { name: "CheckFeature", flagKeyIndex: 0, examples: ['CheckFeature("feature-name")'] },
-        { name: "HasFeature", flagKeyIndex: 0, examples: ['HasFeature("feature-name")'] }
-      ]
-    }
-  ];
-}
-
 // ../core/dist/detection/tree-sitter/parser-cache.js
 var import_node_module = require("node:module");
 
@@ -36285,7 +36027,9 @@ var WASM_RESOLUTION = {
   javascript: "tree-sitter-javascript/tree-sitter-javascript.wasm",
   go: "tree-sitter-go/tree-sitter-go.wasm",
   python: "tree-sitter-python/tree-sitter-python.wasm",
-  java: "tree-sitter-java/tree-sitter-java.wasm"
+  java: "tree-sitter-java/tree-sitter-java.wasm",
+  csharp: "tree-sitter-c-sharp/tree-sitter-c_sharp.wasm",
+  php: "tree-sitter-php/tree-sitter-php.wasm"
 };
 var parsers = /* @__PURE__ */ new Map();
 var inFlight = /* @__PURE__ */ new Map();
@@ -36343,9 +36087,11 @@ var import_node_fs = require("node:fs");
 
 // ../core/dist/detection/tree-sitter/queries-inline.js
 var INLINE_QUERIES = {
+  "csharp": '; Method call on a receiver: client.BoolVariation("flag", ...)\n(invocation_expression\n  function: (member_access_expression\n    name: (identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: BoolVariation("flag", ...)\n(invocation_expression\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n',
   "go": "; Method call on a receiver: client.BoolVariation(...)\n(call_expression\n  function: (selector_expression\n    operand: (_) @receiver\n    field: (field_identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: BoolVariation(...)\n(call_expression\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
   "java": '; Java unifies receiver calls and bare calls under method_invocation, so a\n; single pattern covers both client.boolVariation("flag", ...) and a bare\n; boolVariation("flag", ...). The `object:` field is left unconstrained so\n; both shapes match; the engine filters by method name.\n(method_invocation\n  name: (identifier) @method\n  arguments: (argument_list) @args) @call\n',
   "javascript": "; tree-sitter-javascript's grammar uses identical node names to typescript\n; for these call shapes \u2014 we duplicate the file for clarity even though the\n; content is identical.\n\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n",
+  "php": '; Method call on an object: $client->variation("flag", ...)\n(member_call_expression\n  name: (name) @method\n  arguments: (arguments) @args) @call\n\n; Bare function call: variation("flag", ...)\n(function_call_expression\n  function: (name) @method\n  arguments: (arguments) @args) @call\n',
   "python": "; Method call: client.variation(...)\n(call\n  function: (attribute\n    object: (_) @receiver\n    attribute: (identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: variation(...)\n(call\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
   "typescript": "; Match method-style calls: <receiver>.<method>(<args>)\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n; Match free-function calls: <method>(<args>)\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n"
 };
@@ -36394,12 +36140,17 @@ function* iterateCalls(tree, query) {
 }
 function getArgument(argsNode, index) {
   const realChildren = argsNode.namedChildren.filter((n) => n !== null && n.type !== "comment");
-  return realChildren[index] ?? null;
+  const node = realChildren[index] ?? null;
+  if (node && node.type === "argument") {
+    const inner = node.namedChildren.filter((n) => n !== null && n.type !== "comment");
+    return inner[inner.length - 1] ?? null;
+  }
+  return node;
 }
 function extractStringLiteral(node) {
   const type = node.type;
   const text = node.text;
-  if (type === "string" || type === "string_literal" || type === "interpreted_string_literal" || type === "raw_string_literal" || type === "template_string") {
+  if (type === "string" || type === "string_literal" || type === "interpreted_string_literal" || type === "raw_string_literal" || type === "template_string" || type === "encapsed_string") {
     if (text.length < 2)
       return null;
     const first = text[0];
@@ -36579,6 +36330,269 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
     flags2.push(...hookFlags);
   }
   return deduplicateFlags(flags2);
+}
+
+// ../core/dist/detection/detectors/csharp.js
+var CSharpDetector = class {
+  providers;
+  engine;
+  constructor(opts = {}) {
+    this.providers = opts.providers ?? defaultCSharpProviders();
+    this.engine = opts.engine ?? "regex";
+  }
+  language() {
+    return Languages.CSharp;
+  }
+  fileExtensions() {
+    return [".cs", ".csx"];
+  }
+  supportsFile(filename) {
+    const lower = filename.toLowerCase();
+    return lower.endsWith(".cs") || lower.endsWith(".csx");
+  }
+  detectFlags(filename, content) {
+    if (this.engine === "tree-sitter") {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers);
+    }
+    return detectFlagsWithRegex(filename, content, this.language(), this.providers);
+  }
+  getProviders() {
+    return this.providers;
+  }
+};
+function defaultCSharpProviders() {
+  return [
+    {
+      name: "LaunchDarkly .NET SDK",
+      importPattern: "LaunchDarkly.Sdk",
+      description: "LaunchDarkly .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "BoolVariation",
+          flagKeyIndex: 0,
+          examples: ['client.BoolVariation("flag-key", context, false)']
+        },
+        {
+          name: "StringVariation",
+          flagKeyIndex: 0,
+          examples: ['client.StringVariation("flag-key", context, "default")']
+        },
+        {
+          name: "IntVariation",
+          flagKeyIndex: 0,
+          examples: ['client.IntVariation("flag-key", context, 0)']
+        },
+        {
+          name: "DoubleVariation",
+          flagKeyIndex: 0,
+          examples: ['client.DoubleVariation("flag-key", context, 0.0)']
+        },
+        {
+          name: "JsonVariation",
+          flagKeyIndex: 0,
+          examples: ['client.JsonVariation("flag-key", context, LdValue.Null)']
+        }
+      ]
+    },
+    {
+      name: "Unleash .NET SDK",
+      importPattern: "Unleash",
+      description: "Unleash .NET SDK",
+      enabled: true,
+      methods: [
+        { name: "IsEnabled", flagKeyIndex: 0, examples: ['unleash.IsEnabled("feature-toggle")'] },
+        { name: "GetVariant", flagKeyIndex: 0, examples: ['unleash.GetVariant("feature-toggle")'] }
+      ]
+    },
+    {
+      name: "Split.io .NET SDK",
+      importPattern: "Splitio.Services.Client",
+      description: "Split.io .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "GetTreatment",
+          flagKeyIndex: 1,
+          examples: ['client.GetTreatment(key, "split-name")']
+        },
+        {
+          name: "GetTreatments",
+          flagKeyIndex: 1,
+          examples: ['client.GetTreatments(key, new List<string>{"split1", "split2"})']
+        }
+      ]
+    },
+    {
+      name: "Optimizely .NET SDK",
+      importPattern: "OptimizelySDK",
+      description: "Optimizely Feature Experimentation .NET SDK",
+      enabled: true,
+      methods: [
+        { name: "Decide", flagKeyIndex: 0, examples: ['user.Decide("flag-key", options)'] },
+        {
+          name: "IsFeatureEnabled",
+          flagKeyIndex: 0,
+          examples: ['optimizely.IsFeatureEnabled("feature-key", userId)']
+        }
+      ]
+    },
+    {
+      name: "Flagsmith .NET SDK",
+      importPattern: "Flagsmith",
+      description: "Flagsmith .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "HasFeatureFlag",
+          flagKeyIndex: 0,
+          examples: ['flags.HasFeatureFlag("feature-name")']
+        },
+        {
+          name: "GetFeatureValue",
+          flagKeyIndex: 0,
+          examples: ['flags.GetFeatureValue("feature-name")']
+        }
+      ]
+    },
+    {
+      name: "ConfigCat .NET SDK",
+      importPattern: "ConfigCat.Client",
+      description: "ConfigCat .NET SDK",
+      enabled: true,
+      methods: [
+        { name: "GetValue", flagKeyIndex: 0, examples: ['client.GetValue("flag-key", false)'] },
+        {
+          name: "GetValueAsync",
+          flagKeyIndex: 0,
+          examples: ['await client.GetValueAsync("flag-key", false)']
+        }
+      ]
+    },
+    {
+      name: "Statsig .NET SDK",
+      importPattern: "Statsig",
+      description: "Statsig .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "CheckGate",
+          flagKeyIndex: 1,
+          examples: ['StatsigServer.CheckGate(user, "gate-name")']
+        },
+        {
+          name: "GetExperiment",
+          flagKeyIndex: 1,
+          examples: ['StatsigServer.GetExperiment(user, "experiment-name")']
+        },
+        {
+          name: "GetConfig",
+          flagKeyIndex: 1,
+          examples: ['StatsigServer.GetConfig(user, "config-name")']
+        }
+      ]
+    },
+    {
+      name: "GrowthBook .NET SDK",
+      importPattern: "GrowthBook",
+      description: "GrowthBook .NET SDK",
+      enabled: true,
+      methods: [
+        { name: "IsOn", flagKeyIndex: 0, examples: ['gb.IsOn("feature-key")'] },
+        {
+          name: "GetFeatureValue",
+          flagKeyIndex: 0,
+          examples: ['gb.GetFeatureValue<string>("feature-key", fallbackValue)']
+        }
+      ]
+    },
+    {
+      name: "DevCycle .NET SDK",
+      importPattern: "DevCycle.SDK.Server",
+      description: "DevCycle .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "VariableValue",
+          flagKeyIndex: 1,
+          examples: ['client.VariableValue(user, "variable-key", defaultValue)']
+        },
+        {
+          name: "Variable",
+          flagKeyIndex: 1,
+          examples: ['client.Variable(user, "variable-key", defaultValue)']
+        }
+      ]
+    },
+    {
+      name: "Eppo .NET SDK",
+      importPattern: "Eppo",
+      description: "Eppo .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "GetBooleanAssignment",
+          flagKeyIndex: 0,
+          examples: ['eppoClient.GetBooleanAssignment("flag-key", subjectKey, defaultValue)']
+        },
+        {
+          name: "GetStringAssignment",
+          flagKeyIndex: 0,
+          examples: ['eppoClient.GetStringAssignment("flag-key", subjectKey, defaultValue)']
+        }
+      ]
+    },
+    {
+      name: "PostHog .NET SDK",
+      importPattern: "PostHog",
+      description: "PostHog .NET SDK",
+      enabled: true,
+      methods: [
+        {
+          name: "IsFeatureEnabled",
+          flagKeyIndex: 0,
+          examples: ['posthog.IsFeatureEnabled("flag-key", distinctId)']
+        },
+        {
+          name: "GetFeatureFlag",
+          flagKeyIndex: 0,
+          examples: ['posthog.GetFeatureFlag("flag-key", distinctId)']
+        }
+      ]
+    },
+    {
+      name: "Microsoft Feature Management",
+      importPattern: "Microsoft.FeatureManagement",
+      description: "Microsoft Feature Management for .NET",
+      enabled: true,
+      methods: [
+        {
+          name: "IsEnabledAsync",
+          flagKeyIndex: 0,
+          examples: ['await featureManager.IsEnabledAsync("feature-name")']
+        },
+        {
+          name: "IsEnabled",
+          flagKeyIndex: 0,
+          examples: ['featureManager.IsEnabled("feature-name")']
+        }
+      ]
+    },
+    {
+      name: "Custom Feature Flags",
+      description: "Common custom C# feature flag patterns",
+      enabled: true,
+      methods: [
+        {
+          name: "IsFeatureEnabled",
+          flagKeyIndex: 0,
+          examples: ['IsFeatureEnabled("feature-name")']
+        },
+        { name: "CheckFeature", flagKeyIndex: 0, examples: ['CheckFeature("feature-name")'] },
+        { name: "HasFeature", flagKeyIndex: 0, examples: ['HasFeature("feature-name")'] }
+      ]
+    }
+  ];
 }
 
 // ../core/dist/detection/detectors/go.js
@@ -38078,8 +38092,10 @@ function defaultObjCProviders() {
 // ../core/dist/detection/detectors/php.js
 var PHPDetector = class {
   providers;
-  constructor(providers) {
-    this.providers = providers ?? defaultPHPProviders();
+  engine;
+  constructor(opts = {}) {
+    this.providers = opts.providers ?? defaultPHPProviders();
+    this.engine = opts.engine ?? "regex";
   }
   language() {
     return Languages.PHP;
@@ -38096,6 +38112,9 @@ var PHPDetector = class {
     return ["php", "phtml", "php3", "php4", "php5", "phps"].includes(ext);
   }
   detectFlags(filename, content) {
+    if (this.engine === "tree-sitter") {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers);
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers);
   }
   getProviders() {
@@ -43677,11 +43696,11 @@ function createDefaultRegistry() {
   registry.register(new GoDetector({ engine: "tree-sitter" }));
   registry.register(new PythonDetector({ engine: "tree-sitter" }));
   registry.register(new JavaDetector({ engine: "tree-sitter" }));
+  registry.register(new CSharpDetector({ engine: "tree-sitter" }));
+  registry.register(new PHPDetector({ engine: "tree-sitter" }));
   registry.register(new KotlinDetector());
   registry.register(new SwiftDetector());
   registry.register(new RubyDetector());
-  registry.register(new CSharpDetector());
-  registry.register(new PHPDetector());
   registry.register(new RustDetector());
   registry.register(new CPPDetector());
   registry.register(new ObjectiveCDetector());
@@ -43694,11 +43713,11 @@ function createRegistryWithEngine(engine) {
   registry.register(new GoDetector({ engine }));
   registry.register(new PythonDetector({ engine }));
   registry.register(new JavaDetector({ engine }));
+  registry.register(new CSharpDetector({ engine }));
+  registry.register(new PHPDetector({ engine }));
   registry.register(new KotlinDetector());
   registry.register(new SwiftDetector());
   registry.register(new RubyDetector());
-  registry.register(new CSharpDetector());
-  registry.register(new PHPDetector());
   registry.register(new RustDetector());
   registry.register(new CPPDetector());
   registry.register(new ObjectiveCDetector());

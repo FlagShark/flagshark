@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.5.0 — C# and PHP join tier-1: AST (tree-sitter) detection
+
+- **New: C# and PHP use tree-sitter (AST) detection by default**, joining TypeScript, JavaScript, Go, Python, and Java. Tier-1 is now **seven** languages; the remaining six stay on regex.
+- Same precision win: flag-shaped text in comments and string literals no longer false-positives, and method calls are matched structurally (`client.BoolVariation(...)` in C#, `$client->variation(...)` in PHP).
+- Engine internals: the shared query runner now unwraps C#/PHP `argument` nodes and recognizes PHP `encapsed_string` literals, so both languages reuse the same generic AST pipeline.
+- The GitHub Action bundles the C# and PHP grammars (`tree-sitter-c_sharp.wasm`, `tree-sitter-php.wasm`) and queries, so `.cs`/`.php` detection runs with no extra setup.
+- Backward compatible and additive: existing C#/PHP consumers see fewer false positives, not fewer real detections. Const-bound flag keys are not yet resolved for these languages (a later tier).
+
 ## v2.4.0 — Java joins tier-1: AST (tree-sitter) detection
 
 - **New: Java uses tree-sitter (AST) detection by default.** Java moves from regex to a real syntax tree, the same engine as TypeScript, JavaScript, Go, and Python. Flag-shaped text in comments and string literals no longer false-positives, and multi-line `client.boolVariation(...)` calls are detected reliably. Tier-1 is now **five** languages; the remaining eight stay on regex (migrating in future minor releases).

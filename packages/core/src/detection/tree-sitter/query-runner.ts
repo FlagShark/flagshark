@@ -83,7 +83,15 @@ export function* iterateCalls(tree: Tree, query: Query): Generator<MatchedCall> 
 /** Returns the Nth argument node, or null if out of range. */
 export function getArgument(argsNode: Node, index: number): Node | null {
   const realChildren = (argsNode.namedChildren.filter((n) => n !== null && n.type !== 'comment')) as Node[]
-  return realChildren[index] ?? null
+  const node = realChildren[index] ?? null
+  // C# (argument_list) and PHP (arguments) wrap each call argument in an
+  // `argument` node; Go/Java/TS/Python place the expression directly. Unwrap
+  // so the caller (extractStringLiteral) sees the literal, not the wrapper.
+  if (node && node.type === 'argument') {
+    const inner = node.namedChildren.filter((n) => n !== null && n.type !== 'comment') as Node[]
+    return inner[inner.length - 1] ?? null
+  }
+  return node
 }
 
 /** Returns the string value if the node is a string literal, else null. */
@@ -96,7 +104,8 @@ export function extractStringLiteral(node: Node): string | null {
     type === 'string_literal' ||
     type === 'interpreted_string_literal' ||
     type === 'raw_string_literal' ||
-    type === 'template_string'
+    type === 'template_string' ||
+    type === 'encapsed_string'
   ) {
     if (text.length < 2) return null
     const first = text[0]

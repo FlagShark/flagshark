@@ -1,0 +1,11 @@
+[
+  {
+    "file": "positive/single-line.cs",
+    "flags": [
+      { "name": "CS_CHECKOUT_V2", "filePath": "positive/single-line.cs", "lineNumber": 7, "language": "csharp", "provider": "LaunchDarkly.Sdk" }
+    ]
+  },
+  { "file": "negative/flag-in-comment.cs", "flags": [] },
+  { "file": "negative/flag-in-string.cs", "flags": [] },
+  { "file": "negative/no-import.cs", "flags": [] }
+]
