@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.4.0 — Java joins tier-1: AST (tree-sitter) detection
+
+- **New: Java uses tree-sitter (AST) detection by default.** Java moves from regex to a real syntax tree, the same engine as TypeScript, JavaScript, Go, and Python. Flag-shaped text in comments and string literals no longer false-positives, and multi-line `client.boolVariation(...)` calls are detected reliably. Tier-1 is now **five** languages; the remaining eight stay on regex (migrating in future minor releases).
+- The GitHub Action bundles the Java grammar (`tree-sitter-java.wasm`) and query, so `.java` detection runs with no extra setup.
+- Backward compatible and additive: existing Java consumers see strictly **fewer false positives**, not fewer real detections. Const-bound flag keys (`static final String FLAG = "x"`) are not yet resolved for Java — that follows in a later tier, same as the other newly-migrated languages.
+
 ## v2.3.2 — Republish fix: CLI now actually depends on @flagshark/core@2.3.x
 
 - **Hotfix:** `flagshark@2.3.0` and `flagshark@2.3.1` shipped depending on `@flagshark/core@2.2.1` — `bun install` against a pre-existing lockfile treats a workspace `version` bump as a no-op and leaves the lockfile's `workspaces` section pinned to the previous release, which `bun pm pack` then reads when rewriting `workspace:*`. As a result, every CLI feature added since v2.2.1 (multi-env, variation-aware cleanup, code-references cross-check, the v2.3.1 LaunchDarkly React Web SDK detection + token preflight) was unreachable via `npx flagshark@latest scan`. Republished with a corrected lockfile so `npx flagshark@latest` now actually runs the current detection engine.

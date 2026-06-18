@@ -54,6 +54,7 @@ const WASM_RESOLUTION: Partial<Record<Language, string>> = {
   javascript: 'tree-sitter-javascript/tree-sitter-javascript.wasm',
   go: 'tree-sitter-go/tree-sitter-go.wasm',
   python: 'tree-sitter-python/tree-sitter-python.wasm',
+  java: 'tree-sitter-java/tree-sitter-java.wasm',
 }
 
 const parsers = new Map<Language, Parser>()

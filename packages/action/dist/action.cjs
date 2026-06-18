@@ -36284,7 +36284,8 @@ var WASM_RESOLUTION = {
   typescript: "tree-sitter-typescript/tree-sitter-typescript.wasm",
   javascript: "tree-sitter-javascript/tree-sitter-javascript.wasm",
   go: "tree-sitter-go/tree-sitter-go.wasm",
-  python: "tree-sitter-python/tree-sitter-python.wasm"
+  python: "tree-sitter-python/tree-sitter-python.wasm",
+  java: "tree-sitter-java/tree-sitter-java.wasm"
 };
 var parsers = /* @__PURE__ */ new Map();
 var inFlight = /* @__PURE__ */ new Map();
@@ -36343,6 +36344,7 @@ var import_node_fs = require("node:fs");
 // ../core/dist/detection/tree-sitter/queries-inline.js
 var INLINE_QUERIES = {
   "go": "; Method call on a receiver: client.BoolVariation(...)\n(call_expression\n  function: (selector_expression\n    operand: (_) @receiver\n    field: (field_identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: BoolVariation(...)\n(call_expression\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
+  "java": '; Java unifies receiver calls and bare calls under method_invocation, so a\n; single pattern covers both client.boolVariation("flag", ...) and a bare\n; boolVariation("flag", ...). The `object:` field is left unconstrained so\n; both shapes match; the engine filters by method name.\n(method_invocation\n  name: (identifier) @method\n  arguments: (argument_list) @args) @call\n',
   "javascript": "; tree-sitter-javascript's grammar uses identical node names to typescript\n; for these call shapes \u2014 we duplicate the file for clarity even though the\n; content is identical.\n\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n",
   "python": "; Method call: client.variation(...)\n(call\n  function: (attribute\n    object: (_) @receiver\n    attribute: (identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: variation(...)\n(call\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
   "typescript": "; Match method-style calls: <receiver>.<method>(<args>)\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n; Match free-function calls: <method>(<args>)\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n"
@@ -36901,8 +36903,10 @@ function defaultGoProviders() {
 // ../core/dist/detection/detectors/java.js
 var JavaDetector = class {
   providers;
-  constructor(providers) {
-    this.providers = providers ?? defaultJavaProviders();
+  engine;
+  constructor(opts = {}) {
+    this.providers = opts.providers ?? defaultJavaProviders();
+    this.engine = opts.engine ?? "regex";
   }
   language() {
     return Languages.Java;
@@ -36914,6 +36918,9 @@ var JavaDetector = class {
     return filename.toLowerCase().endsWith(".java");
   }
   detectFlags(filename, content) {
+    if (this.engine === "tree-sitter") {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers);
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers);
   }
   getProviders() {
@@ -43669,7 +43676,7 @@ function createDefaultRegistry() {
   registry.register(new JavaScriptDetector({ engine: "tree-sitter" }));
   registry.register(new GoDetector({ engine: "tree-sitter" }));
   registry.register(new PythonDetector({ engine: "tree-sitter" }));
-  registry.register(new JavaDetector());
+  registry.register(new JavaDetector({ engine: "tree-sitter" }));
   registry.register(new KotlinDetector());
   registry.register(new SwiftDetector());
   registry.register(new RubyDetector());
@@ -43686,7 +43693,7 @@ function createRegistryWithEngine(engine) {
   registry.register(new JavaScriptDetector({ engine }));
   registry.register(new GoDetector({ engine }));
   registry.register(new PythonDetector({ engine }));
-  registry.register(new JavaDetector());
+  registry.register(new JavaDetector({ engine }));
   registry.register(new KotlinDetector());
   registry.register(new SwiftDetector());
   registry.register(new RubyDetector());

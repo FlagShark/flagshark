@@ -21,6 +21,7 @@ const grammars = [
   'tree-sitter-javascript/tree-sitter-javascript.wasm',
   'tree-sitter-go/tree-sitter-go.wasm',
   'tree-sitter-python/tree-sitter-python.wasm',
+  'tree-sitter-java/tree-sitter-java.wasm',
 ]
 for (const spec of grammars) {
   const src = require_.resolve(spec, { paths: [resolve(here, '..', '..', 'core')] })
@@ -30,7 +31,7 @@ for (const spec of grammars) {
 }
 
 // Copy .scm query files from @flagshark/core's source
-const queries = ['typescript.scm', 'javascript.scm', 'go.scm', 'python.scm']
+const queries = ['typescript.scm', 'javascript.scm', 'go.scm', 'python.scm', 'java.scm']
 const coreQueriesDir = resolve(here, '..', '..', 'core', 'src', 'detection', 'tree-sitter', 'queries')
 for (const queryFile of queries) {
   const src = join(coreQueriesDir, queryFile)
