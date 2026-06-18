@@ -1,0 +1,11 @@
+[
+  {
+    "file": "positive/single-line.java",
+    "flags": [
+      { "name": "JAVA_CHECKOUT_V2", "filePath": "positive/single-line.java", "lineNumber": 6, "language": "java", "provider": "com.launchdarkly.sdk" }
+    ]
+  },
+  { "file": "negative/flag-in-comment.java", "flags": [] },
+  { "file": "negative/flag-in-string.java", "flags": [] },
+  { "file": "negative/no-import.java", "flags": [] }
+]

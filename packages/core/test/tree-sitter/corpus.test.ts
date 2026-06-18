@@ -7,6 +7,7 @@ import { detectFlagsWithTreeSitter } from '../../src/detection/tree-sitter/engin
 import { defaultTypeScriptProviders } from '../../src/detection/detectors/typescript.js'
 import { defaultGoProviders } from '../../src/detection/detectors/go.js'
 import { defaultPythonProviders } from '../../src/detection/detectors/python.js'
+import { defaultJavaProviders } from '../../src/detection/detectors/java.js'
 import { detectFlagsWithRegex } from '../../src/detection/helpers.js'
 
 import type { FeatureFlagProvider, Language } from '../../src/detection/interface.js'
@@ -18,6 +19,7 @@ const LANGUAGES: { name: Language; providers: () => FeatureFlagProvider[] }[] = 
   { name: 'javascript', providers: defaultTypeScriptProviders },  // JS reuses TS providers
   { name: 'go', providers: defaultGoProviders },
   { name: 'python', providers: defaultPythonProviders },
+  { name: 'java', providers: defaultJavaProviders },
 ]
 
 for (const { name: language, providers } of LANGUAGES) {

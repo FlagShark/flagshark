@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 
-import { JavaDetector } from '../../src/detection/detectors/java.js'
 import { KotlinDetector } from '../../src/detection/detectors/kotlin.js'
 import { SwiftDetector } from '../../src/detection/detectors/swift.js'
 import { RubyDetector } from '../../src/detection/detectors/ruby.js'
@@ -16,7 +15,6 @@ import { PythonDetector } from '../../src/detection/detectors/python.js'
 import type { FeatureFlagProvider } from '../../src/detection/interface.js'
 
 const ALL_DETECTORS = [
-  { name: 'Java', cls: JavaDetector },
   { name: 'Kotlin', cls: KotlinDetector },
   { name: 'Swift', cls: SwiftDetector },
   { name: 'Ruby', cls: RubyDetector },

@@ -9,6 +9,7 @@ import { TypeScriptDetector } from '../../src/detection/detectors/typescript.js'
 import { JavaScriptDetector } from '../../src/detection/detectors/javascript.js'
 import { GoDetector } from '../../src/detection/detectors/go.js'
 import { PythonDetector } from '../../src/detection/detectors/python.js'
+import { JavaDetector } from '../../src/detection/detectors/java.js'
 import { _resetParserCacheForTests } from '../../src/detection/tree-sitter/parser-cache.js'
 import { _clearQueryCache } from '../../src/detection/tree-sitter/query-runner.js'
 
@@ -378,5 +379,75 @@ describe('PythonDetector class', () => {
     ].join('\n')
     const flags = await d.detectFlags('app.py', content)
     expect(flags.some((f) => f.name === 'PY_FLAG')).toBe(true)
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// JavaDetector
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('JavaDetector class', () => {
+  it('default constructor uses default providers', () => {
+    const d = new JavaDetector()
+    expect(d.getProviders().length).toBeGreaterThan(0)
+  })
+
+  it('custom providers replace defaults', () => {
+    const d = new JavaDetector({ providers: CUSTOM })
+    expect(d.getProviders()).toEqual(CUSTOM)
+  })
+
+  it('language() returns "java"', () => {
+    expect(new JavaDetector().language()).toBe('java')
+  })
+
+  it('fileExtensions() returns [".java"]', () => {
+    expect(new JavaDetector().fileExtensions()).toEqual(['.java'])
+  })
+
+  it('supportsFile matches .java', () => {
+    expect(new JavaDetector().supportsFile('App.java')).toBe(true)
+  })
+
+  it('supportsFile rejects .kt', () => {
+    expect(new JavaDetector().supportsFile('App.kt')).toBe(false)
+  })
+
+  it('detectFlags (regex engine) returns empty for empty content', () => {
+    const d = new JavaDetector({ engine: 'regex' })
+    expect(d.detectFlags('App.java', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) returns empty for empty content', async () => {
+    const d = new JavaDetector({ engine: 'tree-sitter' })
+    const result = await d.detectFlags('App.java', '')
+    expect(result).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) detects a LaunchDarkly Java flag', async () => {
+    const d = new JavaDetector({ engine: 'tree-sitter' })
+    const content = [
+      `import com.launchdarkly.sdk.server.LDClient;`,
+      `public class App {`,
+      `  void run(LDClient client) {`,
+      `    client.boolVariation("JAVA_FLAG", context, false);`,
+      `  }`,
+      `}`,
+    ].join('\n')
+    const flags = await d.detectFlags('App.java', content)
+    expect(flags.some((f) => f.name === 'JAVA_FLAG')).toBe(true)
+  })
+
+  it('detectFlags (tree-sitter engine) ignores a flag in a comment', async () => {
+    const d = new JavaDetector({ engine: 'tree-sitter' })
+    const content = [
+      `import com.launchdarkly.sdk.server.LDClient;`,
+      `public class App {`,
+      `  // client.boolVariation("COMMENTED_FLAG", context, false)`,
+      `  void run() {}`,
+      `}`,
+    ].join('\n')
+    const flags = await d.detectFlags('App.java', content)
+    expect(flags.some((f) => f.name === 'COMMENTED_FLAG')).toBe(false)
   })
 })

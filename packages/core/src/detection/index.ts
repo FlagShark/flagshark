@@ -87,7 +87,7 @@ export {
 
 /**
  * Creates a LanguageRegistry pre-loaded with all 13 language detectors.
- * Tier-1 languages (TypeScript, JavaScript, Go, Python) use tree-sitter by default.
+ * Tier-1 languages (TypeScript, JavaScript, Go, Python, Java) use tree-sitter by default.
  * Non-tier-1 detectors use regex (the per-detector default).
  */
 export function createDefaultRegistry(): LanguageRegistry {
@@ -96,8 +96,8 @@ export function createDefaultRegistry(): LanguageRegistry {
   registry.register(new JavaScriptDetector({ engine: 'tree-sitter' }))
   registry.register(new GoDetector({ engine: 'tree-sitter' }))
   registry.register(new PythonDetector({ engine: 'tree-sitter' }))
+  registry.register(new JavaDetector({ engine: 'tree-sitter' }))
   // Non-tier-1 stay regex (default):
-  registry.register(new JavaDetector())
   registry.register(new KotlinDetector())
   registry.register(new SwiftDetector())
   registry.register(new RubyDetector())
@@ -123,8 +123,8 @@ export function createRegistryWithEngine(engine: DetectorEngine): LanguageRegist
   registry.register(new JavaScriptDetector({ engine }))
   registry.register(new GoDetector({ engine }))
   registry.register(new PythonDetector({ engine }))
+  registry.register(new JavaDetector({ engine }))
   // Non-tier-1 detectors stay regex:
-  registry.register(new JavaDetector())
   registry.register(new KotlinDetector())
   registry.register(new SwiftDetector())
   registry.register(new RubyDetector())
