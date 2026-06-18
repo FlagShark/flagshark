@@ -89,6 +89,7 @@ export function getArgument(argsNode: Node, index: number): Node | null {
   // so the caller (extractStringLiteral) sees the literal, not the wrapper.
   if (node && node.type === 'argument') {
     const inner = node.namedChildren.filter((n) => n !== null && n.type !== 'comment') as Node[]
+    /* v8 ignore next -- a parsed `argument` always wraps an expression; the empty fallback is defensive */
     return inner[inner.length - 1] ?? null
   }
   return node
