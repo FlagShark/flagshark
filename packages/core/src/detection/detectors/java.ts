@@ -5,15 +5,28 @@
 
 import { detectFlagsWithRegex } from '../helpers.js'
 import { Languages } from '../interface.js'
+import { detectFlagsWithTreeSitter } from '../tree-sitter/engine.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
-import type { FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
+import type {
+  DetectorEngine,
+  FeatureFlagProvider,
+  Language,
+  LanguageDetector,
+} from '../interface.js'
+
+export interface JavaDetectorOptions {
+  providers?: FeatureFlagProvider[]
+  engine?: DetectorEngine
+}
 
 export class JavaDetector implements LanguageDetector {
   private readonly providers: FeatureFlagProvider[]
+  private readonly engine: DetectorEngine
 
-  constructor(providers?: FeatureFlagProvider[]) {
-    this.providers = providers ?? defaultJavaProviders()
+  constructor(opts: JavaDetectorOptions = {}) {
+    this.providers = opts.providers ?? defaultJavaProviders()
+    this.engine = opts.engine ?? 'regex'
   }
 
   language(): Language {
@@ -28,7 +41,10 @@ export class JavaDetector implements LanguageDetector {
     return filename.toLowerCase().endsWith('.java')
   }
 
-  detectFlags(filename: string, content: string): FeatureFlag[] {
+  detectFlags(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]> {
+    if (this.engine === 'tree-sitter') {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers)
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers)
   }
 
