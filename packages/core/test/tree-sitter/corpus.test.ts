@@ -8,6 +8,8 @@ import { defaultTypeScriptProviders } from '../../src/detection/detectors/typesc
 import { defaultGoProviders } from '../../src/detection/detectors/go.js'
 import { defaultPythonProviders } from '../../src/detection/detectors/python.js'
 import { defaultJavaProviders } from '../../src/detection/detectors/java.js'
+import { defaultCSharpProviders } from '../../src/detection/detectors/csharp.js'
+import { defaultPHPProviders } from '../../src/detection/detectors/php.js'
 import { detectFlagsWithRegex } from '../../src/detection/helpers.js'
 
 import type { FeatureFlagProvider, Language } from '../../src/detection/interface.js'
@@ -20,6 +22,8 @@ const LANGUAGES: { name: Language; providers: () => FeatureFlagProvider[] }[] = 
   { name: 'go', providers: defaultGoProviders },
   { name: 'python', providers: defaultPythonProviders },
   { name: 'java', providers: defaultJavaProviders },
+  { name: 'csharp', providers: defaultCSharpProviders },
+  { name: 'php', providers: defaultPHPProviders },
 ]
 
 for (const { name: language, providers } of LANGUAGES) {

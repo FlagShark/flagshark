@@ -33,7 +33,7 @@ Exit code: 1 (stale flags found)
 - **Zero install, zero config.** `npx flagshark scan` runs on any repo today. No `.flagshark.yml` required.
 - **Polyglot.** 13 languages out of the box — including the awkward monorepo where half is TS and half is Go.
 - **Provider-aware.** Auto-detects 13 flag SDKs (LaunchDarkly, Unleash, Statsig, PostHog, Flagsmith, GrowthBook, ConfigCat, Split.io, Flipt, DevCycle, Eppo, Optimizely, plus generic patterns). No custom rules to maintain.
-- **AST-based detection** for TypeScript, JavaScript, Go, Python, and Java via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, error messages, and unrelated calls aren't false positives.
+- **AST-based detection** for TypeScript, JavaScript, Go, Python, Java, C#, and PHP via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, error messages, and unrelated calls aren't false positives.
 - **Two staleness signals.** `git blame` age + single-file usage. Both run automatically — no setup.
 - **Open source, MIT licensed.** No account, no token, no telemetry.
 
@@ -306,11 +306,11 @@ When the LD integration is on, each entry in `flags[]` may include these additio
 | Go | `.go` | AST (tree-sitter) |
 | Python | `.py` | AST (tree-sitter) |
 | Java | `.java` | AST (tree-sitter) |
+| C# | `.cs` | AST (tree-sitter) |
+| PHP | `.php` | AST (tree-sitter) |
 | Kotlin | `.kt` | Regex |
 | Swift | `.swift` | Regex |
 | Ruby | `.rb` | Regex |
-| C# | `.cs` | Regex |
-| PHP | `.php` | Regex |
 | Rust | `.rs` | Regex |
 | C / C++ | `.c`, `.cpp`, `.h`, `.hpp` | Regex |
 | Objective-C | `.m` | Regex |
@@ -327,9 +327,9 @@ LaunchDarkly · Unleash · Flipt · Split.io · PostHog · Flagsmith · ConfigCa
 
 FlagShark only scans files that actually import a flag SDK. A function called `isEnabled()` in a file that doesn't import LaunchDarkly/Unleash/etc. won't be flagged. This prevents false positives.
 
-For tier-1 languages (TS, JS, Go, Python, Java), detection uses tree-sitter to parse the file into a real AST. That eliminates the entire category of false positives where regex would match flag-shaped strings inside comments, string literals, or unrelated identifier paths. It also handles multi-line calls and resolves const-bound flag keys (`const FLAG = 'X'; client.variation(FLAG, ...)`) in TS/JS.
+For tier-1 languages (TS, JS, Go, Python, Java, C#, PHP), detection uses tree-sitter to parse the file into a real AST. That eliminates the entire category of false positives where regex would match flag-shaped strings inside comments, string literals, or unrelated identifier paths. It also handles multi-line calls and resolves const-bound flag keys (`const FLAG = 'X'; client.variation(FLAG, ...)`) in TS/JS.
 
-For the remaining 8 languages, regex-based detection is used today. Each language migrates to tree-sitter in future minor releases (no breaking changes).
+For the remaining 6 languages, regex-based detection is used today. Each language migrates to tree-sitter in future minor releases (no breaking changes).
 
 ## How staleness works
 

@@ -1,0 +1,11 @@
+[
+  {
+    "file": "positive/single-line.php",
+    "flags": [
+      { "name": "php-checkout-v2", "filePath": "positive/single-line.php", "lineNumber": 9, "language": "php", "provider": "LaunchDarkly\\" }
+    ]
+  },
+  { "file": "negative/flag-in-comment.php", "flags": [] },
+  { "file": "negative/flag-in-string.php", "flags": [] },
+  { "file": "negative/no-import.php", "flags": [] }
+]

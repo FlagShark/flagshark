@@ -10,6 +10,8 @@ import { JavaScriptDetector } from '../../src/detection/detectors/javascript.js'
 import { GoDetector } from '../../src/detection/detectors/go.js'
 import { PythonDetector } from '../../src/detection/detectors/python.js'
 import { JavaDetector } from '../../src/detection/detectors/java.js'
+import { CSharpDetector } from '../../src/detection/detectors/csharp.js'
+import { PHPDetector } from '../../src/detection/detectors/php.js'
 import { _resetParserCacheForTests } from '../../src/detection/tree-sitter/parser-cache.js'
 import { _clearQueryCache } from '../../src/detection/tree-sitter/query-runner.js'
 
@@ -449,5 +451,113 @@ describe('JavaDetector class', () => {
     ].join('\n')
     const flags = await d.detectFlags('App.java', content)
     expect(flags.some((f) => f.name === 'COMMENTED_FLAG')).toBe(false)
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// CSharpDetector
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('CSharpDetector class', () => {
+  it('default constructor uses default providers', () => {
+    expect(new CSharpDetector().getProviders().length).toBeGreaterThan(0)
+  })
+
+  it('custom providers replace defaults', () => {
+    expect(new CSharpDetector({ providers: CUSTOM }).getProviders()).toEqual(CUSTOM)
+  })
+
+  it('language() returns "csharp"', () => {
+    expect(new CSharpDetector().language()).toBe('csharp')
+  })
+
+  it('supportsFile matches .cs, rejects .php', () => {
+    expect(new CSharpDetector().supportsFile('App.cs')).toBe(true)
+    expect(new CSharpDetector().supportsFile('app.php')).toBe(false)
+  })
+
+  it('detectFlags (regex engine) returns empty for empty content', () => {
+    expect(new CSharpDetector({ engine: 'regex' }).detectFlags('App.cs', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) returns empty for empty content', async () => {
+    expect(await new CSharpDetector({ engine: 'tree-sitter' }).detectFlags('App.cs', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) detects a LaunchDarkly .NET flag', async () => {
+    const content = [
+      `using LaunchDarkly.Sdk.Server;`,
+      `class App {`,
+      `  void Run(LdClient client, Context ctx) {`,
+      `    var x = client.BoolVariation("CS_FLAG", ctx, false);`,
+      `  }`,
+      `}`,
+    ].join('\n')
+    const flags = await new CSharpDetector({ engine: 'tree-sitter' }).detectFlags('App.cs', content)
+    expect(flags.some((f) => f.name === 'CS_FLAG')).toBe(true)
+  })
+
+  it('detectFlags (tree-sitter engine) ignores a flag in a comment', async () => {
+    const content = [
+      `using LaunchDarkly.Sdk.Server;`,
+      `class App {`,
+      `  // client.BoolVariation("CS_COMMENTED", ctx, false)`,
+      `  void Run() {}`,
+      `}`,
+    ].join('\n')
+    const flags = await new CSharpDetector({ engine: 'tree-sitter' }).detectFlags('App.cs', content)
+    expect(flags.some((f) => f.name === 'CS_COMMENTED')).toBe(false)
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// PHPDetector
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('PHPDetector class', () => {
+  it('default constructor uses default providers', () => {
+    expect(new PHPDetector().getProviders().length).toBeGreaterThan(0)
+  })
+
+  it('custom providers replace defaults', () => {
+    expect(new PHPDetector({ providers: CUSTOM }).getProviders()).toEqual(CUSTOM)
+  })
+
+  it('language() returns "php"', () => {
+    expect(new PHPDetector().language()).toBe('php')
+  })
+
+  it('supportsFile matches .php, rejects .cs', () => {
+    expect(new PHPDetector().supportsFile('app.php')).toBe(true)
+    expect(new PHPDetector().supportsFile('App.cs')).toBe(false)
+  })
+
+  it('detectFlags (regex engine) returns empty for empty content', () => {
+    expect(new PHPDetector({ engine: 'regex' }).detectFlags('app.php', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) returns empty for empty content', async () => {
+    expect(await new PHPDetector({ engine: 'tree-sitter' }).detectFlags('app.php', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) detects a LaunchDarkly PHP flag', async () => {
+    const content = [
+      `<?php`,
+      `use LaunchDarkly\\LDClient;`,
+      `$enabled = $client->variation("PHP_FLAG", $ctx, false);`,
+    ].join('\n')
+    const flags = await new PHPDetector({ engine: 'tree-sitter' }).detectFlags('app.php', content)
+    expect(flags.some((f) => f.name === 'PHP_FLAG')).toBe(true)
+  })
+
+  it('detectFlags (tree-sitter engine) ignores a flag in a comment', async () => {
+    const content = [
+      `<?php`,
+      `use LaunchDarkly\\LDClient;`,
+      `// $client->variation("PHP_COMMENTED", $ctx, false)`,
+      `$x = 1;`,
+    ].join('\n')
+    const flags = await new PHPDetector({ engine: 'tree-sitter' }).detectFlags('app.php', content)
+    expect(flags.some((f) => f.name === 'PHP_COMMENTED')).toBe(false)
   })
 })

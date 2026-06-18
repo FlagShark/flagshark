@@ -5,15 +5,28 @@
 
 import { detectFlagsWithRegex } from '../helpers.js'
 import { Languages } from '../interface.js'
+import { detectFlagsWithTreeSitter } from '../tree-sitter/engine.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
-import type { FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
+import type {
+  DetectorEngine,
+  FeatureFlagProvider,
+  Language,
+  LanguageDetector,
+} from '../interface.js'
+
+export interface PHPDetectorOptions {
+  providers?: FeatureFlagProvider[]
+  engine?: DetectorEngine
+}
 
 export class PHPDetector implements LanguageDetector {
   private readonly providers: FeatureFlagProvider[]
+  private readonly engine: DetectorEngine
 
-  constructor(providers?: FeatureFlagProvider[]) {
-    this.providers = providers ?? defaultPHPProviders()
+  constructor(opts: PHPDetectorOptions = {}) {
+    this.providers = opts.providers ?? defaultPHPProviders()
+    this.engine = opts.engine ?? 'regex'
   }
 
   language(): Language {
@@ -32,7 +45,10 @@ export class PHPDetector implements LanguageDetector {
     return ['php', 'phtml', 'php3', 'php4', 'php5', 'phps'].includes(ext)
   }
 
-  detectFlags(filename: string, content: string): FeatureFlag[] {
+  detectFlags(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]> {
+    if (this.engine === 'tree-sitter') {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers)
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers)
   }
 
