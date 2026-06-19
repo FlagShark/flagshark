@@ -211,3 +211,71 @@ describe('AST precision — comments and strings are not flags', () => {
     })
   }
 })
+
+// ────────────────────────────────────────────────────────────────────────────
+// 3. DECOY ROBUSTNESS — flag-shaped text in trickier constructs is ignored
+//    (block comments, template/interpolated strings, triple-quotes, verbatim
+//     strings, heredocs). Each case has a REAL call that must be detected and
+//     a "decoy" flag inside the construct that must NOT be.
+// ────────────────────────────────────────────────────────────────────────────
+
+const DECOYS: { name: string; ext: string; make: Make; code: string }[] = [
+  {
+    name: 'typescript / block comment',
+    ext: 'ts',
+    make: (o) => new TypeScriptDetector(o),
+    code: `import 'launchdarkly-node-server-sdk'\nclient.variation('real', u, false)\n/* client.variation('decoy', u, false) */`,
+  },
+  {
+    name: 'typescript / template string',
+    ext: 'ts',
+    make: (o) => new TypeScriptDetector(o),
+    code: `import 'launchdarkly-node-server-sdk'\nclient.variation('real', u, false)\nconst s = \`client.variation('decoy', u, false)\``,
+  },
+  {
+    name: 'python / triple-quoted string',
+    ext: 'py',
+    make: (o) => new PythonDetector(o),
+    code: `import ldclient\nclient.variation("real", u, False)\ndoc = """client.variation("decoy", u, False)"""`,
+  },
+  {
+    name: 'go / block comment',
+    ext: 'go',
+    make: (o) => new GoDetector(o),
+    code: `package m\nimport ld "github.com/launchdarkly/go-server-sdk/v7"\nfunc f(){ client.BoolVariation("real", c, false)\n/* client.BoolVariation("decoy", c, false) */ }`,
+  },
+  {
+    name: 'java / block comment',
+    ext: 'java',
+    make: (o) => new JavaDetector(o),
+    code: `import com.launchdarkly.sdk.server.LDClient;\nclass A { void m(LDClient client){ client.boolVariation("real", c, false);\n/* client.boolVariation("decoy", c, false); */ } }`,
+  },
+  {
+    name: 'csharp / verbatim string',
+    ext: 'cs',
+    make: (o) => new CSharpDetector(o),
+    code: `using LaunchDarkly.Sdk.Server;\nclass A { void M(LdClient client){ client.BoolVariation("real", c, false);\nstring s = @"client.BoolVariation(""decoy"", c, false)"; } }`,
+  },
+  {
+    name: 'php / heredoc',
+    ext: 'php',
+    make: (o) => new PHPDetector(o),
+    code: `<?php\nuse LaunchDarkly\\LDClient;\n$client->variation("real", $u, false);\n$s = <<<EOT\n\$client->variation("decoy", $u, false)\nEOT;`,
+  },
+  {
+    name: 'rust / block comment',
+    ext: 'rs',
+    make: (o) => new RustDetector(o),
+    code: `use launchdarkly_server_sdk::Client;\nfn f(c: &Client, x: &Context){ let _ = c.bool_variation(&x, "real", false);\n/* c.bool_variation(&x, "decoy", false) */ }`,
+  },
+]
+
+describe('AST decoy robustness — comments/strings beyond the simple cases', () => {
+  for (const { name, ext, make, code } of DECOYS) {
+    it(name, async () => {
+      const ts = names(await make({ engine: 'tree-sitter' }).detectFlags(`f.${ext}`, code))
+      expect(ts).toContain('real')
+      expect(ts).not.toContain('decoy')
+    })
+  }
+})
