@@ -12,6 +12,7 @@ import { PythonDetector } from '../../src/detection/detectors/python.js'
 import { JavaDetector } from '../../src/detection/detectors/java.js'
 import { CSharpDetector } from '../../src/detection/detectors/csharp.js'
 import { PHPDetector } from '../../src/detection/detectors/php.js'
+import { RustDetector } from '../../src/detection/detectors/rust.js'
 import { _resetParserCacheForTests } from '../../src/detection/tree-sitter/parser-cache.js'
 import { _clearQueryCache } from '../../src/detection/tree-sitter/query-runner.js'
 
@@ -559,5 +560,57 @@ describe('PHPDetector class', () => {
     ].join('\n')
     const flags = await new PHPDetector({ engine: 'tree-sitter' }).detectFlags('app.php', content)
     expect(flags.some((f) => f.name === 'PHP_COMMENTED')).toBe(false)
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// RustDetector
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('RustDetector class', () => {
+  it('default constructor uses default providers', () => {
+    expect(new RustDetector().getProviders().length).toBeGreaterThan(0)
+  })
+
+  it('custom providers replace defaults', () => {
+    expect(new RustDetector({ providers: CUSTOM }).getProviders()).toEqual(CUSTOM)
+  })
+
+  it('language() returns "rust"', () => {
+    expect(new RustDetector().language()).toBe('rust')
+  })
+
+  it('supportsFile matches .rs, rejects .rb', () => {
+    expect(new RustDetector().supportsFile('main.rs')).toBe(true)
+    expect(new RustDetector().supportsFile('main.rb')).toBe(false)
+  })
+
+  it('detectFlags (regex engine) returns empty for empty content', () => {
+    expect(new RustDetector({ engine: 'regex' }).detectFlags('main.rs', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) returns empty for empty content', async () => {
+    expect(await new RustDetector({ engine: 'tree-sitter' }).detectFlags('main.rs', '')).toEqual([])
+  })
+
+  it('detectFlags (tree-sitter engine) detects a LaunchDarkly Rust flag', async () => {
+    const content = [
+      `use launchdarkly_server_sdk::Client;`,
+      `fn run(client: &Client, ctx: &Context) {`,
+      `    let x = client.bool_variation(&ctx, "RUST_FLAG", false);`,
+      `}`,
+    ].join('\n')
+    const flags = await new RustDetector({ engine: 'tree-sitter' }).detectFlags('main.rs', content)
+    expect(flags.some((f) => f.name === 'RUST_FLAG')).toBe(true)
+  })
+
+  it('detectFlags (tree-sitter engine) ignores a flag in a comment', async () => {
+    const content = [
+      `use launchdarkly_server_sdk::Client;`,
+      `// client.bool_variation(&ctx, "RUST_COMMENTED", false)`,
+      `fn run() {}`,
+    ].join('\n')
+    const flags = await new RustDetector({ engine: 'tree-sitter' }).detectFlags('main.rs', content)
+    expect(flags.some((f) => f.name === 'RUST_COMMENTED')).toBe(false)
   })
 })

@@ -24,6 +24,7 @@ const grammars = [
   'tree-sitter-java/tree-sitter-java.wasm',
   'tree-sitter-c-sharp/tree-sitter-c_sharp.wasm',
   'tree-sitter-php/tree-sitter-php.wasm',
+  'tree-sitter-rust/tree-sitter-rust.wasm',
 ]
 for (const spec of grammars) {
   const src = require_.resolve(spec, { paths: [resolve(here, '..', '..', 'core')] })
@@ -41,6 +42,7 @@ const queries = [
   'java.scm',
   'csharp.scm',
   'php.scm',
+  'rust.scm',
 ]
 const coreQueriesDir = resolve(here, '..', '..', 'core', 'src', 'detection', 'tree-sitter', 'queries')
 for (const queryFile of queries) {

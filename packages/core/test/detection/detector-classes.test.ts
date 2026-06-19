@@ -4,7 +4,6 @@ import { KotlinDetector } from '../../src/detection/detectors/kotlin.js'
 import { SwiftDetector } from '../../src/detection/detectors/swift.js'
 import { RubyDetector } from '../../src/detection/detectors/ruby.js'
 import { PHPDetector } from '../../src/detection/detectors/php.js'
-import { RustDetector } from '../../src/detection/detectors/rust.js'
 import { CPPDetector } from '../../src/detection/detectors/cpp.js'
 import { ObjectiveCDetector } from '../../src/detection/detectors/objectivec.js'
 import { TypeScriptDetector } from '../../src/detection/detectors/typescript.js'
@@ -17,7 +16,6 @@ const ALL_DETECTORS = [
   { name: 'Kotlin', cls: KotlinDetector },
   { name: 'Swift', cls: SwiftDetector },
   { name: 'Ruby', cls: RubyDetector },
-  { name: 'Rust', cls: RustDetector },
   { name: 'CPP', cls: CPPDetector },
   { name: 'ObjectiveC', cls: ObjectiveCDetector },
 ] as const

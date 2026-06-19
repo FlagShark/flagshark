@@ -36029,7 +36029,8 @@ var WASM_RESOLUTION = {
   python: "tree-sitter-python/tree-sitter-python.wasm",
   java: "tree-sitter-java/tree-sitter-java.wasm",
   csharp: "tree-sitter-c-sharp/tree-sitter-c_sharp.wasm",
-  php: "tree-sitter-php/tree-sitter-php.wasm"
+  php: "tree-sitter-php/tree-sitter-php.wasm",
+  rust: "tree-sitter-rust/tree-sitter-rust.wasm"
 };
 var parsers = /* @__PURE__ */ new Map();
 var inFlight = /* @__PURE__ */ new Map();
@@ -36093,6 +36094,7 @@ var INLINE_QUERIES = {
   "javascript": "; tree-sitter-javascript's grammar uses identical node names to typescript\n; for these call shapes \u2014 we duplicate the file for clarity even though the\n; content is identical.\n\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n",
   "php": '; Method call on an object: $client->variation("flag", ...)\n(member_call_expression\n  name: (name) @method\n  arguments: (arguments) @args) @call\n\n; Bare function call: variation("flag", ...)\n(function_call_expression\n  function: (name) @method\n  arguments: (arguments) @args) @call\n',
   "python": "; Method call: client.variation(...)\n(call\n  function: (attribute\n    object: (_) @receiver\n    attribute: (identifier) @method)\n  arguments: (argument_list) @args) @call\n\n; Bare function call: variation(...)\n(call\n  function: (identifier) @method\n  arguments: (argument_list) @args) @call\n",
+  "rust": '; Method call on a receiver: client.bool_variation(&ctx, "flag", ...)\n(call_expression\n  function: (field_expression\n    field: (field_identifier) @method)\n  arguments: (arguments) @args) @call\n\n; Bare function call: bool_variation("flag", ...)\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n',
   "typescript": "; Match method-style calls: <receiver>.<method>(<args>)\n(call_expression\n  function: (member_expression\n    object: (_) @receiver\n    property: (property_identifier) @method)\n  arguments: (arguments) @args) @call\n\n; Match free-function calls: <method>(<args>)\n(call_expression\n  function: (identifier) @method\n  arguments: (arguments) @args) @call\n"
 };
 
@@ -38850,8 +38852,10 @@ function defaultRubyProviders() {
 // ../core/dist/detection/detectors/rust.js
 var RustDetector = class {
   providers;
-  constructor(providers) {
-    this.providers = providers ?? defaultRustProviders();
+  engine;
+  constructor(opts = {}) {
+    this.providers = opts.providers ?? defaultRustProviders();
+    this.engine = opts.engine ?? "regex";
   }
   language() {
     return Languages.Rust;
@@ -38863,6 +38867,9 @@ var RustDetector = class {
     return filename.toLowerCase().endsWith(".rs");
   }
   detectFlags(filename, content) {
+    if (this.engine === "tree-sitter") {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers);
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers);
   }
   getProviders() {
@@ -43698,10 +43705,10 @@ function createDefaultRegistry() {
   registry.register(new JavaDetector({ engine: "tree-sitter" }));
   registry.register(new CSharpDetector({ engine: "tree-sitter" }));
   registry.register(new PHPDetector({ engine: "tree-sitter" }));
+  registry.register(new RustDetector({ engine: "tree-sitter" }));
   registry.register(new KotlinDetector());
   registry.register(new SwiftDetector());
   registry.register(new RubyDetector());
-  registry.register(new RustDetector());
   registry.register(new CPPDetector());
   registry.register(new ObjectiveCDetector());
   return registry;
@@ -43715,10 +43722,10 @@ function createRegistryWithEngine(engine) {
   registry.register(new JavaDetector({ engine }));
   registry.register(new CSharpDetector({ engine }));
   registry.register(new PHPDetector({ engine }));
+  registry.register(new RustDetector({ engine }));
   registry.register(new KotlinDetector());
   registry.register(new SwiftDetector());
   registry.register(new RubyDetector());
-  registry.register(new RustDetector());
   registry.register(new CPPDetector());
   registry.register(new ObjectiveCDetector());
   return registry;
