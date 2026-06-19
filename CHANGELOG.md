@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.6.1 — Fix PHP static-call detection + full AST coverage matrix
+
+- **Fix: PHP static method calls (`Class::method()`) are now detected by the tree-sitter engine.** Statsig (`Statsig::checkGate`), PostHog (`PostHog::isFeatureEnabled`), and Laravel Pennant (`Feature::active`) use static calls that the AST query missed since PHP moved to tree-sitter in v2.5.0 — regex caught them, the AST default did not, so those flags went undetected. Added a `scoped_call_expression` pattern to the PHP query.
+- **Test: full-coverage AST matrix.** A new behavioral matrix exercises every tier-1 language (8) × every provider the detectors advertise (106) × every method example (285), asserting the AST engine detects exactly what the regex engine does (parity), plus a precision suite proving the AST engine ignores flag names in comments and string literals across all languages. This is what surfaced the PHP gap above.
+
 ## v2.6.0 — Rust joins tier-1: AST (tree-sitter) detection
 
 - **New: Rust uses tree-sitter (AST) detection by default**, joining TypeScript, JavaScript, Go, Python, Java, C#, and PHP. Tier-1 is now **eight** languages; the remaining five stay on regex.

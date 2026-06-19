@@ -1,6 +1,6 @@
 {
   "name": "flagshark",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "type": "module",
   "description": "Find stale feature flags in your codebase",
   "license": "MIT",

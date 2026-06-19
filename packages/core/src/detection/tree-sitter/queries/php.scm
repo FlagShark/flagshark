@@ -7,3 +7,8 @@
 (function_call_expression
   function: (name) @method
   arguments: (arguments) @args) @call
+
+; Static call: Statsig::checkGate(..., "flag"), Feature::active("flag")
+(scoped_call_expression
+  name: (name) @method
+  arguments: (arguments) @args) @call
