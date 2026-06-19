@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.6.0 — Rust joins tier-1: AST (tree-sitter) detection
+
+- **New: Rust uses tree-sitter (AST) detection by default**, joining TypeScript, JavaScript, Go, Python, Java, C#, and PHP. Tier-1 is now **eight** languages; the remaining five stay on regex.
+- Same precision win: flag-shaped text in comments and string literals no longer false-positives. Method calls are matched structurally, including the LaunchDarkly Rust SDK's context-first signature (`client.bool_variation(&ctx, "flag-key", false)`).
+- The GitHub Action bundles the Rust grammar (`tree-sitter-rust.wasm`) and query, so `.rs` detection runs with no extra setup.
+- Backward compatible and additive: existing Rust consumers see fewer false positives, not fewer real detections. Const-bound flag keys are not yet resolved for Rust (a later tier).
+
 ## v2.5.0 — C# and PHP join tier-1: AST (tree-sitter) detection
 
 - **New: C# and PHP use tree-sitter (AST) detection by default**, joining TypeScript, JavaScript, Go, Python, and Java. Tier-1 is now **seven** languages; the remaining six stay on regex.

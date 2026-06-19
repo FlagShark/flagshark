@@ -1,0 +1,11 @@
+[
+  {
+    "file": "positive/single-line.rs",
+    "flags": [
+      { "name": "RUST_CHECKOUT_V2", "filePath": "positive/single-line.rs", "lineNumber": 4, "language": "rust", "provider": "launchdarkly_server_sdk" }
+    ]
+  },
+  { "file": "negative/flag-in-comment.rs", "flags": [] },
+  { "file": "negative/flag-in-string.rs", "flags": [] },
+  { "file": "negative/no-import.rs", "flags": [] }
+]

@@ -5,15 +5,28 @@
 
 import { detectFlagsWithRegex } from '../helpers.js'
 import { Languages } from '../interface.js'
+import { detectFlagsWithTreeSitter } from '../tree-sitter/engine.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
-import type { FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
+import type {
+  DetectorEngine,
+  FeatureFlagProvider,
+  Language,
+  LanguageDetector,
+} from '../interface.js'
+
+export interface RustDetectorOptions {
+  providers?: FeatureFlagProvider[]
+  engine?: DetectorEngine
+}
 
 export class RustDetector implements LanguageDetector {
   private readonly providers: FeatureFlagProvider[]
+  private readonly engine: DetectorEngine
 
-  constructor(providers?: FeatureFlagProvider[]) {
-    this.providers = providers ?? defaultRustProviders()
+  constructor(opts: RustDetectorOptions = {}) {
+    this.providers = opts.providers ?? defaultRustProviders()
+    this.engine = opts.engine ?? 'regex'
   }
 
   language(): Language {
@@ -28,7 +41,10 @@ export class RustDetector implements LanguageDetector {
     return filename.toLowerCase().endsWith('.rs')
   }
 
-  detectFlags(filename: string, content: string): FeatureFlag[] {
+  detectFlags(filename: string, content: string): FeatureFlag[] | Promise<FeatureFlag[]> {
+    if (this.engine === 'tree-sitter') {
+      return detectFlagsWithTreeSitter(filename, content, this.language(), this.providers)
+    }
     return detectFlagsWithRegex(filename, content, this.language(), this.providers)
   }
 

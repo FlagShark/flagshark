@@ -10,6 +10,7 @@ import { defaultPythonProviders } from '../../src/detection/detectors/python.js'
 import { defaultJavaProviders } from '../../src/detection/detectors/java.js'
 import { defaultCSharpProviders } from '../../src/detection/detectors/csharp.js'
 import { defaultPHPProviders } from '../../src/detection/detectors/php.js'
+import { defaultRustProviders } from '../../src/detection/detectors/rust.js'
 import { detectFlagsWithRegex } from '../../src/detection/helpers.js'
 
 import type { FeatureFlagProvider, Language } from '../../src/detection/interface.js'
@@ -24,6 +25,7 @@ const LANGUAGES: { name: Language; providers: () => FeatureFlagProvider[] }[] = 
   { name: 'java', providers: defaultJavaProviders },
   { name: 'csharp', providers: defaultCSharpProviders },
   { name: 'php', providers: defaultPHPProviders },
+  { name: 'rust', providers: defaultRustProviders },
 ]
 
 for (const { name: language, providers } of LANGUAGES) {

@@ -57,6 +57,7 @@ const WASM_RESOLUTION: Partial<Record<Language, string>> = {
   java: 'tree-sitter-java/tree-sitter-java.wasm',
   csharp: 'tree-sitter-c-sharp/tree-sitter-c_sharp.wasm',
   php: 'tree-sitter-php/tree-sitter-php.wasm',
+  rust: 'tree-sitter-rust/tree-sitter-rust.wasm',
 }
 
 const parsers = new Map<Language, Parser>()
