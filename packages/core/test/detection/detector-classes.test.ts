@@ -9,6 +9,7 @@ import { ObjectiveCDetector } from '../../src/detection/detectors/objectivec.js'
 import { TypeScriptDetector } from '../../src/detection/detectors/typescript.js'
 import { JavaScriptDetector } from '../../src/detection/detectors/javascript.js'
 import { PythonDetector } from '../../src/detection/detectors/python.js'
+import { JavaDetector } from '../../src/detection/detectors/java.js'
 
 import type { FeatureFlagProvider } from '../../src/detection/interface.js'
 
@@ -146,4 +147,44 @@ describe('RubyDetector special file types', () => {
     const d = new RubyDetector()
     expect(d.supportsFile('config/Gemfile')).toBe(true)
   })
+})
+
+describe('OpenFeature detection', () => {
+  const cases = [
+    {
+      lang: 'TypeScript',
+      detector: () => new TypeScriptDetector(),
+      file: 'app.ts',
+      src: `import { OpenFeature } from '@openfeature/server-sdk'\nconst c = OpenFeature.getClient()\nif (await c.getBooleanValue("new-checkout", false)) { go() }\n`,
+    },
+    {
+      lang: 'Python',
+      detector: () => new PythonDetector(),
+      file: 'app.py',
+      src: `from openfeature import api\nc = api.get_client()\nif c.get_boolean_value("new-checkout", False):\n    go()\n`,
+    },
+    {
+      lang: 'Java',
+      detector: () => new JavaDetector(),
+      file: 'App.java',
+      src: `import dev.openfeature.sdk.Client;\nboolean v = client.getBooleanValue("new-checkout", false);\n`,
+    },
+    {
+      lang: 'Kotlin',
+      detector: () => new KotlinDetector(),
+      file: 'App.kt',
+      src: `import dev.openfeature.sdk.Client\nval v = client.getBooleanValue("new-checkout", false)\n`,
+    },
+  ]
+
+  for (const { lang, detector, file, src } of cases) {
+    it(`detects an OpenFeature flag in ${lang}`, async () => {
+      const flags = await detector().detectFlags(file, src)
+      const flag = flags.find((f) => f.name === 'new-checkout')
+      expect(flag, `no new-checkout flag detected in ${lang}`).toBeTruthy()
+      // The emitted provider must contain "openfeature" so the cleanup-side
+      // slug normaliser routes it to the OpenFeature provider config.
+      expect(flag?.provider?.toLowerCase()).toContain('openfeature')
+    })
+  }
 })

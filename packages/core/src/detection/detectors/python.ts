@@ -89,6 +89,44 @@ export function defaultPythonProviders(): FeatureFlagProvider[] {
       ],
     },
     {
+      name: 'OpenFeature Python SDK',
+      importPattern: 'openfeature',
+      description: 'OpenFeature vendor-neutral Python SDK',
+      enabled: true,
+      methods: [
+        {
+          name: 'get_boolean_value',
+          flagKeyIndex: 0,
+          examples: ['client.get_boolean_value("flag-key", False)'],
+        },
+        {
+          name: 'get_string_value',
+          flagKeyIndex: 0,
+          examples: ['client.get_string_value("flag-key", "default")'],
+        },
+        {
+          name: 'get_integer_value',
+          flagKeyIndex: 0,
+          examples: ['client.get_integer_value("flag-key", 0)'],
+        },
+        {
+          name: 'get_float_value',
+          flagKeyIndex: 0,
+          examples: ['client.get_float_value("flag-key", 0.0)'],
+        },
+        {
+          name: 'get_object_value',
+          flagKeyIndex: 0,
+          examples: ['client.get_object_value("flag-key", {})'],
+        },
+        {
+          name: 'get_boolean_details',
+          flagKeyIndex: 0,
+          examples: ['client.get_boolean_details("flag-key", False)'],
+        },
+      ],
+    },
+    {
       name: 'Split.io Python SDK',
       importPattern: 'splitio',
       description: 'Split.io Python SDK',
