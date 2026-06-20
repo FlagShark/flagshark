@@ -225,6 +225,21 @@ export function defaultTypeScriptProviders(): FeatureFlagProvider[] {
       ],
     },
     {
+      name: 'OpenFeature JavaScript SDK',
+      importPattern: '@openfeature/server-sdk',
+      importAliases: ['@openfeature/web-sdk', '@openfeature/js-sdk', '@openfeature/react-sdk'],
+      description: 'OpenFeature vendor-neutral JS/TS SDK',
+      enabled: true,
+      methods: [
+        { name: 'getBooleanValue', flagKeyIndex: 0, examples: ['client.getBooleanValue("flag-key", false)'] },
+        { name: 'getStringValue', flagKeyIndex: 0, examples: ['client.getStringValue("flag-key", "default")'] },
+        { name: 'getNumberValue', flagKeyIndex: 0, examples: ['client.getNumberValue("flag-key", 0)'] },
+        { name: 'getObjectValue', flagKeyIndex: 0, examples: ['client.getObjectValue("flag-key", {})'] },
+        { name: 'getBooleanDetails', flagKeyIndex: 0, examples: ['client.getBooleanDetails("flag-key", false)'] },
+        { name: 'getStringDetails', flagKeyIndex: 0, examples: ['client.getStringDetails("flag-key", "default")'] },
+      ],
+    },
+    {
       name: 'Split.io JavaScript SDK',
       importPattern: '@splitsoftware/splitio',
       description: 'Split.io JavaScript/TypeScript SDK',

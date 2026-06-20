@@ -94,6 +94,20 @@ export function defaultJavaProviders(): FeatureFlagProvider[] {
       ],
     },
     {
+      name: 'OpenFeature Java SDK',
+      importPattern: 'dev.openfeature',
+      description: 'OpenFeature vendor-neutral Java SDK',
+      enabled: true,
+      methods: [
+        { name: 'getBooleanValue', flagKeyIndex: 0, examples: ['client.getBooleanValue("flag-key", false)'] },
+        { name: 'getStringValue', flagKeyIndex: 0, examples: ['client.getStringValue("flag-key", "default")'] },
+        { name: 'getIntegerValue', flagKeyIndex: 0, examples: ['client.getIntegerValue("flag-key", 0)'] },
+        { name: 'getDoubleValue', flagKeyIndex: 0, examples: ['client.getDoubleValue("flag-key", 0.0)'] },
+        { name: 'getObjectValue', flagKeyIndex: 0, examples: ['client.getObjectValue("flag-key", value)'] },
+        { name: 'getBooleanDetails', flagKeyIndex: 0, examples: ['client.getBooleanDetails("flag-key", false)'] },
+      ],
+    },
+    {
       name: 'Split.io Java SDK',
       importPattern: 'io.split.client',
       description: 'Split.io Java SDK',
