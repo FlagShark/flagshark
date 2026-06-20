@@ -74,6 +74,20 @@ export function defaultKotlinProviders(): FeatureFlagProvider[] {
       ],
     },
     {
+      name: 'OpenFeature Kotlin SDK',
+      importPattern: 'dev.openfeature',
+      description: 'OpenFeature vendor-neutral Kotlin SDK',
+      enabled: true,
+      methods: [
+        { name: 'getBooleanValue', flagKeyIndex: 0, examples: ['client.getBooleanValue("flag-key", false)'] },
+        { name: 'getStringValue', flagKeyIndex: 0, examples: ['client.getStringValue("flag-key", "default")'] },
+        { name: 'getIntegerValue', flagKeyIndex: 0, examples: ['client.getIntegerValue("flag-key", 0)'] },
+        { name: 'getDoubleValue', flagKeyIndex: 0, examples: ['client.getDoubleValue("flag-key", 0.0)'] },
+        { name: 'getObjectValue', flagKeyIndex: 0, examples: ['client.getObjectValue("flag-key", value)'] },
+        { name: 'getBooleanDetails', flagKeyIndex: 0, examples: ['client.getBooleanDetails("flag-key", false)'] },
+      ],
+    },
+    {
       name: 'Split.io Kotlin SDK',
       importPattern: 'io.split.android',
       description: 'Split.io Android/Kotlin SDK',

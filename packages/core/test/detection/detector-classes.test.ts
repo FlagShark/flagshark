@@ -169,9 +169,12 @@ describe('OpenFeature detection', () => {
       file: 'App.java',
       src: `import dev.openfeature.sdk.Client;\nboolean v = client.getBooleanValue("new-checkout", false);\n`,
     },
-    // Kotlin omitted: the cleanup engine can't transform Kotlin dynamic-provider
-    // calls yet, so adding Kotlin OpenFeature detection would be detection
-    // without working cleanup. Add it back alongside the Kotlin engine fix.
+    {
+      lang: 'Kotlin',
+      detector: () => new KotlinDetector(),
+      file: 'App.kt',
+      src: `import dev.openfeature.sdk.Client\nval v = client.getBooleanValue("new-checkout", false)\n`,
+    },
   ]
 
   for (const { lang, detector, file, src } of cases) {
