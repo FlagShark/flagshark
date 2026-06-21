@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.7.0 — OpenFeature (vendor-neutral) detection
+
+- **New: OpenFeature detection across TypeScript (covers JavaScript), Java, Kotlin, and Python.** The vendor-neutral OpenFeature SDK is now recognized: `getBooleanValue` / `getStringValue` / `getNumberValue` / `getObjectValue` and the `*Details` variants (snake_case `get_boolean_value` etc. for Python), flag key at argument 0. The import gate matches `@openfeature/server-sdk` (plus the `web`/`js`/`react` aliases) for JS/TS and `dev.openfeature` / `openfeature` for the JVM and Python SDKs.
+- Go OpenFeature is deferred: its SDK is context-first (`BooleanValue(ctx, flag, default, ...)`), which the shared detector doesn't model yet.
+- Backward compatible and additive: existing consumers gain OpenFeature detection, nothing else changes.
+
 ## v2.6.1 — Fix PHP static-call detection + full AST coverage matrix
 
 - **Fix: PHP static method calls (`Class::method()`) are now detected by the tree-sitter engine.** Statsig (`Statsig::checkGate`), PostHog (`PostHog::isFeatureEnabled`), and Laravel Pennant (`Feature::active`) use static calls that the AST query missed since PHP moved to tree-sitter in v2.5.0 — regex caught them, the AST default did not, so those flags went undetected. Added a `scoped_call_expression` pattern to the PHP query.
