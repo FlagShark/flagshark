@@ -383,38 +383,25 @@ export function detectObjcMessageFlags(
   const lines = content.split('\n')
 
   for (const provider of providers) {
-    if (!provider.enabled || provider.methods.length === 0) {
+    if (!provider.enabled) {
       continue
     }
 
-    const providerName = provider.name
     const importPat = getImportPattern(provider)
-
-    // Import gate, identical in spirit to detectFlagsWithRegex: a provider with
-    // an importPattern only runs when the file imports its SDK (or carries a
-    // runtime symbol, which downgrades confidence). The catch-all custom
-    // provider (no importPattern) always runs.
-    let detectionConfidence: 'high' | 'medium' = 'high'
-    if (importPat) {
-      const importPatterns = [importPat, ...(provider.importAliases ?? [])]
-      const hasImport = importPatterns.some(
-        (pat) => content.includes(pat) || lines.some((line) => line.includes(pat)),
-      )
-      if (!hasImport) {
-        const runtimeHit = (provider.runtimeSymbols ?? []).some((sym) => content.includes(sym))
-        if (!runtimeHit) {
-          continue
-        }
-        detectionConfidence = 'medium'
-      }
+    // Import gate: a provider with an importPattern only runs when the file
+    // imports its SDK. The catch-all custom provider (no importPattern) always
+    // runs. Obj-C has no runtime-loaded SDKs, so there's no runtime-symbol
+    // fallback here (unlike the JS path in detectFlagsWithRegex).
+    if (importPat && !content.includes(importPat)) {
+      continue
     }
 
     for (const method of provider.methods) {
-      if (method.flagKeyIndex < 0) {
-        continue
-      }
       // `[^\w]`-anchored method label, then `:` then the first quoted string
       // (Obj-C string literals are `@"..."`; the `@` is optional for safety).
+      // The `\s*:` boundary stops a method name from matching a longer selector
+      // it merely prefixes (e.g. `boolVariation` will NOT fire inside
+      // `boolVariationForKey:`).
       const pattern = new RegExp(
         `(?:^|[^\\w])${escapeRegExp(method.name)}\\s*:\\s*@?["']([^"'\\n]+)["']`,
         'g',
@@ -423,17 +410,14 @@ export function detectObjcMessageFlags(
         pattern.lastIndex = 0
         let match: RegExpExecArray | null
         while ((match = pattern.exec(lines[lineIdx])) !== null) {
-          const flagKey = match[1]
-          if (flagKey && isValidFlagKey(flagKey)) {
-            const flag: FeatureFlag = {
-              name: flagKey,
+          if (isValidFlagKey(match[1])) {
+            flags.push({
+              name: match[1],
               filePath: filename,
               lineNumber: lineIdx + 1,
               language,
-              provider: importPat || providerName,
-            }
-            if (detectionConfidence !== 'high') flag.confidence = detectionConfidence
-            flags.push(flag)
+              provider: importPat || provider.name,
+            })
           }
         }
       }

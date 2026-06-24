@@ -229,4 +229,25 @@ describe('Objective-C message-syntax detection', () => {
     const flags = new ObjectiveCDetector().detectFlags('Legacy.m', src)
     expect(flags.find((f) => f.name === 'unimported')).toBeFalsy()
   })
+
+  it('skips disabled providers', () => {
+    const providers: FeatureFlagProvider[] = [
+      {
+        name: 'Disabled Obj-C',
+        importPattern: 'X/X.h',
+        description: '',
+        enabled: false,
+        methods: [{ name: 'isFeatureEnabled', flagKeyIndex: 0, examples: [] }],
+      },
+    ]
+    const src = `#import <X/X.h>\nBOOL v = [x isFeatureEnabled:@"should-not-detect"];\n`
+    const flags = new ObjectiveCDetector(providers).detectFlags('Legacy.m', src)
+    expect(flags).toEqual([])
+  })
+
+  it('ignores invalid flag keys (e.g. whitespace)', () => {
+    const src = `#import <LaunchDarkly/LDClient.h>\nBOOL v = [[LDClient get] boolVariation:@"bad key with spaces" defaultValue:NO];\n`
+    const flags = new ObjectiveCDetector().detectFlags('Legacy.m', src)
+    expect(flags.find((f) => f.name.includes('bad key'))).toBeFalsy()
+  })
 })
