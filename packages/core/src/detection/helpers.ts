@@ -358,6 +358,75 @@ export function detectDestructuredHookFlags(
   return out
 }
 
+/**
+ * Detects feature flags in Objective-C source.
+ *
+ * Obj-C uses message-send syntax — `[receiver method:@"key" other:val]` — not
+ * the `method(args)` paren-call syntax every other language uses. The shared
+ * `detectFlagsWithRegex` keys off `(` (via `buildSingleMethodPattern` and the
+ * paren-based arg extraction), so it never matched a single Obj-C call. This
+ * pass matches the `method:@"key"` selector form and extracts the key directly.
+ *
+ * The flag key is always the argument immediately after the method-name label
+ * (every Obj-C provider method declares `flagKeyIndex: 0`), so we read the first
+ * `@"..."` string right after `method:`. The `\s*:` boundary stops a method
+ * name from matching a longer selector it merely prefixes (e.g. `boolVariation`
+ * will NOT fire inside `boolVariationForKey:`).
+ */
+export function detectObjcMessageFlags(
+  filename: string,
+  content: string,
+  language: Language,
+  providers: FeatureFlagProvider[],
+): FeatureFlag[] {
+  const flags: FeatureFlag[] = []
+  const lines = content.split('\n')
+
+  for (const provider of providers) {
+    if (!provider.enabled) {
+      continue
+    }
+
+    const importPat = getImportPattern(provider)
+    // Import gate: a provider with an importPattern only runs when the file
+    // imports its SDK. The catch-all custom provider (no importPattern) always
+    // runs. Obj-C has no runtime-loaded SDKs, so there's no runtime-symbol
+    // fallback here (unlike the JS path in detectFlagsWithRegex).
+    if (importPat && !content.includes(importPat)) {
+      continue
+    }
+
+    for (const method of provider.methods) {
+      // `[^\w]`-anchored method label, then `:` then the first quoted string
+      // (Obj-C string literals are `@"..."`; the `@` is optional for safety).
+      // The `\s*:` boundary stops a method name from matching a longer selector
+      // it merely prefixes (e.g. `boolVariation` will NOT fire inside
+      // `boolVariationForKey:`).
+      const pattern = new RegExp(
+        `(?:^|[^\\w])${escapeRegExp(method.name)}\\s*:\\s*@?["']([^"'\\n]+)["']`,
+        'g',
+      )
+      for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+        pattern.lastIndex = 0
+        let match: RegExpExecArray | null
+        while ((match = pattern.exec(lines[lineIdx])) !== null) {
+          if (isValidFlagKey(match[1])) {
+            flags.push({
+              name: match[1],
+              filePath: filename,
+              lineNumber: lineIdx + 1,
+              language,
+              provider: importPat || provider.name,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  return deduplicateFlags(flags)
+}
+
 /** Builds a regex for a single method name that matches calls. */
 function buildSingleMethodPattern(methodName: string): RegExp {
   const escaped = escapeRegExp(methodName)

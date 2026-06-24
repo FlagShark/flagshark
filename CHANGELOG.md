@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.7.1 — Fix Objective-C feature flag detection
+
+- **Fix: Objective-C flags are now detected.** The Obj-C detector reused the shared regex helper, which only matches `method(args)` paren-call syntax — but Objective-C uses message-send syntax (`[[LDClient get] boolVariation:@"flag-key" defaultValue:NO]`), so every Obj-C call silently went undetected across every provider (LaunchDarkly, PostHog, Optimizely, Split.io, Flagsmith, ConfigCat, Unleash, and the custom-pattern catch-all). A dedicated selector pass now matches the `method:@"key"` form and extracts the flag key directly, reusing the same import gate, confidence tiers, and key validation as the other languages.
+- **Fix: a method name no longer matches a longer selector it prefixes** (e.g. `boolVariation` will not fire inside `boolVariationForKey:`).
+- **Test: real Obj-C detection coverage.** The previous suite only exercised the detector's interface (constructor, file extensions) and never a real flag — which is how this shipped broken. Added detection tests for the message-send form across providers, prefix-selector disambiguation, and the import gate.
+- Backward compatible and additive: Obj-C consumers gain detections; no other language changes.
+
 ## v2.7.0 — OpenFeature (vendor-neutral) detection
 
 - **New: OpenFeature detection across TypeScript (covers JavaScript), Java, Kotlin, and Python.** The vendor-neutral OpenFeature SDK is now recognized: `getBooleanValue` / `getStringValue` / `getNumberValue` / `getObjectValue` and the `*Details` variants (snake_case `get_boolean_value` etc. for Python), flag key at argument 0. The import gate matches `@openfeature/server-sdk` (plus the `web`/`js`/`react` aliases) for JS/TS and `dev.openfeature` / `openfeature` for the JVM and Python SDKs.
