@@ -188,3 +188,45 @@ describe('OpenFeature detection', () => {
     })
   }
 })
+
+describe('Objective-C message-syntax detection', () => {
+  // Obj-C uses `[receiver method:@"key" other:val]` message syntax, not the
+  // `method(args)` paren-call syntax every other language uses. The shared
+  // regex helper keyed off `(`, so these all silently returned zero flags.
+  const cases = [
+    {
+      name: 'LaunchDarkly boolVariation',
+      src: `#import <LaunchDarkly/LDClient.h>\n- (void)gate {\n  BOOL show = [[LDClient get] boolVariation:@"new-checkout" defaultValue:NO];\n}\n`,
+      key: 'new-checkout',
+    },
+    {
+      name: 'PostHog isFeatureEnabled',
+      src: `#import <PostHog/PostHog.h>\nBOOL on = [[PHGPostHog sharedInstance] isFeatureEnabled:@"beta-banner"];\n`,
+      key: 'beta-banner',
+    },
+    {
+      name: 'Optimizely with trailing selector args',
+      src: `#import <Optimizely/Optimizely.h>\nBOOL e = [optimizely isFeatureEnabled:@"price-test" userId:userId attributes:nil];\n`,
+      key: 'price-test',
+    },
+  ]
+  for (const { name, src, key } of cases) {
+    it(`detects ${name}`, () => {
+      const flags = new ObjectiveCDetector().detectFlags('Legacy.m', src)
+      expect(flags.find((f) => f.name === key), `no ${key} flag detected`).toBeTruthy()
+    })
+  }
+
+  it('does not let a method name match a longer selector it prefixes', () => {
+    // `boolVariation` must not also fire inside `boolVariationForKey:`
+    const src = `#import <LaunchDarkly/LDClient.h>\nBOOL v = [[LDClient get] boolVariationForKey:@"only-once" defaultValue:NO];\n`
+    const flags = new ObjectiveCDetector().detectFlags('Legacy.m', src)
+    expect(flags.filter((f) => f.name === 'only-once').length).toBe(1)
+  })
+
+  it('requires the SDK import (no false positive without it)', () => {
+    const src = `BOOL show = [[LDClient get] boolVariation:@"unimported" defaultValue:NO];\n`
+    const flags = new ObjectiveCDetector().detectFlags('Legacy.m', src)
+    expect(flags.find((f) => f.name === 'unimported')).toBeFalsy()
+  })
+})

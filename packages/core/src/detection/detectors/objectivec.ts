@@ -3,7 +3,7 @@
  * Ported from Go: internal/languages/objc/detector.go
  */
 
-import { detectFlagsWithRegex, isValidFlagKey, deduplicateFlags } from '../helpers.js'
+import { detectObjcMessageFlags, isValidFlagKey, deduplicateFlags } from '../helpers.js'
 import { Languages } from '../interface.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
@@ -30,8 +30,9 @@ export class ObjectiveCDetector implements LanguageDetector {
   }
 
   detectFlags(filename: string, content: string): FeatureFlag[] {
-    // Run standard regex detection
-    const flags = detectFlagsWithRegex(filename, content, this.language(), this.providers)
+    // Obj-C uses message-send syntax (`[obj method:@"key"]`), not paren calls,
+    // so it needs its own detection pass rather than the shared regex helper.
+    const flags = detectObjcMessageFlags(filename, content, this.language(), this.providers)
     // Filter out invalid flag keys (URLs, paths, etc.) -- extra validation for Obj-C
     const validFlags = flags.filter((f) => isValidFlagKey(f.name))
     return deduplicateFlags(validFlags)
