@@ -5,3 +5,4 @@ coverage/
 .DS_Store
 packages/core/dist/
 packages/cli/dist/
+packages/assessment-client/dist/

@@ -26,6 +26,28 @@ Found 23 feature flags · 7 stale · health 70/100 ⚠️
 Exit code: 1 (stale flags found)
 ```
 
+Request a private LaunchDarkly to OpenFeature migration assessment from a GitHub
+checkout without shipping the proprietary analysis engine in the public CLI:
+
+```bash
+export FLAGSHARK_API_TOKEN='your-workspace-token'
+npx flagshark assess --output migration-assessment.md
+```
+
+The command submits the repository and immutable HEAD identity, polls the
+private assessment API, and atomically writes the server-rendered report. See
+[`packages/cli/README.md`](packages/cli/README.md#migration-assessment) for the
+explicit repository, LaunchDarkly project, and JSON options.
+
+Before running an assessment, install the FlagShark GitHub App for the target
+repository and bind that installation to your FlagShark workspace. The API token
+must be a workspace token scoped to that repository. If you pass `--project`,
+the corresponding LaunchDarkly account and project must also be connected to
+the workspace. CLI access is currently invite-only: email
+[`joe@flagshark.com`](mailto:joe@flagshark.com) to have a short-lived,
+repository-scoped token issued. GitHub Actions users should use OIDC instead and
+do not need a FlagShark token.
+
 ## Why FlagShark
 
 **Feature flags accumulate.** Most teams have dozens of flags that shipped a release ago and never got cleaned up. Cleanup is manual, easy to skip, and nobody owns it. Flag-management platforms make it easy to *add* flags; they don't make it easy to *find* the ones you forgot.

@@ -110,6 +110,20 @@ describe('runCli', () => {
     expect(code).toBe(0)
     expect(out.text()).toContain('flagshark scan')
   })
+
+  it('prints command-specific help for assess without requiring credentials', async () => {
+    const stdout = new PassThrough()
+    const stderr = new PassThrough()
+    const out = collect(stdout)
+    const code = await runCli(['node', 'cli', 'assess', '--help'], {
+      stdout, stderr, cwd: process.cwd(),
+    })
+    expect(code).toBe(0)
+    expect(out.text()).toContain('flagshark assess')
+    expect(out.text()).toContain('FLAGSHARK_API_TOKEN')
+    expect(out.text()).toContain('joe@flagshark.com')
+    expect(out.text()).toContain('OIDC-based Action')
+  })
 })
 
 describe('runCli — coverage branches', () => {

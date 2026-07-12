@@ -102,6 +102,7 @@ describe('parseArgs', () => {
 
   it('scan subcommand is a no-op', () => {
     expect(args('scan').format).toBe('text')
+    expect(args('--json', 'scan').format).toBe('json')
   })
 
   it('unknown flag throws', () => {
@@ -132,5 +133,76 @@ describe('parseArgs — platform integration flags', () => {
 
   it('--fail-on-error explicitly sets failOnError true', () => {
     expect(args('--fail-on-error').failOnError).toBe(true)
+  })
+})
+
+describe('parseArgs — migration assessment', () => {
+  it('uses safe assessment defaults', () => {
+    const parsed = args('assess')
+    expect(parsed).toMatchObject({
+      command: 'assess',
+      repositories: [],
+      format: 'markdown',
+      tokenEnvironmentVariable: 'FLAGSHARK_API_TOKEN',
+      assessmentTimeoutMs: 900_000,
+    })
+  })
+
+  it('parses repeatable repositories and every public option', () => {
+    const parsed = args(
+      'assess',
+      '--repo', 'one/repo',
+      '--repo=two/repo',
+      '--ref', 'abc123',
+      '--project', 'production',
+      '--api-base=https://api.example/prefix',
+      '--token-env', 'MY_FLAGSHARK_TOKEN',
+      '--timeout', '1200',
+      '--format', 'json',
+      '-o', 'reports/assessment.json',
+    )
+    expect(parsed).toMatchObject({
+      repositories: ['one/repo', 'two/repo'],
+      assessmentRef: 'abc123',
+      launchDarklyProjectKey: 'production',
+      apiBaseUrl: 'https://api.example/prefix',
+      tokenEnvironmentVariable: 'MY_FLAGSHARK_TOKEN',
+      assessmentTimeoutMs: 1_200_000,
+      format: 'json',
+      output: 'reports/assessment.json',
+    })
+  })
+
+  it('--json selects the JSON artifact and --output - selects stdout', () => {
+    expect(args('assess', '--json', '--output', '-')).toMatchObject({
+      json: true,
+      format: 'json',
+      output: '-',
+    })
+  })
+
+  it.each([
+    [['assess', '--token', 'secret'], /Unknown assess option/],
+    [['assess', '--token-env', 'BAD-NAME'], /environment-variable name/],
+    [['assess', '--timeout', '0'], /positive integer/],
+    [['assess', '--timeout', '3601'], /no greater than 3600/],
+    [['assess', '--format', 'text'], /markdown, json/],
+    [['assess', '--repo'], /--repo requires/],
+    [['assess', '--ref'], /--ref requires/],
+    [['assess', '--project'], /--project requires/],
+    [['assess', '--api-base'], /--api-base requires/],
+    [['assess', ...Array.from({ length: 21 }, (_, index) => [`--repo`, `o/r${index}`]).flat()], /at most 20/],
+    [['assess', '--output', '\u202efoo'], /safe file path/],
+    [['assess', '--output', 'bad\udc00path'], /safe file path/],
+  ])('rejects unsafe or malformed assessment arguments %#', (flags, expected) => {
+    expect(() => args(...flags)).toThrow(expected)
+  })
+
+  it('shows assessment help without requiring repository or credentials', () => {
+    expect(args('assess', '--help')).toMatchObject({ command: 'assess', help: true })
+  })
+
+  it('keeps scan output validation precise', () => {
+    expect(() => args('--output')).toThrow(/requires a file path/)
   })
 })

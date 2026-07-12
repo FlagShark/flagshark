@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, copyFileSync, existsSync } from 'node:fs'
+import { mkdirSync, copyFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -11,9 +11,17 @@ const here = dirname(fileURLToPath(import.meta.url))
 const distDir = resolve(here, '..', 'dist')
 const grammarsDir = join(distDir, 'grammars')
 const queriesDir = join(distDir, 'queries')
+const assessmentDistDir = resolve(here, '..', '..', '..', 'assess', 'dist')
+const actionPackage = JSON.parse(readFileSync(resolve(here, '..', 'package.json'), 'utf8'))
 
+// Always build from empty generated trees. Without this, a removed grammar,
+// query, or entrypoint can survive from the checkout and make a stale commit
+// look identical after the build-verification step.
+rmSync(distDir, { recursive: true, force: true })
+rmSync(assessmentDistDir, { recursive: true, force: true })
 mkdirSync(grammarsDir, { recursive: true })
 mkdirSync(queriesDir, { recursive: true })
+mkdirSync(assessmentDistDir, { recursive: true })
 
 // Copy WASM grammars from node_modules (resolved relative to @flagshark/core's location)
 const grammars = [
@@ -27,7 +35,9 @@ const grammars = [
   'tree-sitter-rust/tree-sitter-rust.wasm',
 ]
 for (const spec of grammars) {
-  const src = require_.resolve(spec, { paths: [resolve(here, '..', '..', 'core')] })
+  const src = require_.resolve(spec, {
+    paths: [resolve(here, '..', '..', 'core')],
+  })
   const filename = spec.split('/').pop()
   copyFileSync(src, join(grammarsDir, filename))
   console.log(`Copied ${spec} -> dist/grammars/${filename}`)
@@ -44,7 +54,16 @@ const queries = [
   'php.scm',
   'rust.scm',
 ]
-const coreQueriesDir = resolve(here, '..', '..', 'core', 'src', 'detection', 'tree-sitter', 'queries')
+const coreQueriesDir = resolve(
+  here,
+  '..',
+  '..',
+  'core',
+  'src',
+  'detection',
+  'tree-sitter',
+  'queries',
+)
 for (const queryFile of queries) {
   const src = join(coreQueriesDir, queryFile)
   if (!existsSync(src)) {
@@ -65,4 +84,19 @@ await esbuild.build({
   outfile: join(distDir, 'action.cjs'),
 })
 
-console.log('Action bundle built')
+// The migration assessment is a separate subdirectory Action. It intentionally
+// bundles only the thin protocol client, not FlagShark's private assessment
+// engine or the repository-scanning implementation used by the root Action.
+await esbuild.build({
+  entryPoints: [resolve(here, '..', 'src', 'assess-index.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node24',
+  format: 'cjs',
+  outfile: join(assessmentDistDir, 'index.cjs'),
+  define: {
+    __FLAGSHARK_ACTION_VERSION__: JSON.stringify(actionPackage.version),
+  },
+})
+
+console.log('Action bundles built')
