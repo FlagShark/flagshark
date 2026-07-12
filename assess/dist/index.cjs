@@ -24901,7 +24901,7 @@ function immutableShaFromContext(github2) {
   return sha.toLowerCase();
 }
 function actionVersion(value) {
-  const packagedVersion = true ? "2.7.1" : "unknown";
+  const packagedVersion = true ? "2.8.0" : "unknown";
   return sanitizeClientVersion(value || "", packagedVersion);
 }
 function boundedIntegerInput(raw, name, fallback, minimum, maximum) {

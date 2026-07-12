@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.8.0 — LaunchDarkly to OpenFeature migration assessments
+
+- **New: `flagshark assess` generates a private LaunchDarkly to OpenFeature migration assessment.** The open-source CLI pins inferred local checkouts to their commit SHA, accepts supplied refs for explicit GitHub repositories, optionally includes a connected LaunchDarkly project, waits for the bounded asynchronous assessment, and writes the server-rendered Markdown or JSON report atomically. The proprietary analyzer, classifiers, effort model, and report builder remain in FlagShark's private service.
+- **New: `FlagShark/flagshark/assess@v2` GitHub Action.** The Action authenticates to `api.flagshark.com` with GitHub Actions OIDC, assesses the workflow's exact commit SHA, and downloads private Markdown and JSON reports. It does not send `GITHUB_TOKEN`, LaunchDarkly credentials, or repository contents, and detailed reports stay out of the job summary unless explicitly enabled.
+- **Hardened assessment transport and release artifacts.** Strict request/response validation, bounded retries and polling, idempotent submission, private report-file permissions, safe interruption handles, and byte-reproducible committed Action bundles are covered by the CLI, Action, and cross-repository integration suites.
+- Backward compatible and additive: the existing `scan` CLI and root `FlagShark/flagshark@v2` stale-flag Action retain their current behavior.
+
 ## v2.7.1 — Fix Objective-C feature flag detection
 
 - **Fix: Objective-C flags are now detected.** The Obj-C detector reused the shared regex helper, which only matches `method(args)` paren-call syntax — but Objective-C uses message-send syntax (`[[LDClient get] boolVariation:@"flag-key" defaultValue:NO]`), so every Obj-C call silently went undetected across every provider (LaunchDarkly, PostHog, Optimizely, Split.io, Flagsmith, ConfigCat, Unleash, and the custom-pattern catch-all). A dedicated selector pass now matches the `method:@"key"` form and extracts the flag key directly, reusing the same import gate, confidence tiers, and key validation as the other languages.
