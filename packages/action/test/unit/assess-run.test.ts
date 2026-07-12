@@ -413,7 +413,7 @@ describe('migration assessment Action', () => {
     expect(state.failed).toBeNull()
     expect(state.summary.join('\n')).toContain('too large for the GitHub job summary')
     expect(state.summary.join('\n')).not.toContain('large report')
-    expect(readFileSync(state.outputs['markdown-report-path'])).toEqual(Buffer.from(markdown))
+    expect(readFileSync(state.outputs['markdown-report-path']).equals(markdown)).toBe(true)
   })
 
   it('keeps detailed assessment content out of the job summary by default', async () => {
