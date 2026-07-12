@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Bump the version of all three FlagShark packages in lockstep.
+# Bump the version of all four FlagShark packages in lockstep.
 #
 # Usage:
 #   ./scripts/bump-version.sh 2.3.0
 #
 # What it does:
-#   1. Updates `version` in packages/{core,cli,action}/package.json
+#   1. Updates `version` in packages/{core,assessment-client,cli,action}/package.json
 #   2. Re-runs `bun install` to sync bun.lock to the new versions (the
-#      release.yml's `bun install` step uses --frozen-lockfile, so a
-#      stale lockfile fails CI; this avoids the lockfile-sync foot-gun
-#      we hit earlier on PR #25)
-#   3. Verifies all three packages now report the requested version
+#      CI workflow uses --frozen-lockfile, so a stale lockfile fails
+#      before release; this avoids the lockfile-sync foot-gun we hit
+#      earlier on PR #25)
+#   3. Rebuilds the committed GitHub Action bundles with that version
+#   4. Verifies all four packages now report the requested version
 #
 # What it does NOT do:
 #   - git commit / git tag / gh release: kept manual so you can review
@@ -56,7 +57,7 @@ echo "→ Bumping $CURRENT_VERSION → $NEW_VERSION"
 
 # Use Python to rewrite the JSON in place — preserves field order and
 # formatting (jq reformats, sed risks matching the wrong line).
-for pkg in packages/core packages/cli packages/action; do
+for pkg in packages/core packages/assessment-client packages/cli packages/action; do
   python3 - "$pkg/package.json" "$NEW_VERSION" <<'PY'
 import json, sys
 path, version = sys.argv[1], sys.argv[2]
@@ -95,15 +96,23 @@ rm -f bun.lock
 bun install >/dev/null
 echo "  ✓ bun install (fresh lockfile)"
 
+echo "→ Rebuilding committed Action bundles"
+# The subdirectory Action embeds @flagshark/action's version at build time.
+# Rebuild before tagging so the tag executes the versioned source that was
+# reviewed, rather than whatever bundle happened to be committed previously.
+bun run build >/dev/null
+echo "  ✓ packages/action/dist/action.cjs"
+echo "  ✓ assess/dist/index.cjs"
+
 echo "→ Verifying"
-for pkg in packages/core packages/cli packages/action; do
+for pkg in packages/core packages/assessment-client packages/cli packages/action; do
   v="$(node -p "require('./$pkg/package.json').version")"
   if [[ "$v" != "$NEW_VERSION" ]]; then
     echo "  ✗ $pkg/package.json reports $v (expected $NEW_VERSION)" >&2
     exit 1
   fi
 done
-echo "  ✓ all three packages report $NEW_VERSION"
+echo "  ✓ all four packages report $NEW_VERSION"
 
 # Defense in depth: verify bun.lock's workspaces section now reflects the
 # new version. The lockfile is checked into the repo, so a stale entry
@@ -115,9 +124,16 @@ if ! grep -A2 '"name": "@flagshark/core"' bun.lock | grep -q "\"version\": \"$NE
 fi
 echo "  ✓ bun.lock workspaces[@flagshark/core] reports $NEW_VERSION"
 
+if ! grep -A2 '"name": "@flagshark/assessment-client"' bun.lock | grep -q "\"version\": \"$NEW_VERSION\""; then
+  echo "  ✗ bun.lock workspaces section did not pick up @flagshark/assessment-client@$NEW_VERSION" >&2
+  echo "    bun.lock workspace metadata is stale; committed bundles would have ambiguous provenance" >&2
+  exit 1
+fi
+echo "  ✓ bun.lock workspaces[@flagshark/assessment-client] reports $NEW_VERSION"
+
 echo ""
 echo "Done. Next steps (verbatim):"
-echo "  git add packages/core/package.json packages/cli/package.json packages/action/package.json bun.lock"
+echo "  git add packages/core/package.json packages/assessment-client/package.json packages/cli/package.json packages/action/package.json packages/action/dist assess/dist bun.lock"
 echo "  git commit -m \"chore(release): bump to v$NEW_VERSION\""
 echo "  git push"
 echo "  git tag v$NEW_VERSION -a -m \"Release v$NEW_VERSION\""

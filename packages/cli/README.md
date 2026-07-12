@@ -81,6 +81,57 @@ flagshark scan --threshold 7 --json | jq '.staleFlags'
 flagshark scan --config ./tooling/flagshark.yml
 ```
 
+### Migration assessment
+
+`flagshark assess` is a thin client for FlagShark's private LaunchDarkly to
+OpenFeature migration-assessment service. The open-source CLI does not contain
+the proprietary analyzer, classification, or report-building code. It sends a
+repository identity to the authenticated API, waits for the bounded asynchronous
+job, and downloads the server-produced Markdown or JSON report.
+
+Prerequisites:
+
+- The FlagShark GitHub App is installed for the target repository and its
+  installation is bound to your FlagShark workspace.
+- `FLAGSHARK_API_TOKEN` is a workspace token scoped to that repository.
+- When using `--project`, the LaunchDarkly account and project are connected to
+  the same workspace. Repository-only assessments do not require LaunchDarkly.
+
+CLI access is currently invite-only. Email
+[`joe@flagshark.com`](mailto:joe@flagshark.com) to have a short-lived token
+issued for the repositories you want assessed. GitHub Actions users should use
+the OIDC-based Action instead and do not need this token.
+
+```bash
+export FLAGSHARK_API_TOKEN='your-workspace-token'
+
+# From a GitHub checkout: infers owner/repository and the immutable HEAD SHA
+flagshark assess --output migration-assessment.md
+
+# Explicit repository/project and JSON output
+flagshark assess \
+  --repo FlagShark/example \
+  --ref 0123456789abcdef0123456789abcdef01234567 \
+  --project production \
+  --format json \
+  --output migration-assessment.json
+```
+
+The Git origin inference accepts credential-free `github.com` HTTPS and SSH
+URLs. Explicit `--repo` values do not inherit the current checkout's commit;
+provide `--ref` when assessing another repository. Use `--token-env NAME` to
+select a different environment variable. Tokens are intentionally never
+accepted as command-line values, and report files are written atomically with
+private permissions.
+
+After the API accepts the job, the CLI immediately prints its assessment ID and
+safe status URL to stderr. Keep that handle if a long-running local command is
+interrupted; the private job may still finish. Transient submission and polling
+failures are retried under one idempotency key and the overall timeout.
+
+Run `flagshark assess --help` for the full option list. The default assessment
+timeout is 15 minutes and can be changed with `--timeout <seconds>`.
+
 ### Exit codes
 
 | Code | Meaning |

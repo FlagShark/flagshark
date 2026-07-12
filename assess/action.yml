@@ -1,0 +1,50 @@
+name: "FlagShark Migration Assessment"
+description: "Generate a private LaunchDarkly to OpenFeature migration assessment"
+author: "FlagShark"
+
+inputs:
+  launchdarkly-project-key:
+    description: "Optional LaunchDarkly project key connected to your FlagShark workspace"
+    required: false
+  api-url:
+    description: "FlagShark assessment API base URL"
+    required: false
+    default: "https://api.flagshark.com/api"
+  oidc-audience:
+    description: "Audience requested for the GitHub Actions OIDC token"
+    required: false
+    default: "https://api.flagshark.com"
+  api-token:
+    description: "Fallback FlagShark API token when GitHub Actions OIDC is unavailable"
+    required: false
+  output-directory:
+    description: "Directory for the downloaded Markdown and JSON reports (defaults under RUNNER_TEMP)"
+    required: false
+  include-report-in-job-summary:
+    description: "Publish the detailed Markdown report in the GitHub job summary (may expose assessment details)"
+    required: false
+    default: "false"
+  timeout-seconds:
+    description: "Maximum time to wait for the assessment (30-3600 seconds)"
+    required: false
+    default: "900"
+
+outputs:
+  assessment-id:
+    description: "The migration assessment ID, available as soon as the API accepts the request"
+  status-url:
+    description: "Non-secret API status URL, available as soon as the API accepts the request"
+  markdown-report-path:
+    description: "Absolute path to the server-rendered Markdown report"
+  json-report-path:
+    description: "Absolute path to the structured JSON report"
+  report-directory:
+    description: "Absolute directory containing both reports"
+
+runs:
+  using: "node24"
+  main: "dist/index.cjs"
+
+branding:
+  icon: "flag"
+  color: "blue"

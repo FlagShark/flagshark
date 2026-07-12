@@ -1,5 +1,5 @@
 /**
- * Lockstep-version assertion — fails CI when packages/{core,cli,action}
+ * Lockstep-version assertion — fails CI when versioned workspace packages
  * have different `version` fields in their package.json.
  *
  * Why this exists: the release process bumps each package's version
@@ -34,7 +34,10 @@ const REPO_ROOT = join(__dirname, '..', '..', '..', '..')
 interface PackageJson {
   name: string
   version: string
+  private?: boolean
+  scripts?: Record<string, string>
   dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
 }
 
 function readPkg(rel: string): PackageJson {
@@ -43,21 +46,41 @@ function readPkg(rel: string): PackageJson {
 
 describe('repo-level lockstep version assertion', () => {
   const core = readPkg('packages/core/package.json')
+  const assessmentClient = readPkg('packages/assessment-client/package.json')
   const cli = readPkg('packages/cli/package.json')
   const action = readPkg('packages/action/package.json')
 
-  it('all three packages have the same version field', () => {
+  it('all versioned workspace packages have the same version field', () => {
+    expect(core.version, '@flagshark/core version').toBe(assessmentClient.version)
+    expect(assessmentClient.version, '@flagshark/assessment-client version').toBe(cli.version)
     expect(core.version, '@flagshark/core version').toBe(cli.version)
     expect(cli.version, 'flagshark CLI version').toBe(action.version)
     expect(action.version, '@flagshark/action version').toBe(core.version)
   })
 
-  it('CLI and action declare @flagshark/core via workspace:* (not literal version)', () => {
+  it('CLI and action declare shared runtime packages via workspace:* (not literal versions)', () => {
     // Defends against the v2.1.0–v2.2.0 regression class: a literal
     // pin in dependencies bypasses `bun pm pack`'s rewrite and ships
     // mismatched versions to npm. workspace:* is the only safe form.
     expect(cli.dependencies?.['@flagshark/core'], 'CLI dep on core').toBe('workspace:*')
     expect(action.dependencies?.['@flagshark/core'], 'action dep on core').toBe('workspace:*')
+    expect(
+      action.dependencies?.['@flagshark/assessment-client'],
+      'action dep on assessment client',
+    ).toBe('workspace:*')
+  })
+
+  it('bundles the internal assessment client into public artifacts instead of publishing it', () => {
+    expect(assessmentClient.private, 'assessment client is an internal workspace package').toBe(true)
+    expect(cli.dependencies, 'CLI runtime dependencies').not.toHaveProperty(
+      '@flagshark/assessment-client',
+    )
+    expect(cli.devDependencies?.['@flagshark/assessment-client'], 'CLI build dependency').toBe(
+      'workspace:*',
+    )
+    expect(cli.scripts?.build, 'CLI build bundles the assessment client').not.toContain(
+      '--external:@flagshark/assessment-client',
+    )
   })
 
   it('version field is a valid semver string', () => {
@@ -86,5 +109,16 @@ describe('repo-level lockstep version assertion', () => {
     )
     expect(coreBlock, 'bun.lock has @flagshark/core workspace entry').not.toBeNull()
     expect(coreBlock![1], 'bun.lock workspaces[@flagshark/core].version').toBe(core.version)
+    const assessmentClientBlock = lock.match(
+      /"packages\/assessment-client":\s*\{[^}]*"name":\s*"@flagshark\/assessment-client"[^}]*"version":\s*"([^"]+)"/,
+    )
+    expect(
+      assessmentClientBlock,
+      'bun.lock has @flagshark/assessment-client workspace entry',
+    ).not.toBeNull()
+    expect(
+      assessmentClientBlock![1],
+      'bun.lock workspaces[@flagshark/assessment-client].version',
+    ).toBe(assessmentClient.version)
   })
 })

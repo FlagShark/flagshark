@@ -1,0 +1,2 @@
+/assess/dist/index.cjs linguist-generated=true -diff -whitespace
+/packages/action/dist/action.cjs linguist-generated=true -diff -whitespace

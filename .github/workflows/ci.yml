@@ -17,6 +17,8 @@ jobs:
           bun-version: 1.2.5
       - run: bun install --frozen-lockfile
       - run: bun run build
+      - name: Verify committed Action artifact trees match source
+        run: node scripts/verify-action-artifacts.mjs
       - run: bun run typecheck
       - run: bun run test:coverage
       - uses: actions/upload-artifact@v4
