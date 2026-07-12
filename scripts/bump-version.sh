@@ -133,7 +133,7 @@ echo "  ✓ bun.lock workspaces[@flagshark/assessment-client] reports $NEW_VERSI
 
 echo ""
 echo "Done. Next steps (verbatim):"
-echo "  git add packages/core/package.json packages/assessment-client/package.json packages/cli/package.json packages/action/package.json packages/action/dist assess/dist bun.lock"
+echo "  git add CHANGELOG.md packages/core/package.json packages/assessment-client/package.json packages/cli/package.json packages/action/package.json packages/action/dist assess/dist bun.lock"
 echo "  git commit -m \"chore(release): bump to v$NEW_VERSION\""
 echo "  git push"
 echo "  git tag v$NEW_VERSION -a -m \"Release v$NEW_VERSION\""
