@@ -5,7 +5,8 @@
   "scanner_results": "benchmarks/held-out-protocol-v1/runner/results/index.json",
   "ai_results": "benchmarks/held-out-protocol-v1/runner/ai-results/normalized.json",
   "status": "invalid",
-  "status_reason": "AI artifacts are audit-only and do not satisfy benchmark provenance: they were generated through direct harness completion calls, use placeholder token_usage, and are not valid comparison evidence.",
+  "status_reason": "Audit-only harness completion artifacts; not benchmark-valid evidence.",
+  "status_version": "2026-08-29",
   "tasks": [
     {
       "task_id": "dev-detection-msr-strudel-opengever-activity",

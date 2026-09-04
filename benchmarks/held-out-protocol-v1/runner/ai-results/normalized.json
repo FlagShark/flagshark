@@ -4,7 +4,9 @@
     "runner": "benchmark-local-ai/default",
     "runtime_seconds": 11.565,
     "token_usage": {},
-    "validation_commands": ["completion(prompt, 'default', ...)"],
+    "validation_commands": [
+      "completion(prompt, 'default', ...)"
+    ],
     "validation_results": [],
     "predicted_flags": [
       {
@@ -44,7 +46,8 @@
       "task_source": "msr-strudel-2020",
       "task_source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
-      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+      "task_partition": "dev"
     },
     "predicted_transform": null,
     "evidence_citations": [
@@ -58,7 +61,9 @@
     "runner": "benchmark-local-ai/default",
     "runtime_seconds": 7.368,
     "token_usage": {},
-    "validation_commands": ["completion(prompt, 'default', ...)"],
+    "validation_commands": [
+      "completion(prompt, 'default', ...)"
+    ],
     "validation_results": [],
     "predicted_flags": [
       {
@@ -90,21 +95,26 @@
       "task_source": "msr-strudel-2020",
       "task_source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
-      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+      "task_partition": "dev"
     },
     "predicted_transform": null,
     "evidence_citations": [
       "enabled_since('2016-02-02') gated feature-flag constant",
       "explicitly named feature flag constant in config"
     ],
-    "abstentions": ["BUILD_DATE and VERSION are not feature flags and were excluded"]
+    "abstentions": [
+      "BUILD_DATE and VERSION are not feature flags and were excluded"
+    ]
   },
   {
     "task_id": "dev-detection-msr-strudel-opengever-activity",
     "runner": "benchmark-local-ai/default",
     "runtime_seconds": 52.095,
     "token_usage": {},
-    "validation_commands": ["completion(prompt, 'default', ...)"],
+    "validation_commands": [
+      "completion(prompt, 'default', ...)"
+    ],
     "validation_results": [],
     "predicted_flags": [
       {
@@ -306,7 +316,8 @@
       "task_source": "msr-strudel-2020",
       "task_source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
-      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
+      "task_partition": "dev"
     },
     "predicted_transform": null,
     "evidence_citations": [
@@ -314,6 +325,8 @@
       "The result is exposed in the API config under features['activity']; no in-file usage suggests this is a pure configuration flag.",
       "No contradictory logic, fallback, or branching indicates stale/unsafe behavior."
     ],
-    "abstentions": ["No stale/unknown candidate identified from the provided snapshot alone; the task is entirely feature-gate config reads."]
+    "abstentions": [
+      "No stale/unknown candidate identified from the provided snapshot alone; the task is entirely feature-gate config reads."
+    ]
   }
 ]

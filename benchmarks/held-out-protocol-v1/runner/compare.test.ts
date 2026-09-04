@@ -2,6 +2,18 @@ import { expect, test } from 'bun:test'
 
 import { compareResults } from './compare'
 
+const invalidStatus = {
+  status: 'invalid' as const,
+  reason: 'audit-only harness capture',
+  version: '2026-08-29',
+}
+
+const validStatus = {
+  status: 'valid' as const,
+  reason: 'future provenance-complete benchmark run',
+  version: '2026-08-29',
+}
+
 test('comparison prefixes ai locations with the matched scanner source_root and treats scanner lines inside ai ranges as overlap', () => {
   const scanner = [
     {
@@ -34,9 +46,10 @@ test('comparison prefixes ai locations with the matched scanner source_root and 
     },
   ]
 
-  const result = compareResults(scanner as never, ai as never)
+  const result = compareResults(scanner as never, ai as never, invalidStatus)
   expect(result.status).toBe('invalid')
-  expect(result.status_reason).toContain('audit-only')
+  expect(result.status_reason).toBe(invalidStatus.reason)
+  expect(result.status_version).toBe(invalidStatus.version)
   expect(result.tasks[0].ai.predicted_flags[0].filePath).toBe('tasks/dev/a/app/models/runtime/feature_flag.rb')
   expect(result.tasks[0].ai.predicted_flags[0].lineStart).toBe(7)
   expect(result.tasks[0].ai.predicted_flags[0].lineEnd).toBe(10)
@@ -45,6 +58,13 @@ test('comparison prefixes ai locations with the matched scanner source_root and 
   expect(result.tasks[0].location_mismatches).toEqual([])
   expect(result.tasks[0].scanner_only).toEqual([])
   expect(result.tasks[0].ai_only).toEqual([])
+})
+
+test('comparison can emit valid status from an explicit status fixture without code changes', () => {
+  const result = compareResults([], [], validStatus)
+  expect(result.status).toBe('valid')
+  expect(result.status_reason).toBe(validStatus.reason)
+  expect(result.status_version).toBe(validStatus.version)
 })
 
 test('comparison keeps same-name same-file unknown-line pairs in location_uncertain instead of scanner_only or ai_only', () => {
@@ -79,7 +99,7 @@ test('comparison keeps same-name same-file unknown-line pairs in location_uncert
     },
   ]
 
-  const result = compareResults(scanner as never, ai as never)
+  const result = compareResults(scanner as never, ai as never, invalidStatus)
   expect(result.tasks[0].location_uncertain).toEqual([
     {
       name: 'maybe-line',
@@ -125,7 +145,7 @@ test('comparison records same-name same-file differing known lines as location_m
     },
   ]
 
-  const result = compareResults(scanner as never, ai as never)
+  const result = compareResults(scanner as never, ai as never, invalidStatus)
   expect(result.tasks[0].location_mismatches).toEqual([
     {
       name: 'mismatch',

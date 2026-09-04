@@ -1,6 +1,6 @@
 {
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "model": "default",
   "provider": "openai-codex",
   "selection_rationale": "The exact low-labeled model is not available in this environment; use the environment-accepted default model to keep the benchmark runnable and explicitly record the selection as a local execution choice.",
@@ -20,8 +20,11 @@
       "openfeature-playground",
       "flagshark-internal-fixtures"
     ],
-    "devSourcesOnly": ["flagshark-internal-fixtures"],
-    "heldOutSources": ["msr-strudel-2020", "uber-piranha", "openfeature-playground"]
+    "devSourcesOnly": [
+      "msr-strudel-2020",
+      "flagshark-internal-fixtures"
+    ],
+    "heldOutSources": []
   },
   "recordBeforeRun": [
     "model identifier",

@@ -41,17 +41,12 @@ interface PredictedFlag {
   evidence_citations?: string[]
 }
 
-interface NormalizedAiTaskResult {
-  task_id: string
-  runner: string
-  runtime_seconds?: number
-  token_usage?: Record<string, unknown>
-  validation_commands?: string[]
-  validation_results?: unknown[]
-  predicted_flags: PredictedFlag[]
-  abstentions?: string[]
-  cost_usd?: number
+interface AiRunStatus {
+  status: 'valid' | 'invalid'
+  reason: string
+  version: string
 }
+
 interface ParsedAiLocation {
   filePath: string
   lineKnown: boolean
@@ -112,30 +107,34 @@ export interface ComparisonResult {
   ai_runner: string
   scanner_results: string
   ai_results: string
-  status: 'invalid'
+  status: 'valid' | 'invalid'
   status_reason: string
+  status_version: string
   tasks: ComparisonTask[]
 }
-
-
 const repoRoot = resolve(dirname(new URL(import.meta.url).pathname), '../../..')
 const benchmarkRoot = resolve(repoRoot, 'benchmarks/held-out-protocol-v1')
 const scannerIndexPath = resolve(benchmarkRoot, 'runner/results/index.json')
+const statusPath = resolve(benchmarkRoot, 'runner/ai-results/status.json')
 const aiIndexPath = resolve(benchmarkRoot, 'runner/ai-results/normalized.json')
+
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T
 }
 
+function loadAiRunStatus(): AiRunStatus {
+  return readJson<AiRunStatus>(statusPath)
+}
 function normalizeAiPath(path: string): string {
   return path.replace(/^\/Users\/[^/]+\/projects\/flagshark\/flagshark\//, '')
 }
-
 function prefixSourceRoot(sourceRoot: string, filePath: string): string {
   const normalizedRoot = normalizeAiPath(sourceRoot).replace(/\/$/, '')
   const normalizedPath = normalizeAiPath(filePath).replace(/^\//, '')
   if (normalizedPath.startsWith(`${normalizedRoot}/`)) return normalizedPath
   return `${normalizedRoot}/${normalizedPath}`
 }
+
 
 
 function parseRangeText(rangeText: string): Array<{ start: number; end: number }> {
@@ -181,7 +180,11 @@ function loadAiResults(): NormalizedAiTaskResult[] {
   return readJson<NormalizedAiTaskResult[]>(aiIndexPath)
 }
 
-export function compareResults(scannerResults: ScannerTaskResult[], aiResults: NormalizedAiTaskResult[]): ComparisonResult {
+export function compareResults(
+  scannerResults: ScannerTaskResult[],
+  aiResults: NormalizedAiTaskResult[],
+  aiRunStatus: AiRunStatus,
+): ComparisonResult {
   const aiByTask = new Map(aiResults.map((task) => [task.task_id, task]))
   const tasks: ComparisonTask[] = []
 
@@ -314,15 +317,15 @@ export function compareResults(scannerResults: ScannerTaskResult[], aiResults: N
     ai_runner: 'benchmark-local-ai/default',
     scanner_results: 'benchmarks/held-out-protocol-v1/runner/results/index.json',
     ai_results: 'benchmarks/held-out-protocol-v1/runner/ai-results/normalized.json',
-    status: 'invalid',
-    status_reason:
-      'AI artifacts are audit-only and do not satisfy benchmark provenance: they were generated through direct harness completion calls, use placeholder token_usage, and are not valid comparison evidence.',
+    status: aiRunStatus.status,
+    status_reason: aiRunStatus.reason,
+    status_version: aiRunStatus.version,
     tasks,
   }
 }
 
 export function writeComparisonResult(outputPath: string): ComparisonResult {
-  const result = compareResults(loadScannerResults(), loadAiResults())
+  const result = compareResults(loadScannerResults(), loadAiResults(), loadAiRunStatus())
   writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`)
   return result
 }
