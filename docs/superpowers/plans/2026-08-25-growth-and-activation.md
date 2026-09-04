@@ -73,31 +73,48 @@ Before any substantial SaaS rebuild, product expansion, or “AI can do this now
 
 This gate is the pre-rebuild decision gate. It must be passed before the plan proceeds to larger platform investments.
 
-### Pre-customer technical validation track
+### Reproducible non-customer validation track
 
 This track is for **non-customer evidence only**. It is adjacent to, but does not replace, the customer evidence gate.
 
-**Permitted evidence sources**
+**What this track can use**
 
 - FlagShark internal labeled fixtures and corpora.
-- The CMU Strudel / MSR 2020 feature-flag dataset for feature-flag presence and lifetimes only, not provider state.
-- Uber Piranha public regression corpus.
-- OpenFeature playground checked-in provider config.
+- The CMU Strudel / MSR 2020 dataset for OSS feature-flag presence and lifetimes only.
+- Uber Piranha public regression corpus for transformation expectations only.
+- OpenFeature playground checked-in provider config for controlled provider truth only.
 - Optionally, an authorized test LaunchDarkly project if credentials are available.
 
-**Required experimental design**
+**What this track cannot assume**
 
-- Use a fixed, specified **AI-agent baseline** for every run.
+- No broad public production-provider ground truth was found.
+- Internal cleanup-corpus tests, including 215/270, are regression evidence only; they are not independent ground truth.
+- The hand-written enumerator and any synthetic smoke checks may validate implementation behavior, but they are not AI-comparison evidence and are not safety proof.
+
+**Required evidence shape**
+
+- Prefer a **held-out public corpus** for independent evaluation where possible.
+- When no held-out public corpus is available, use a **versioned synthetic specification** that is committed before implementation and frozen for the evaluation run.
 - Use the same repo snapshots / fixture revisions for every compared workflow.
 - Require blinded human adjudication of proposed removals, rewrites, and extracted provider state.
 - Compare **safe transformation outcomes** only: detection correctness, provider-adapter correctness, transform correctness, and reproducibility.
-- The hand-written enumerator and any synthetic smoke checks may be used to validate implementation behavior, but they are **not** AI-comparison evidence and are **not** safety proof.
 
 **Exact limits**
 
 - This track can validate implementation behavior, detection correctness, provider-adapter correctness, transformation correctness, and reproducibility.
 - This track cannot validate customer safety in production, ROI, willingness to pay, adoption, market fit, or commercial demand.
 - This track cannot substitute for customer consent or for the eventual market/safety gate.
+
+**AI baseline run manifest v1**
+
+- Model identifier: `openai-codex/gpt-5.6-luna`
+- Prompt: `Using only the provided repo snapshot and the given corpus, evaluate FlagShark on the specified benchmark. Do not use FlagShark internals beyond the allowed files. Do not use network access or provider credentials for the public track. Return only the required output schema.`
+- Tooling: read/write/test only in a temporary checkout; no FlagShark internals; no network; no provider credentials for the public track.
+- Runs: one fresh run, no retries.
+- Budget: 30 minutes and 100,000 tokens maximum; record actual time/token usage.
+- Snapshot: frozen repo snapshot and frozen output schema for the run.
+- Record: model identifier, date, tool versions, snapshot ID, prompt text/template, and output schema before executing the benchmark.
+- Status: this is an initial benchmark configuration, not a success threshold.
 
 **Source-backed inputs**
 
@@ -106,6 +123,7 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - Uber Piranha public regression corpus: https://github.com/uber/piranha
 - OpenFeature playground: https://github.com/open-feature/playground
 - Authorized test LaunchDarkly project: only if credentials exist; otherwise omit.
+
 
 ---
 
