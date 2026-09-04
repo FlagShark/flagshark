@@ -216,6 +216,7 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - Benchmark artifacts live at `flagshark/benchmarks/held-out-protocol-v1/`.
 - Files:
   - `manifest.json`
+  - `capability-matrix.json`
   - `source-revisions.json`
   - `source-truth-index.md`
   - `exclusions.json`
@@ -224,15 +225,21 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
   - `ai-run-config.json`
   - `scorer-contract.md`
   - `tasks/dev/detection/internal-fixture-ts-001.json`
-  - `tasks/held-out/provider/openfeature-flagd-001.json`
-  - `tasks/held-out/provider/openfeature-goff-001.json`
-  - `tasks/held-out/transformation/piranha-java-if-cleanup.json`
-  - `tasks/held-out/transform/piranha-java-if-cleanup/input.java`
-  - `tasks/held-out/transform/piranha-java-if-cleanup/expected.java`
+  - `tasks/held-out/detection/msr-strudel-source-bundle.json`
+  - `tasks/held-out/detection/msr-strudel-digitalmarketplace-edit-service-page.json`
+  - `tasks/held-out/detection/msr-strudel-opengever-activity.json`
+  - `tasks/held-out/detection/msr-strudel-18f-identity-idp-pt-mode.json`
+  - `tasks/held-out/provider/openfeature-flagd-001.json` — reference-only provider-config task
+  - `tasks/held-out/provider/openfeature-goff-001.json` — reference-only provider-config task
+  - `tasks/held-out/transformation/piranha-java-if-cleanup.json` — excluded/reference-only; not scoreable
+  - `tasks/held-out/transform/piranha-java-if-cleanup/input.java` — excluded/reference-only fixture
+  - `tasks/held-out/transform/piranha-java-if-cleanup/expected.java` — excluded/reference-only fixture
 - The manifest records checksums for the task rows and frozen fixtures.
 - The protocol is runnable only after these artifacts are generated, checksummed, and verified as frozen.
 - Do not run the AI comparison until the manifest and schemas are frozen and validated.
-- This bundle is `protocol-ready-but-no-comparable-task`: the held-out tasks are reference-only and are not scored as FlagShark-vs-AI end-to-end transformation evidence.
+- This bundle is `detection-comparable-ready` for the three MSR/Strudel detection tasks only; provider-config tasks are reference-only and no transformation tasks are scoreable.
+- No AI comparison run has been executed, there is no comparative result, and there is no technical go/no-go decision.
+
 
 **Run manifest v1**
 
