@@ -404,7 +404,7 @@ function compareTask(scannerTask: ScannerTaskResult, aiTask: NormalizedAiTaskRes
     if (match.lineKnown && match.lineNumber !== undefined && scannerSet.has(keyOf(match))) continue
     if (locationUncertain.some((item) => item.name === match.name && item.filePath === match.filePath)) continue
     if (locationMismatches.some((item) => item.name === match.name && item.filePath === match.filePath)) continue
-    if (scannerMatches.some((scannerMatch) => scannerMatch.name === match.name && scannerMatch.filePath === match.filePath && aiLocationContainsScannerLine(match, scannerMatch.lineNumber))) continue
+    if (scannerMatches.some((scannerMatch) => scannerMatch.name === match.name && scannerMatch.filePath === match.filePath && scannerMatch.lineNumber !== undefined && aiLocationContainsScannerLine(match, scannerMatch.lineNumber))) continue
     aiOnly.push(match)
   }
 
