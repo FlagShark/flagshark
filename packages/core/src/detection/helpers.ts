@@ -203,7 +203,7 @@ export function detectConfigFlags(
     })
   }
   if (language === 'python') {
-    const constAssign = /^\s*([A-Z][A-Z0-9_]*(?:FEATURE|FLAG)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm
+    const constAssign = /^\s*((?:FEATURE_FLAGS_|FEATURE_FLAG_)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm
     for (const match of content.matchAll(constAssign)) {
       push(match[1], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
     }

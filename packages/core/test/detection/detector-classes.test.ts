@@ -260,6 +260,7 @@ describe('config-style feature-flag detection', () => {
       `FEATURE_FLAGS_EDIT_SECTIONS = enabled_since('2016-01-25')`,
       `features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)`,
       `BUILD_DATE = enabled_since('2016-01-25')`,
+      `VERSION = enabled_since('2016-01-25')`,
       `features['timeout'] = some_other_config_call('ignore-me')`,
     ].join('\n')
 
@@ -271,6 +272,7 @@ describe('config-style feature-flag detection', () => {
       ].sort(),
     )
     expect(flags.some((f) => f.name === 'BUILD_DATE')).toBe(false)
+    expect(flags.some((f) => f.name === 'VERSION')).toBe(false)
   })
 
   it('detects Ruby DEFAULT_FLAGS symbol keys with medium confidence and ignores unrelated hashes', () => {
