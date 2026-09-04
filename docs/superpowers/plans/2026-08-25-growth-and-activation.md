@@ -77,39 +77,145 @@ This gate is the pre-rebuild decision gate. It must be passed before the plan pr
 
 This track is for **non-customer evidence only**. It is adjacent to, but does not replace, the customer evidence gate.
 
-**What this track can use**
+**Purpose**
 
-- FlagShark internal labeled fixtures and corpora.
-- The CMU Strudel / MSR 2020 dataset for OSS feature-flag presence and lifetimes only.
-- Uber Piranha public regression corpus for transformation expectations only.
-- OpenFeature playground checked-in provider config for controlled provider truth only.
-- Optionally, an authorized test LaunchDarkly project if credentials are available.
+- Produce a concrete, reproducible, held-out technical comparison of FlagShark against a repo-reading AI-agent baseline.
+- Validate detector behavior, provider-adapter behavior, and transformation behavior on pinned inputs.
+- Do **not** infer customer demand, willingness to pay, or market advantage from this track.
 
-**What this track cannot assume**
+**Allowed source corpora**
 
-- No broad public production-provider ground truth was found.
-- Internal cleanup-corpus tests, including 215/270, are regression evidence only; they are not independent ground truth.
-- The hand-written enumerator and any synthetic smoke checks may validate implementation behavior, but they are not AI-comparison evidence and are not safety proof.
+- FlagShark internal labeled fixtures: `flagshark/packages/core/test/fixtures/**`
+- CMU Strudel / MSR 2020 dataset: https://doi.org/10.5281/zenodo.3712227
+- Uber Piranha public regression corpus: https://github.com/uber/piranha
+- OpenFeature playground checked-in provider config: https://github.com/open-feature/playground
+- Authorized test LaunchDarkly project: only if credentials exist; otherwise omit
 
-**Required evidence shape**
+**Source revision pinning**
 
-- Prefer a **held-out public corpus** for independent evaluation where possible.
-- When no held-out public corpus is available, use a **versioned synthetic specification** that is committed before implementation and frozen for the evaluation run.
-- Use the same repo snapshots / fixture revisions for every compared workflow.
-- Require blinded human adjudication of proposed removals, rewrites, and extracted provider state.
-- Compare **safe transformation outcomes** only: detection correctness, provider-adapter correctness, transform correctness, and reproducibility.
+- Record a git SHA, tag, or archive digest for every local corpus checkout used in the run.
+- Record dataset version / release metadata for external corpora.
+- Copy every corpus into an evaluation workspace and checksum the copied tree before any run.
+- The evaluation workspace, prompts, and schemas are frozen once the held-out split is declared; no editing after the first benchmark run.
 
-**Exact limits**
+**Partition rule**
 
-- This track can validate implementation behavior, detection correctness, provider-adapter correctness, transformation correctness, and reproducibility.
-- This track cannot validate customer safety in production, ROI, willingness to pay, adoption, market fit, or commercial demand.
-- This track cannot substitute for customer consent or for the eventual market/safety gate.
+- Build a single benchmark manifest with one row per task instance.
+- Prefer a **project-level split**: entire projects or commits belong to either development or held-out, never both.
+- Development / tuning set:
+  - may be inspected repeatedly to tune rules, prompt wording, runner glue, and scoring thresholds;
+  - may be re-run while the benchmark is being designed;
+  - may include fixture files that are later excluded from held-out evaluation.
+- Held-out evaluation set:
+  - is never inspected for tuning after freeze;
+  - uses pinned project/commit revisions;
+  - is scored once per frozen runner version and frozen schema version;
+  - may be re-scored only if the runner code or evaluation schema changes, in which case the benchmark version increments and the old score remains archived.
+- Split by task instance inside the project-level partition, not by individual lines or snippets, so no project/commit crosses the boundary.
+- Suggested default split: 20% development, 80% held-out, stratified by corpus source and task type.
+- The held-out set must contain at least one task from each source that is actually available in the workspace; if a source has no eligible task after leakage filtering, omit it and record that omission.
 
-**AI baseline run manifest v1**
+**Leakage-avoidance rules**
+
+- Never place a fixture file in development if its sibling `expected.json`, answer key, or generated cleanup artifact is used in held-out evaluation.
+- Never use the same repository snapshot for both tuning and evaluation.
+- Never let any project or commit overlap across development and held-out, even if the task IDs differ.
+- Shared snapshots leak wrappers, conventions, and goldens, so a single project/commit must live entirely in one partition.
+- Do not let a corpus-specific adapter read its own answer key, example patch, or golden output at runtime.
+- Freeze the evaluation manifest before any baseline run; if the manifest changes, increment the version and restart the comparison from scratch.
+- Keep prompt templates, output schemas, and scoring scripts outside the task corpora so they are not accidentally treated as evidence.
+
+**Independent ground truth by task**
+
+- Each task must have one of these truth sources recorded explicitly:
+  1. **Scanner truth** — known flag location / provider / language from a labeled fixture or corpus annotation.
+  2. **Provider truth** — known flag existence / archive / env state / variation state from OpenFeature playground config or an authorized LaunchDarkly project.
+  3. **Transformation truth** — known expected rewrite from the Uber Piranha corpus or a frozen synthetic spec.
+- If a task needs more than one truth source, annotate each component separately; do not collapse them into a single pass/fail label.
+- Public provider truth is limited; absence of a public ground-truth signal is recorded as `unknown`, not inferred.
+
+**How this applies by task type**
+
+- **Detection tasks**: development can tune detector heuristics, file filters, and language/provider mapping rules; held-out tasks contain pinned projects/commits and are scored once on precision/recall/F1 using the labeled fixture or corpus annotation as truth.
+- **Provider-config tasks**: development can tune config parsing and normalization rules against checked-in OpenFeature playground config or authorized LaunchDarkly snapshots; held-out tasks use frozen provider config revisions and are scored once on exact-match or abstention, with no peeking at hidden provider truth.
+- **Transformation tasks**: development can tune rewrite rules and review heuristics against a Piranha/DIY reference; held-out tasks use pinned source commits plus frozen expected rewrites and are scored once on safe-edit exact match, unsafe-edit rate, and abstention.
+
+**Frozen input/output schema**
+
+- **Input schema** per task:
+  - `task_id`
+  - `source`
+  - `source_revision`
+  - `repo_snapshot_id`
+  - `language`
+  - `provider`
+  - `files`
+  - `config_files`
+  - `ground_truth_refs`
+  - `allowed_tools`
+  - `notes`
+- **Output schema** per runner:
+  - `task_id`
+  - `runner`
+  - `predicted_flags`
+  - `predicted_provider_state`
+  - `predicted_transform`
+  - `evidence_citations`
+  - `abstentions`
+  - `runtime_seconds`
+  - `token_usage`
+  - `validation_commands`
+  - `validation_results`
+- Freeze both schemas in a versioned artifact before the first run; any later schema change creates a new benchmark version.
+
+**FlagShark runner**
+
+- Run the published FlagShark scanner on the frozen workspace using only the task’s allowed files.
+- Use the same CLI flags, config file, and output format for every task.
+- The runner must not read corpus goldens, hidden annotations, or human adjudication notes.
+- Capture raw stdout/stderr, structured JSON output when available, and exit code.
+
+**AI-agent baseline runner**
+
+- Use a repo-reading coding agent with the exact frozen input/output schema above.
+- Baseline prompt must forbid FlagShark internals, hidden corpora notes, and network access.
+- Run in a temporary checkout with only the allowed task files and the frozen schema.
+- Use one fresh run per task; no retries, no prompt edits, no self-critique loop.
+
+**Piranha / DIY baseline**
+
+- For transformation tasks, include a Piranha/DIY baseline when the task language and corpus support it.
+- Piranha baseline means the actual Piranha transform or the closest deterministic equivalent available in the workspace.
+- DIY baseline means a human-style scripted edit workflow that only uses the same frozen inputs and any permitted public provider config.
+- Compare both against the same transformation truth and the same review rules.
+
+**Blinded human adjudication**
+
+- Human judges never see which runner produced an output during first-pass scoring.
+- Randomize result order and strip runner names, timestamps, and prompt text from the adjudication packet.
+- Judges score only the observable artifacts: predicted flags, predicted provider state, proposed diff, and validation notes.
+- Record judge disagreements, then resolve them in a second pass after unblinding.
+
+**Metrics**
+
+- Detection: precision, recall, and F1 on flag locations / provider labels.
+- Provider state: exact-match accuracy for the fields available in the truth source; otherwise abstention rate.
+- Transformation: exact-match on expected safe rewrites, plus unsafe-edit rate and abstention rate.
+- Reproducibility: identical outputs across repeated runs on the same frozen inputs.
+- Operational: runtime, token usage, and validation-command success rate.
+
+**Decision interpretation**
+
+- FlagShark is better only if it improves the held-out metrics on the tasks where it claims competence and does not increase unsafe edits on the same held-out set.
+- If FlagShark matches the AI-agent baseline on detection but not on safe transformation, the result is parity, not a product advantage.
+- If the public corpora do not provide truth for a task, the task remains out of scope for comparative claims.
+- No customer, adoption, or market conclusion follows from this track alone.
+
+**Run manifest v1**
 
 - Model identifier: `openai-codex/gpt-5.4-mini:low`
 - Verification note: the exact selected model must be verified and recorded before the run.
-- Prompt: `Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the same output schema and evaluation criteria as FlagShark, and do not use network access or provider credentials on the public track.`
+- Prompt: `Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.`
 - Inputs: frozen repo snapshot plus the allowed provider/config files for the benchmark corpus.
 - Outputs: structured candidate flag locations/names; stale/safe/unsafe/unknown classification; evidence citations; proposed patch/diff for safe candidates; validation commands/results; explicit abstentions.
 - Tooling: read/write/test only in a temporary checkout; no FlagShark internals; no network; no provider credentials for the public track.
