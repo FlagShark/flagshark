@@ -1,10 +1,31 @@
 {
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "model": "default",
   "provider": "openai-codex",
+  "model_version": "default",
   "selection_rationale": "The exact low-labeled model is not available in this environment; use the environment-accepted default model to keep the benchmark runnable and explicitly record the selection as a local execution choice.",
   "prompt": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
+  "prompt_template": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
+  "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+  "output_schema_version": "1.0.0",
+  "benchmark_version": "1.5.3",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "2.8.0"
+  },
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
   "constraints": {
     "noNetwork": true,
     "noCustomerData": true,
@@ -25,13 +46,5 @@
       "flagshark-internal-fixtures"
     ],
     "heldOutSources": []
-  },
-  "recordBeforeRun": [
-    "model identifier",
-    "date",
-    "tool versions",
-    "snapshot ID",
-    "prompt text/template",
-    "output schema version"
-  ]
+  }
 }

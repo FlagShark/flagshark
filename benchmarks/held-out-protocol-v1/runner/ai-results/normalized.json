@@ -43,11 +43,12 @@
       "model": "default",
       "model_version": "default",
       "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
-      "task_source": "msr-strudel-2020",
-      "task_source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
-      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-      "task_partition": "dev"
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0"
     },
     "predicted_transform": null,
     "evidence_citations": [
@@ -92,11 +93,12 @@
       "model": "default",
       "model_version": "default",
       "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
-      "task_source": "msr-strudel-2020",
-      "task_source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
-      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
-      "task_partition": "dev"
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6"
     },
     "predicted_transform": null,
     "evidence_citations": [
@@ -313,11 +315,12 @@
       "model": "default",
       "model_version": "default",
       "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
-      "task_source": "msr-strudel-2020",
-      "task_source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
-      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
-      "task_partition": "dev"
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897"
     },
     "predicted_transform": null,
     "evidence_citations": [
