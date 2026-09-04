@@ -1,1 +1,52 @@
-{"task_id":"dev-detection-msr-strudel-digitalmarketplace-edit-service-page","input_file":"config.py","candidates":[{"name":"FEATURE_FLAGS_EDIT_SERVICE_PAGE","location":{"file":"config.py","line_start":56,"line_end":56},"classification":"unsafe","evidence":["Defined as enabled_since('2016-02-02') in the frozen config snapshot.","The name indicates an edit-service-page feature flag, which is still present in config and therefore not obviously stale.","No repository-wide usage scan or runtime evidence is available in the provided snapshot to confirm that all code paths have fully migrated off this flag."],"patch":null},{"name":"FEATURE_FLAGS_EDIT_SECTIONS","location":{"file":"config.py","line_start":57,"line_end":57},"classification":"unsafe","evidence":["Defined as False in the frozen config snapshot.","The name indicates a feature flag controlling edit sections behavior, which may still be consulted by application code.","No usage evidence is present in the provided snapshot to determine whether the flag is dead/stale or actively gating behavior."],"patch":null}],"validation":[{"command":"[not run] rg -n \"FEATURE_FLAGS_EDIT_SERVICE_PAGE|FEATURE_FLAGS_EDIT_SECTIONS|enabled_since\\(|feature flag|FEATURE_FLAGS_\" .","result":"Not run; only the provided frozen file content was available in the prompt."},{"command":"[not run] python -m compileall config.py","result":"Not run; no execution environment was used in the public-track response."}],"abstentions":[{"candidate":"FEATURE_FLAGS_EDIT_SERVICE_PAGE","reason":"Insufficient evidence in the frozen snapshot to classify as safe/stale and to propose a change with confidence."},{"candidate":"FEATURE_FLAGS_EDIT_SECTIONS","reason":"Insufficient evidence in the frozen snapshot to classify as safe/stale and to propose a change with confidence."}],"notes":["No network access or provider credentials were used.","No FlagShark internals, goldens, or hidden adjudication notes were consulted.","Because only config.py content was provided, the analysis is limited to candidate identification from that file alone."]}
+{
+  "config_version": "1.0.3",
+  "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "model_version": "gpt-5.6-luna",
+  "date": "2026-09-04T23:01:11.242Z",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "2.8.0"
+  },
+  "snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+  "prompt": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
+  "prompt_template": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
+  "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+  "output_schema_version": "1.0.0",
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "benchmark_version": "1.5.3",
+  "cli_version": "18.1.10",
+  "raw_response_id": "resp_0e628da274d4dca3016a9b4da8df7487d2807eff20f72d2fba",
+  "raw_response_api": "openai-codex-responses",
+  "raw_response": "The snapshot remains inaccessible: this session has no local filesystem or command-execution tool, and the only available fetch tool cannot read the local `file://` paths. I therefore cannot read `input-schema.json`, `output-schema.json`, or the manifests without violating the no-network constraint.\n\nI abstain from producing candidates, classifications, patches, schema output, or validation results rather than fabricate repository evidence.",
+  "runtime_seconds": 38.940029417,
+  "token_usage": {
+    "input": 708,
+    "output": 319,
+    "cacheRead": 3584,
+    "cacheWrite": 0,
+    "totalTokens": 4611
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_0e628da274d4dca3016a9b4da8df7487d2807eff20f72d2fba",
+    "parsed predicted_flags=0"
+  ],
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+}

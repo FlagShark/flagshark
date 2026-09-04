@@ -1,263 +1,131 @@
 [
   {
-    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-    "runner": "benchmark-local-ai/default",
-    "model": "default",
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
     "provider": "openai-codex",
-    "model_version": "default",
-    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
-    "provenance": {
-      "benchmark": "flagshark-held-out-technical-comparison",
-      "benchmark_version": "1.0.1",
-      "task_partition": "dev",
-      "task_source": "msr-strudel-2020",
-      "task_source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
-      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
-      "frozen_inputs": ["app/models/runtime/feature_flag.rb"],
-      "no_flagshark_outputs_used": true
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "Unable to perform the analysis from this interface.\n\n- **Repository access:** No local filesystem tool is available. The frozen snapshot and allowed provider/config files could not be read.\n- **Schema access:** The frozen input/output schemas were not available in the supplied context, so inventing a schema would violate the request.\n- **Candidates:** None identified.\n- **Classifications:** Abstain for every candidate; no evidence was available.\n- **Patch/diff:** None proposed.\n- **Validation:** No repository commands or validation scenarios were run.\n- **Network/provider use:** No public-network lookup or provider credentials were used.\n\nThe only attempted repository read targeted the supplied local path and returned `404`; it did not expose snapshot contents.",
+    "raw_response_id": "resp_04e771acd3eb53e8016a9b4d73afcc87d281b13afe65d0e813",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 35.740295125,
+    "token_usage": {
+      "input": 845,
+      "output": 611,
+      "cacheRead": 2560,
+      "cacheWrite": 0,
+      "totalTokens": 4016
     },
-    "task_source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-    "raw_response": {
-      "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-      "repo_root": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-      "input_file": "app/models/runtime/feature_flag.rb",
-      "candidates": [
-        {
-          "name": "user_org_creation",
-          "location": "app/models/runtime/feature_flag.rb:7-10,17-25,27-31",
-          "classification": "safe",
-          "evidence": [
-            "Listed in DEFAULT_FLAGS with a fixed boolean default: user_org_creation: false",
-            "validate() only allows names present in DEFAULT_FLAGS.keys, so this is an intentionally supported flag",
-            "enabled?(feature_flag_name) returns persisted value if present, otherwise falls back to DEFAULT_FLAGS.fetch(feature_flag_name.to_sym), so the flag has a defined runtime behavior"
-          ],
-          "proposed_patch": {
-            "status": "safe_candidate_patch",
-            "diff": "--- a/app/models/runtime/feature_flag.rb\n+++ b/app/models/runtime/feature_flag.rb\n@@ -1,31 +1,31 @@\n module VCAP::CloudController\n   class FeatureFlag < Sequel::Model\n@@\n     DEFAULT_FLAGS = {\n       user_org_creation: false,\n       private_domain_creation: true\n     }.freeze\n@@\n     def self.enabled?(feature_flag_name)\n       feature_flag = FeatureFlag.find(name: feature_flag_name)\n       return feature_flag.enabled if feature_flag\n       DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\n \n     rescue KeyError\n       raise UndefinedFeatureFlagError.new \"invalid key: #{feature_flag_name}\"\n     end\n@@\n   end\n end\n"
-          }
-        },
-        {
-          "name": "private_domain_creation",
-          "location": "app/models/runtime/feature_flag.rb:8-10,17-25",
-          "classification": "safe",
-          "evidence": [
-            "Listed in DEFAULT_FLAGS with default true: private_domain_creation: true",
-            "validate() restricts names to DEFAULT_FLAGS.keys, indicating this is a supported runtime feature flag",
-            "enabled?(feature_flag_name) uses DEFAULT_FLAGS.fetch(feature_flag_name.to_sym) when no persisted record exists, so the flag is not dead/unknown within this file"
-          ],
-          "proposed_patch": {
-            "status": "safe_candidate_patch",
-            "diff": "--- a/app/models/runtime/feature_flag.rb\n+++ b/app/models/runtime/feature_flag.rb\n@@ -1,31 +1,31 @@\n module VCAP::CloudController\n   class FeatureFlag < Sequel::Model\n@@\n     DEFAULT_FLAGS = {\n       user_org_creation: false,\n       private_domain_creation: true\n     }.freeze\n@@\n     def self.enabled?(feature_flag_name)\n       feature_flag = FeatureFlag.find(name: feature_flag_name)\n       return feature_flag.enabled if feature_flag\n       DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\n \n     rescue KeyError\n       raise UndefinedFeatureFlagError.new \"invalid key: #{feature_flag_name}\"\n     end\n@@\n   end\n end\n"
-          }
-        }
-      ],
-      "validation": [
-        {
-          "command": "ruby -c app/models/runtime/feature_flag.rb",
-          "result": "Not run in this environment; would be the first syntax check to validate the file parses."
-        },
-        {
-          "command": "bundle exec rspec",
-          "result": "Not run in this environment; would be the broader test suite command to validate feature-flag behavior."
-        }
-      ],
-      "abstentions": [],
-      "notes": "No stale, unsafe, or unknown candidates were identifiable from the provided file alone. Both detected candidates are explicit runtime flags defined in DEFAULT_FLAGS and validated by name. No network access or hidden adjudication sources were used."
-    },
-    "candidates": [
-      {
-        "name": "user_org_creation",
-        "file": "app/models/runtime/feature_flag.rb",
-        "line": 8,
-        "confidence": "medium",
-        "status": "detected",
-        "evidence": "DEFAULT_FLAGS hash constant enumerates user_org_creation as a feature-flag key"
-      },
-      {
-        "name": "private_domain_creation",
-        "file": "app/models/runtime/feature_flag.rb",
-        "line": 9,
-        "confidence": "medium",
-        "status": "detected",
-        "evidence": "DEFAULT_FLAGS hash constant enumerates private_domain_creation as a feature-flag key"
-      }
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
     ],
-    "abstentions": [],
-    "cost_usd": 0,
-    "runtime_seconds": 11.565
+    "validation_results": [
+      "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_04e771acd3eb53e8016a9b4d73afcc87d281b13afe65d0e813",
+      "parsed predicted_flags=0"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
   },
   {
     "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
-    "runner": "benchmark-local-ai/default",
-    "model": "default",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
     "provider": "openai-codex",
-    "model_version": "default",
-    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
-    "provenance": {
-      "benchmark": "flagshark-held-out-technical-comparison",
-      "benchmark_version": "1.0.1",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "The snapshot remains inaccessible: this session has no local filesystem or command-execution tool, and the only available fetch tool cannot read the local `file://` paths. I therefore cannot read `input-schema.json`, `output-schema.json`, or the manifests without violating the no-network constraint.\n\nI abstain from producing candidates, classifications, patches, schema output, or validation results rather than fabricate repository evidence.",
+    "raw_response_id": "resp_0e628da274d4dca3016a9b4da8df7487d2807eff20f72d2fba",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 38.940029417,
+    "token_usage": {
+      "input": 708,
+      "output": 319,
+      "cacheRead": 3584,
+      "cacheWrite": 0,
+      "totalTokens": 4611
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_0e628da274d4dca3016a9b4da8df7487d2807eff20f72d2fba",
+      "parsed predicted_flags=0"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
       "task_partition": "dev",
-      "task_source": "msr-strudel-2020",
-      "task_source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "source": "msr-strudel-2020",
+      "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
       "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
-      "frozen_inputs": ["config.py"],
-      "no_flagshark_outputs_used": true
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
     },
-    "task_source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
-    "raw_response": {
-      "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
-      "input_file": "config.py",
-      "candidates": [
-        {
-          "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
-          "location": {"file": "config.py", "line_start": 56, "line_end": 56},
-          "classification": "unsafe",
-          "evidence": [
-            "Defined as enabled_since('2016-02-02') in the frozen config snapshot.",
-            "The name indicates an edit-service-page feature flag, which is still present in config and therefore not obviously stale.",
-            "No repository-wide usage scan or runtime evidence is available in the provided snapshot to confirm that all code paths have fully migrated off this flag."
-          ],
-          "patch": null
-        },
-        {
-          "name": "FEATURE_FLAGS_EDIT_SECTIONS",
-          "location": {"file": "config.py", "line_start": 57, "line_end": 57},
-          "classification": "unsafe",
-          "evidence": [
-            "Defined as False in the frozen config snapshot.",
-            "The name indicates a feature flag controlling edit sections behavior, which may still be consulted by application code.",
-            "No usage evidence is present in the provided snapshot to determine whether the flag is dead/stale or actively gating behavior."
-          ],
-          "patch": null
-        }
-      ],
-      "validation": [
-        {
-          "command": "[not run] rg -n \"FEATURE_FLAGS_EDIT_SERVICE_PAGE|FEATURE_FLAGS_EDIT_SECTIONS|enabled_since\\(|feature flag|FEATURE_FLAGS_\" .",
-          "result": "Not run; only the provided frozen file content was available in the prompt."
-        },
-        {
-          "command": "[not run] python -m compileall config.py",
-          "result": "Not run; no execution environment was used in the public-track response."
-        }
-      ],
-      "abstentions": [
-        {"candidate": "FEATURE_FLAGS_EDIT_SERVICE_PAGE", "reason": "Insufficient evidence in the frozen snapshot to classify as safe/stale and to propose a change with confidence."},
-        {"candidate": "FEATURE_FLAGS_EDIT_SECTIONS", "reason": "Insufficient evidence in the frozen snapshot to classify as safe/stale and to propose a change with confidence."}
-      ],
-      "notes": [
-        "No network access or provider credentials were used.",
-        "No FlagShark internals, goldens, or hidden adjudication notes were consulted.",
-        "Because only config.py content was provided, the analysis is limited to candidate identification from that file alone."
-      ]
-    },
-    "candidates": [
-      {
-        "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
-        "file": "config.py",
-        "line": 67,
-        "confidence": "medium",
-        "status": "detected",
-        "evidence": "enabled_since('2016-02-02') gated feature-flag constant"
-      },
-      {
-        "name": "FEATURE_FLAGS_EDIT_SECTIONS",
-        "file": "config.py",
-        "line": 68,
-        "confidence": "medium",
-        "status": "detected",
-        "evidence": "explicitly named feature flag constant in config"
-      }
-    ],
+    "evidence_citations": [],
     "abstentions": [
-      "BUILD_DATE and VERSION are not feature flags and were excluded"
-    ],
-    "cost_usd": 0,
-    "runtime_seconds": 7.368
+      "assistant response was not JSON schema valid"
+    ]
   },
   {
-    "task_id": "dev-detection-msr-strudel-opengever-activity",
-    "runner": "benchmark-local-ai/default",
-    "model": "default",
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
     "provider": "openai-codex",
-    "model_version": "default",
-    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
-    "provenance": {
-      "benchmark": "flagshark-held-out-technical-comparison",
-      "benchmark_version": "1.0.1",
-      "task_partition": "dev",
-      "task_source": "msr-strudel-2020",
-      "task_source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
-      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
-      "frozen_inputs": ["opengever/base/configuration.py", "opengever/api/config.py"],
-      "no_flagshark_outputs_used": true
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "I must abstain. The local frozen repository snapshot and frozen input/output schemas are not accessible in this session; the only available tool is web access, which would violate the no-network requirement.\n\n- Candidate locations/names: not inspected.\n- Classifications: none; no evidence available.\n- Safe-candidate patch/diff: none proposed.\n- Validation commands/results: none run.\n- Provider credentials, network access, FlagShark internals, goldens, and hidden adjudication notes: not used.\n\nProducing candidates, classifications, a diff, or schema-conforming output without the snapshot would fabricate evidence.",
+    "raw_response_id": "resp_0069bdb026dd9f75016a9b4db916a087d2a2fdc9ed72ed2d8f",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 24.509887,
+    "token_usage": {
+      "input": 3145,
+      "output": 644,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 3789
     },
-    "task_source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
-    "raw_response": {
-      "task_id": "dev-detection-msr-strudel-opengever-activity",
-      "source_root": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
-      "input_file": "opengever/base/configuration.py",
-      "candidates": [
-        {
-          "flag_name": "activity",
-          "location": "opengever/base/configuration.py:get_features",
-          "classification": "safe",
-          "evidence": [
-            "Feature value is read directly from registry key 'is_feature_enabled' on interface IActivitySettings.",
-            "The result is exposed in the API config under features['activity']; no in-file usage suggests this is a pure configuration flag.",
-            "No contradictory logic, fallback, or branching indicates stale/unsafe behavior."
-          ],
-          "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)\n+        features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)\n",
-          "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}
-        },
-        {"flag_name": "contacts", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads registry key 'is_feature_enabled' from IContactSettings.", "The flag is surfaced without transformation, indicating a straightforward feature toggle.", "No local evidence of deprecation or rename."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['contacts'] = api.portal.get_registry_record('is_feature_enabled', interface=IContactSettings)\n+        features['contacts'] = api.portal.get_registry_record('is_feature_enabled', interface=IContactSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "doc_properties", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'create_doc_properties' from ITemplateFolderProperties.", "The name is a stable config-style boolean and is directly exported in the feature map.", "No evidence in-file that this is stale or unsafe."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['doc_properties'] = api.portal.get_registry_record('create_doc_properties', interface=ITemplateFolderProperties)  # noqa\n+        features['doc_properties'] = api.portal.get_registry_record('create_doc_properties', interface=ITemplateFolderProperties)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "dossier_templates", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IDossierTemplateSettings.", "The code path is a direct registry lookup and export, with no dead branch indicators in this file.", "No local evidence of removal or rename."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['dossier_templates'] = api.portal.get_registry_record('is_feature_enabled', interface=IDossierTemplateSettings)  # noqa\n+        features['dossier_templates'] = api.portal.get_registry_record('is_feature_enabled', interface=IDossierTemplateSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "ech0147_export", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'ech0147_export_enabled' from IECH0147Settings.", "The flag is part of the returned feature dictionary and has a clear single source of truth.", "No evidence in-file that this is stale or unsafe."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['ech0147_export'] = api.portal.get_registry_record('ech0147_export_enabled', interface=IECH0147Settings)\n+        features['ech0147_export'] = api.portal.get_registry_record('ech0147_export_enabled', interface=IECH0147Settings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "ech0147_import", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'ech0147_import_enabled' from IECH0147Settings.", "The flag is directly mapped into the configuration response.", "No local signal of obsolete logic."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['ech0147_import'] = api.portal.get_registry_record('ech0147_import_enabled', interface=IECH0147Settings)\n+        features['ech0147_import'] = api.portal.get_registry_record('ech0147_import_enabled', interface=IECH0147Settings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "favorites", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IFavoritesSettings.", "This is a simple boolean feature exposure with no surrounding conditional complexity.", "No evidence of deprecation or stale naming in this file."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['favorites'] = api.portal.get_registry_record('is_feature_enabled', interface=IFavoritesSettings)\n+        features['favorites'] = api.portal.get_registry_record('is_feature_enabled', interface=IFavoritesSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "meetings", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IMeetingSettings.", "The code only exports the registry value and does not implement business logic here.", "No evidence of removal or rename in the snapshot."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['meetings'] = api.portal.get_registry_record('is_feature_enabled', interface=IMeetingSettings)\n+        features['meetings'] = api.portal.get_registry_record('is_feature_enabled', interface=IMeetingSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "officeatwork", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IOfficeatworkSettings.", "The feature is exposed as-is in the API config, with no evidence of deprecation in-file.", "No conflicting references appear in the provided source."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['officeatwork'] = api.portal.get_registry_record('is_feature_enabled', interface=IOfficeatworkSettings)\n+        features['officeatwork'] = api.portal.get_registry_record('is_feature_enabled', interface=IOfficeatworkSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "officeconnector_attach", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'attach_to_outlook_enabled' from IOfficeConnectorSettings.", "The registry key is specific and directly consumed as a boolean flag.", "No evidence in the frozen file that it should be removed or renamed."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['officeconnector_attach'] = api.portal.get_registry_record('attach_to_outlook_enabled', interface=IOfficeConnectorSettings)  # noqa\n+        features['officeconnector_attach'] = api.portal.get_registry_record('attach_to_outlook_enabled', interface=IOfficeConnectorSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "officeconnector_checkout", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'direct_checkout_and_edit_enabled' from IOfficeConnectorSettings.", "The flag is clearly a configuration passthrough with no local branching or compatibility workaround.", "No stale-marker evidence is present."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['officeconnector_checkout'] = api.portal.get_registry_record('direct_checkout_and_edit_enabled', interface=IOfficeConnectorSettings)  # noqa\n+        features['officeconnector_checkout'] = api.portal.get_registry_record('direct_checkout_and_edit_enabled', interface=IOfficeConnectorSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "preview_auto_refresh", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_auto_refresh_enabled' from IGeverBumblebeeSettings.", "The flag is exported without reinterpretation, suggesting a live settings-backed feature.", "No evidence of stale or unsafe behavior in this snapshot."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['preview_auto_refresh'] = api.portal.get_registry_record('is_auto_refresh_enabled', interface=IGeverBumblebeeSettings)  # noqa\n+        features['preview_auto_refresh'] = api.portal.get_registry_record('is_auto_refresh_enabled', interface=IGeverBumblebeeSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "preview_open_pdf_in_new_window", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'open_pdf_in_a_new_window' from IGeverBumblebeeSettings.", "The name and access pattern are consistent with a feature flag exposed to clients.", "No local evidence suggests stale or unsafe behavior."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['preview_open_pdf_in_new_window'] = api.portal.get_registry_record('open_pdf_in_a_new_window', interface=IGeverBumblebeeSettings)  # noqa\n+        features['preview_open_pdf_in_new_window'] = api.portal.get_registry_record('open_pdf_in_a_new_window', interface=IGeverBumblebeeSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "preview", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IGeverBumblebeeSettings.", "This appears to be the primary preview feature toggle and is used only as exported configuration here.", "No indication that the feature is stale or blocked by a missing code path in the provided snapshot."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['preview'] = api.portal.get_registry_record('is_feature_enabled', interface=IGeverBumblebeeSettings)\n+        features['preview'] = api.portal.get_registry_record('is_feature_enabled', interface=IGeverBumblebeeSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "repositoryfolder_documents_tab", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'show_documents_tab' from IRepositoryFolderRecords.", "The flag is a direct mapping from registry to config response.", "No conflicting evidence for staleness or unsafe usage."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['repositoryfolder_documents_tab'] = api.portal.get_registry_record('show_documents_tab', interface=IRepositoryFolderRecords)  # noqa\n+        features['repositoryfolder_documents_tab'] = api.portal.get_registry_record('show_documents_tab', interface=IRepositoryFolderRecords)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "repositoryfolder_tasks_tab", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'show_tasks_tab' from IRepositoryFolderRecords.", "The implementation is a straightforward settings exposure, not a derived or dead flag.", "No evidence of stale or unsafe behavior."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['repositoryfolder_tasks_tab'] = api.portal.get_registry_record('show_tasks_tab', interface=IRepositoryFolderRecords)  # noqa\n+        features['repositoryfolder_tasks_tab'] = api.portal.get_registry_record('show_tasks_tab', interface=IRepositoryFolderRecords)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "solr", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'use_solr' from ISearchSettings.", "The flag is a direct config lookup and likely controls search backend behavior externally.", "No evidence in this file that it is stale or miswired."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['solr'] = api.portal.get_registry_record('use_solr', interface=ISearchSettings)\n+        features['solr'] = api.portal.get_registry_record('use_solr', interface=ISearchSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "word_meetings", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_word_implementation_enabled' from IMeetingSettings.", "The feature is directly exposed, with no evidence of a dead or removed code path in the snapshot.", "No local contradiction with surrounding configuration conventions."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['word_meetings'] = api.portal.get_registry_record('is_word_implementation_enabled', interface=IMeetingSettings)  # noqa\n+        features['word_meetings'] = api.portal.get_registry_record('is_word_implementation_enabled', interface=IMeetingSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-        {"flag_name": "workspace", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IWorkspaceSettings.", "The feature flag is a plain registry-backed boolean returned to API consumers.", "No evidence of stale logic in the provided file."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['workspace'] = api.portal.get_registry_record('is_feature_enabled', interface=IWorkspaceSettings)\n+        features['workspace'] = api.portal.get_registry_record('is_feature_enabled', interface=IWorkspaceSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}}
-      ],
-      "validation": [
-        {"command": "python -m compileall opengever/base/configuration.py", "result": "Not run in this environment; would validate syntax only."}
-      ],
-      "abstentions": [],
-      "notes": ["No network access or provider credentials were used.", "No FlagShark internals, goldens, or hidden adjudication notes were consulted.", "Because only the provided file content was available, the analysis is limited to candidate identification from those files alone."]
-    },
-    "candidates": [
-      {"flag_name": "activity", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Feature value is read directly from registry key 'is_feature_enabled' on interface IActivitySettings.", "The result is exposed in the API config under features['activity']; no in-file usage suggests this is a pure configuration flag.", "No contradictory logic, fallback, or branching indicates stale/unsafe behavior."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)\n+        features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "contacts", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads registry key 'is_feature_enabled' from IContactSettings.", "The flag is surfaced without transformation, indicating a straightforward feature toggle.", "No local evidence of deprecation or rename."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['contacts'] = api.portal.get_registry_record('is_feature_enabled', interface=IContactSettings)\n+        features['contacts'] = api.portal.get_registry_record('is_feature_enabled', interface=IContactSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "doc_properties", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'create_doc_properties' from ITemplateFolderProperties.", "The name is a stable config-style boolean and is directly exported in the feature map.", "No evidence in-file that this is stale or unsafe."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['doc_properties'] = api.portal.get_registry_record('create_doc_properties', interface=ITemplateFolderProperties)  # noqa\n+        features['doc_properties'] = api.portal.get_registry_record('create_doc_properties', interface=ITemplateFolderProperties)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "dossier_templates", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IDossierTemplateSettings.", "The code path is a direct registry lookup and export, with no dead branch indicators in this file.", "No local evidence of removal or rename."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['dossier_templates'] = api.portal.get_registry_record('is_feature_enabled', interface=IDossierTemplateSettings)  # noqa\n+        features['dossier_templates'] = api.portal.get_registry_record('is_feature_enabled', interface=IDossierTemplateSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "ech0147_export", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'ech0147_export_enabled' from IECH0147Settings.", "The flag is part of the returned feature dictionary and has a clear single source of truth.", "No evidence in-file that this is stale or unsafe."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['ech0147_export'] = api.portal.get_registry_record('ech0147_export_enabled', interface=IECH0147Settings)\n+        features['ech0147_export'] = api.portal.get_registry_record('ech0147_export_enabled', interface=IECH0147Settings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "ech0147_import", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'ech0147_import_enabled' from IECH0147Settings.", "The flag is directly mapped into the configuration response.", "No local signal of obsolete logic."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['ech0147_import'] = api.portal.get_registry_record('ech0147_import_enabled', interface=IECH0147Settings)\n+        features['ech0147_import'] = api.portal.get_registry_record('ech0147_import_enabled', interface=IECH0147Settings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "favorites", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IFavoritesSettings.", "This is a simple boolean feature exposure with no surrounding conditional complexity.", "No evidence in-file that it is stale or unsafe."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['favorites'] = api.portal.get_registry_record('is_feature_enabled', interface=IFavoritesSettings)\n+        features['favorites'] = api.portal.get_registry_record('is_feature_enabled', interface=IFavoritesSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "meetings", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IMeetingSettings.", "The code only exports the registry value and does not implement business logic here.", "No evidence of deprecation or stale naming in this file."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['meetings'] = api.portal.get_registry_record('is_feature_enabled', interface=IMeetingSettings)\n+        features['meetings'] = api.portal.get_registry_record('is_feature_enabled', interface=IMeetingSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "officeatwork", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IOfficeatworkSettings.", "The feature is exposed as-is in the API config, with no evidence of deprecation in-file.", "No conflicting references appear in the provided source."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['officeatwork'] = api.portal.get_registry_record('is_feature_enabled', interface=IOfficeatworkSettings)\n+        features['officeatwork'] = api.portal.get_registry_record('is_feature_enabled', interface=IOfficeatworkSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "officeconnector_attach", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'attach_to_outlook_enabled' from IOfficeConnectorSettings.", "The registry key is specific and directly consumed as a boolean flag.", "No evidence in the frozen file that it should be removed or renamed."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['officeconnector_attach'] = api.portal.get_registry_record('attach_to_outlook_enabled', interface=IOfficeConnectorSettings)  # noqa\n+        features['officeconnector_attach'] = api.portal.get_registry_record('attach_to_outlook_enabled', interface=IOfficeConnectorSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "officeconnector_checkout", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'direct_checkout_and_edit_enabled' from IOfficeConnectorSettings.", "The flag is clearly a configuration passthrough with no local branching or compatibility workaround.", "No stale-marker evidence is present."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['officeconnector_checkout'] = api.portal.get_registry_record('direct_checkout_and_edit_enabled', interface=IOfficeConnectorSettings)  # noqa\n+        features['officeconnector_checkout'] = api.portal.get_registry_record('direct_checkout_and_edit_enabled', interface=IOfficeConnectorSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "preview_auto_refresh", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_auto_refresh_enabled' from IGeverBumblebeeSettings.", "The flag is exported without reinterpretation, suggesting a live settings-backed feature.", "No evidence of stale or unsafe behavior in this snapshot."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['preview_auto_refresh'] = api.portal.get_registry_record('is_auto_refresh_enabled', interface=IGeverBumblebeeSettings)  # noqa\n+        features['preview_auto_refresh'] = api.portal.get_registry_record('is_auto_refresh_enabled', interface=IGeverBumblebeeSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "preview_open_pdf_in_new_window", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'open_pdf_in_a_new_window' from IGeverBumblebeeSettings.", "The name and access pattern are consistent with a feature flag exposed to clients.", "No local evidence suggests stale or unsafe behavior."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['preview_open_pdf_in_new_window'] = api.portal.get_registry_record('open_pdf_in_a_new_window', interface=IGeverBumblebeeSettings)  # noqa\n+        features['preview_open_pdf_in_new_window'] = api.portal.get_registry_record('open_pdf_in_a_new_window', interface=IGeverBumblebeeSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "preview", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IGeverBumblebeeSettings.", "This appears to be the primary preview feature toggle and is used only as exported configuration here.", "No indication that the feature is stale or blocked by a missing code path in the provided snapshot."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['preview'] = api.portal.get_registry_record('is_feature_enabled', interface=IGeverBumblebeeSettings)\n+        features['preview'] = api.portal.get_registry_record('is_feature_enabled', interface=IGeverBumblebeeSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "repositoryfolder_documents_tab", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'show_documents_tab' from IRepositoryFolderRecords.", "The flag is a direct mapping from registry to config response.", "No conflicting evidence for staleness or unsafe usage."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['repositoryfolder_documents_tab'] = api.portal.get_registry_record('show_documents_tab', interface=IRepositoryFolderRecords)  # noqa\n+        features['repositoryfolder_documents_tab'] = api.portal.get_registry_record('show_documents_tab', interface=IRepositoryFolderRecords)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "repositoryfolder_tasks_tab", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'show_tasks_tab' from IRepositoryFolderRecords.", "The implementation is a straightforward settings exposure, not a derived or dead flag.", "No evidence of stale or unsafe behavior."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['repositoryfolder_tasks_tab'] = api.portal.get_registry_record('show_tasks_tab', interface=IRepositoryFolderRecords)  # noqa\n+        features['repositoryfolder_tasks_tab'] = api.portal.get_registry_record('show_tasks_tab', interface=IRepositoryFolderRecords)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "solr", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'use_solr' from ISearchSettings.", "The flag is a direct config lookup and likely controls search backend behavior externally.", "No evidence in this file that it is stale or miswired."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['solr'] = api.portal.get_registry_record('use_solr', interface=ISearchSettings)\n+        features['solr'] = api.portal.get_registry_record('use_solr', interface=ISearchSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "word_meetings", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_word_implementation_enabled' from IMeetingSettings.", "The feature is directly exposed, with no evidence of a dead or removed code path in the snapshot.", "No local contradiction with surrounding configuration conventions."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['word_meetings'] = api.portal.get_registry_record('is_word_implementation_enabled', interface=IMeetingSettings)  # noqa\n+        features['word_meetings'] = api.portal.get_registry_record('is_word_implementation_enabled', interface=IMeetingSettings)  # noqa\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}},
-      {"flag_name": "workspace", "location": "opengever/base/configuration.py:get_features", "classification": "safe", "evidence": ["Reads 'is_feature_enabled' from IWorkspaceSettings.", "The feature flag is a plain registry-backed boolean returned to API consumers.", "No evidence of stale logic in the provided file."], "patch": "--- a/opengever/base/configuration.py\n+++ b/opengever/base/configuration.py\n@@\n-        features['workspace'] = api.portal.get_registry_record('is_feature_enabled', interface=IWorkspaceSettings)\n+        features['workspace'] = api.portal.get_registry_record('is_feature_enabled', interface=IWorkspaceSettings)\n", "validation": {"commands": ["python -m compileall opengever/base/configuration.py"], "results": ["Not run in this environment; would validate syntax only."]}}
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
     ],
-    "abstentions": ["No stale/unknown candidate identified from the provided snapshot alone; the task is entirely feature-gate config reads."],
-    "cost_usd": 0,
-    "runtime_seconds": 52.095
+    "validation_results": [
+      "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_0069bdb026dd9f75016a9b4db916a087d2a2fdc9ed72ed2d8f",
+      "parsed predicted_flags=0"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
   }
 ]
