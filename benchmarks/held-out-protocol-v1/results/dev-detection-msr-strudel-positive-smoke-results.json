@@ -1,0 +1,217 @@
+[
+  {
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "flags": [
+      {
+        "name": "user_org_creation",
+        "filePath": "app/models/runtime/feature_flag.rb",
+        "lineNumber": 6,
+        "language": "ruby",
+        "provider": "ruby-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "private_domain_creation",
+        "filePath": "app/models/runtime/feature_flag.rb",
+        "lineNumber": 6,
+        "language": "ruby",
+        "provider": "ruby-config",
+        "confidence": "medium"
+      }
+    ]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "flags": [
+      {
+        "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
+        "filePath": "config.py",
+        "lineNumber": 66,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "FEATURE_FLAGS_EDIT_SECTIONS",
+        "filePath": "config.py",
+        "lineNumber": 95,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "FEATURE_FLAGS_EDIT_SECTIONS",
+        "filePath": "config.py",
+        "lineNumber": 103,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "FEATURE_FLAGS_EDIT_SECTIONS",
+        "filePath": "config.py",
+        "lineNumber": 120,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      }
+    ]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "flags": [
+      {
+        "name": "activity",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 50,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "contacts",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 51,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "doc_properties",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 52,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "dossier_templates",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 53,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "ech0147_export",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 54,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "ech0147_import",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 55,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "favorites",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 56,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "meetings",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 57,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "officeatwork",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 58,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "officeconnector_attach",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 59,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "officeconnector_checkout",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 60,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "preview_auto_refresh",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 61,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "preview_open_pdf_in_new_window",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 62,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "preview",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 63,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "repositoryfolder_documents_tab",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 64,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "repositoryfolder_tasks_tab",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 65,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "solr",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 66,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "word_meetings",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 67,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      },
+      {
+        "name": "workspace",
+        "filePath": "opengever/base/configuration.py",
+        "lineNumber": 68,
+        "language": "python",
+        "provider": "python-config",
+        "confidence": "medium"
+      }
+    ]
+  }
+]

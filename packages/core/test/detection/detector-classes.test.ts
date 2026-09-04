@@ -251,3 +251,44 @@ describe('Objective-C message-syntax detection', () => {
     expect(flags.find((f) => f.name.includes('bad key'))).toBeFalsy()
   })
 })
+
+describe('config-style feature-flag detection', () => {
+  it('detects Python enabled_since assignments and registry-key mappings with medium confidence', async () => {
+    const d = new PythonDetector()
+    const src = [
+      `from dmutils.status import enabled_since`,
+      `FEATURE_FLAGS_EDIT_SECTIONS = enabled_since('2016-01-25')`,
+      `features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)`,
+      `BUILD_DATE = enabled_since('2016-01-25')`,
+      `features['timeout'] = some_other_config_call('ignore-me')`,
+    ].join('\n')
+
+    const flags = await d.detectFlags('config.py', src)
+    expect(flags.map((f) => [f.name, f.confidence, f.provider]).sort()).toEqual(
+      [
+        ['FEATURE_FLAGS_EDIT_SECTIONS', 'medium', 'python-config'],
+        ['activity', 'medium', 'python-config'],
+      ].sort(),
+    )
+    expect(flags.some((f) => f.name === 'BUILD_DATE')).toBe(false)
+  })
+
+  it('detects Ruby DEFAULT_FLAGS symbol keys with medium confidence and ignores unrelated hashes', () => {
+    const d = new RubyDetector()
+    const src = [
+      `DEFAULT_FLAGS = {`,
+      `  user_org_creation: false,`,
+      `  private_domain_creation: true,`,
+      `}.freeze`,
+      `SETTINGS = { theme: "dark", retries: 3 }`,
+    ].join('\n')
+
+    const flags = d.detectFlags('feature_flag.rb', src)
+    expect(flags.map((f) => [f.name, f.confidence, f.provider]).sort()).toEqual(
+      [
+        ['private_domain_creation', 'medium', 'ruby-config'],
+        ['user_org_creation', 'medium', 'ruby-config'],
+      ].sort(),
+    )
+  })
+})

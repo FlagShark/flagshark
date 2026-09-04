@@ -1,4 +1,4 @@
-import { deduplicateFlags, detectDestructuredHookFlags, isValidFlagKey } from '../helpers.js'
+import { deduplicateFlags, detectConfigFlags, detectDestructuredHookFlags, isValidFlagKey } from '../helpers.js'
 import { getImportPattern } from '../interface.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
@@ -56,7 +56,8 @@ export async function detectFlagsWithTreeSitter(
     }
   }
 
-  if (activeProviders.length === 0) return []
+  const configFlags = detectConfigFlags(filename, content, language)
+  if (activeProviders.length === 0) return deduplicateFlags(configFlags)
 
   const methodLookup = new Map<
     string,
@@ -79,9 +80,9 @@ export async function detectFlagsWithTreeSitter(
   const hookOnlyProviders = activeProviders.filter(
     ({ provider }) => provider.useFlagsHook && methodLookup.size === 0,
   )
-  if (methodLookup.size === 0 && hookOnlyProviders.length === 0) return []
+  if (methodLookup.size === 0 && hookOnlyProviders.length === 0) return deduplicateFlags(configFlags)
 
-  const flags: FeatureFlag[] = []
+  const flags: FeatureFlag[] = [...configFlags]
 
   if (methodLookup.size === 0) {
     // Skip the parser/query setup — there's nothing for tree-sitter to do,

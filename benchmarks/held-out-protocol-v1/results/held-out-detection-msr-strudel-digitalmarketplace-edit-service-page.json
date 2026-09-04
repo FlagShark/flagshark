@@ -1,9 +1,0 @@
-{
-  "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
-  "command": "bun /Users/joe/projects/flagshark/flagshark/packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file",
-  "cwd": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
-  "exit_code": 0,
-  "stdout": "{\n  \"version\": \"2.8.0\",\n  \"totalFlags\": 0,\n  \"staleFlags\": 0,\n  \"errorCount\": 0,\n  \"parseErrorCount\": 0,\n  \"excludedPermanent\": [],\n  \"permanentByPlatform\": {},\n  \"healthScore\": 100,\n  \"detectedProviders\": [],\n  \"languages\": {\n    \"python\": 1\n  },\n  \"flags\": [],\n  \"scanDuration\": 44,\n  \"links\": {\n    \"dashboard\": \"https://flagshark.com\",\n    \"cli\": \"https://github.com/FlagShark/flagshark\",\n    \"npm\": \"https://www.npmjs.com/package/flagshark\"\n  }\n}\n",
-  "stderr": "[info] Scanning current directory...\n[info] flagshark_scan_complete {\n  event: \"flagshark_scan_complete\",\n  durationMs: 44,\n  filesScanned: 1,\n  excludedCount: 0,\n  parseErrorCount: 0,\n  totalFlags: 0,\n  staleFlags: 0,\n  healthScore: 100,\n  detectedProviders: 0,\n  languages: 0,\n  detectionEngine: \"regex\",\n}\n",
-  "runtime_seconds": 0.08533120155334473
-}

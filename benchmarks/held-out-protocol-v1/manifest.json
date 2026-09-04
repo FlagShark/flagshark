@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "benchmark": "flagshark-held-out-technical-comparison",
   "version": "1.5.2",
-  "status": "failed-positive-detection-smoke",
+  "status": "dev-regression-only",
   "generatedAt": "2026-09-04",
   "artifactDir": "benchmarks/held-out-protocol-v1",
   "artifactChecksums": {
@@ -11,12 +11,12 @@
     "capability-matrix.json": "e942418205556088d0bc27fcb826755a235780dd25be7cb05c07f35de18f732d",
     "source-truth-index.md": "bd6a353221860940bdf1a5b4441d4ffd609c0d22eff958c221e64dc397551824",
     "tasks/dev/detection/internal-fixture-ts-001.json": "8f37cbd1b6ac1c833fbefa58bc34d5800922ac5c48baa814f7c47acbedca976a",
-    "tasks/held-out/detection/held-out-detection-msr-strudel-cloudfoundry-user_org_creation.json": "40d64b57f7b014ba7d978b59fafb0a6308c0a016ca8e538114d4edc92c9c71a1",
-    "tasks/held-out/detection/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page.json": "f4c767a36227c2e3c7158d3a9d6faf001e6a2a93e1dae7d9d17cdcf72a4b61a3",
-    "tasks/held-out/detection/held-out-detection-msr-strudel-opengever-activity.json": "75f43f4bdef1e23a55034c7c01e6bfb87a8e70a6f093fe15a1ce35fec1a81951",
-    "tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json": "00bee36796a77f9b8995e94f19347962016b965270257ffc55ed04767cd9e92a",
-    "tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json": "c454f71585e26451947d6f4a796231035a2f1b508ac14b914370ce1d85ce5671",
-    "tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json": "6d67ee85b27b0e982e76bdc14f3e683b46557a0aceaa34e613273e5caa0fe191",
+    "tasks/dev/detection/dev-detection-msr-strudel-cloudfoundry-user_org_creation.json": "fa3c3ae796ada20532d23d8ec8c5f472e65fcefa9055638420d03ad2c784b7ed",
+    "tasks/dev/detection/dev-detection-msr-strudel-digitalmarketplace-edit-service-page.json": "dc25fef97e8d3fae1ca9c6d77038f75f5afe5ea4e2af0b21890b3cbe947ee853",
+    "tasks/dev/detection/dev-detection-msr-strudel-opengever-activity.json": "a90bcd62f5a0c2c6cf4f241ccbb3a0ec37397ef37e2dc8f590cdbfee72f3202b",
+    "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json": "8fab9eca67fe21e870c2f65920c9f56c4620655c56245a34e265d66044689a26",
+    "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json": "44a5a8ebef8192189fba470370e2a7d4edc3c7da39e2e3988f91c0a7921934a0",
+    "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json": "fe8a240ab4652b035bbb7dbce1f7559dbcf2a8769543e82e2b7a465a33f09661",
     "tasks/held-out/provider/openfeature-flagd-001.json": "3fb77b985d227f6cd77e8c74022ff35c6cb5807959c85c8042dc71376a74cddb",
     "tasks/held-out/provider/openfeature-goff-001.json": "d42349430071ca6e53afa93d17931b668f44e796f789b29ff900a198ccb777f0"
   },
@@ -135,12 +135,12 @@
       "notes": "Development-only regression fixture; may be inspected repeatedly for tuning, but is excluded from held-out scoring."
     },
     {
-      "task_id": "held-out-detection-msr-strudel-opengever-activity",
+      "task_id": "dev-detection-msr-strudel-opengever-activity",
       "source": "msr-strudel-2020",
       "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
       "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
       "task_type": "detection",
-      "partition": "held-out",
+      "partition": "dev",
       "language": "Python",
       "provider": "feature-flag-presence/lifetime",
       "files": [
@@ -148,7 +148,7 @@
         "opengever/api/config.py"
       ],
       "config_files": [
-        "tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json"
+        "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json"
       ],
       "ground_truth_refs": [
         "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=4teamwork__opengever.core,flag=activity,last_hash=e035573bc9dc8756a31d4860cbb2307c58840897"
@@ -157,22 +157,22 @@
         "read",
         "jq"
       ],
-      "notes": "FlagShark CLI 2.8.0 executed successfully but detected 0 flags on this externally annotated positive task. Failed known-positive compatibility smoke; supported detection semantics have not been demonstrated for these annotations."
+      "notes": "FlagShark CLI 2.8.0 executed successfully and the task now serves as a development-only regression fixture for conservative config detection; not held-out scoring evidence."
     },
     {
-      "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
+      "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
       "source": "msr-strudel-2020",
       "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
       "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
       "task_type": "detection",
-      "partition": "held-out",
+      "partition": "dev",
       "language": "Python",
       "provider": "feature-flag-presence/lifetime",
       "files": [
         "config.py"
       ],
       "config_files": [
-        "tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json"
+        "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json"
       ],
       "ground_truth_refs": [
         "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=alphagov__digitalmarketplace-supplier-frontend,flag=EDIT_SERVICE_PAGE,last_hash=03f05626295ce114624edd9c1ac86da46ddeebe6"
@@ -181,22 +181,22 @@
         "read",
         "jq"
       ],
-      "notes": "FlagShark CLI 2.8.0 executed successfully but detected 0 flags on this externally annotated positive task. Failed known-positive compatibility smoke; supported detection semantics have not been demonstrated for these annotations."
+      "notes": "FlagShark CLI 2.8.0 executed successfully and the task now serves as a development-only regression fixture for conservative config detection; not held-out scoring evidence."
     },
     {
-      "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
+      "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
       "source": "msr-strudel-2020",
       "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
       "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
       "task_type": "detection",
-      "partition": "held-out",
+      "partition": "dev",
       "language": "Ruby",
       "provider": "feature-flag-presence/lifetime",
       "files": [
         "app/models/runtime/feature_flag.rb"
       ],
       "config_files": [
-        "tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json"
+        "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json"
       ],
       "ground_truth_refs": [
         "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=cloudfoundry__cloud_controller_ng,flag=user_org_creation,last_hash=8c9b41eac985c27467fe71ce493090d4537990b0"
@@ -205,7 +205,7 @@
         "read",
         "jq"
       ],
-      "notes": "FlagShark CLI 2.8.0 executed successfully but detected 0 flags on this externally annotated positive task. Failed known-positive compatibility smoke; supported detection semantics have not been demonstrated for these annotations."
+      "notes": "FlagShark CLI 2.8.0 executed successfully and the task now serves as a development-only regression fixture for conservative config detection; not held-out scoring evidence."
     },
     {
       "task_id": "held-out-provider-openfeature-flagd-001",

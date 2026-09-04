@@ -1,17 +1,17 @@
 {
-  "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
   "source": "msr-strudel-2020",
   "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
   "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
   "task_type": "detection",
-  "partition": "held-out",
+  "partition": "dev",
   "language": "Python",
   "provider": "feature-flag-presence/lifetime",
   "files": [
     "config.py"
   ],
   "config_files": [
-    "flagshark/benchmarks/held-out-protocol-v1/tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json"
+    "flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json"
   ],
   "ground_truth_refs": [
     "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=alphagov__digitalmarketplace-supplier-frontend,flag=EDIT_SERVICE_PAGE,last_hash=03f05626295ce114624edd9c1ac86da46ddeebe6"
@@ -20,5 +20,5 @@
     "read",
     "jq"
   ],
-  "notes": "Project-level feature-flag presence/lifetime detection task derived from the MSR/Strudel corpus. Scope is detection and lifetime classification only; not exact safe retirement."
+  "notes": "Project-level feature-flag presence/lifetime detection task derived from the MSR/Strudel corpus. Scope is detection and lifetime classification only; not exact safe retirement. Development-only regression fixture; not held-out scoring evidence."
 }

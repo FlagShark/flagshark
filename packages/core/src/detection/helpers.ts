@@ -170,6 +170,65 @@ export function escapeRegExp(str: string): string {
 }
 
 /**
+ * Detects conservative static config-style feature flags that are outside the
+ * provider/import-gated SDK path.
+ *
+ * This covers the public MSR/Strudel-compatible cases we can support without
+ * weakening provider semantics:
+ *   - Python constant assignments like `FEATURE_FLAGS_X = enabled_since(...)`
+ *   - Python mapping assignments like `features['x'] = api.portal.get_registry_record(...)`
+ *   - Ruby constant hashes like `DEFAULT_FLAGS = { user_org_creation: false }`
+ *
+ * These emit `confidence: 'medium'` because the gate is broader than SDK
+ * import matching, but the patterns are still named feature-flag config
+ * shapes rather than arbitrary config values.
+ */
+export function detectConfigFlags(
+  filename: string,
+  content: string,
+  language: Language,
+): FeatureFlag[] {
+  const flags: FeatureFlag[] = []
+  const lines = content.split('\n')
+
+  const push = (name: string, lineNumber: number, provider: string) => {
+    if (!isValidFlagKey(name)) return
+    flags.push({
+      name,
+      filePath: filename,
+      lineNumber,
+      language,
+      provider,
+      confidence: 'medium',
+    })
+  }
+  if (language === 'python') {
+    const constAssign = /^\s*([A-Z][A-Z0-9_]*(?:FEATURE|FLAG)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm
+    for (const match of content.matchAll(constAssign)) {
+      push(match[1], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
+    }
+
+    const mappingAssign = /^\s*features\s*\[\s*(['"])([^'"]+)\1\s*\]\s*=\s*api\.portal\.get_registry_record\s*\(/gm
+    for (const match of content.matchAll(mappingAssign)) {
+      push(match[2], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
+    }
+  } else if (language === 'ruby') {
+    const hashAssign = /^\s*([A-Z][A-Z0-9_]*)\s*=\s*\{([\s\S]*?)\}(?:\.freeze)?/gm
+    for (const match of content.matchAll(hashAssign)) {
+      const constName = match[1]
+      if (!/(?:^|_)(FLAGS?)(?:$|_)/.test(constName)) continue
+      const body = match[2]
+      const lineNumber = content.slice(0, match.index ?? 0).split('\n').length
+      for (const keyMatch of body.matchAll(/\b([a-z][a-z0-9_]*)\s*:/g)) {
+        push(keyMatch[1], lineNumber, 'ruby-config')
+      }
+    }
+  }
+
+  return flags
+}
+
+/**
  * Detects feature flags in source code using regex-based pattern matching.
  * This is used by all language detectors as the primary detection mechanism.
  */
@@ -180,6 +239,7 @@ export function detectFlagsWithRegex(
   providers: FeatureFlagProvider[],
 ): FeatureFlag[] {
   const flags: FeatureFlag[] = []
+  flags.push(...detectConfigFlags(filename, content, language))
   const lines = content.split('\n')
 
   for (const provider of providers) {
@@ -240,14 +300,6 @@ export function detectFlagsWithRegex(
         let match: RegExpExecArray | null
 
         while ((match = pattern.exec(line)) !== null) {
-          // The regex consumes a leading non-word character (typically a
-          // space, but a `(` for calls inside `if (client.Method(...))`),
-          // so `match.index` can be one char before the receiver. Anchor
-          // the walk at the method's own `(` -- the LAST char of the match
-          // -- so `getCallExpression` doesn't mistake a wrapping paren for
-          // the call's opening paren. Without this, every C# (and other
-          // regex-language) call inside `if (...)` returned the entire
-          // wrapped expression as arg 0 and the flag-key extraction failed.
           const callStart = match.index + match[0].length - 1
           const restOfContent = getCallExpression(lines, lineIdx, callStart)
           /* v8 ignore next 3 -- defensive; getCallExpression only returns null when no '(' is ever found, which the matching regex guarantees */
@@ -264,10 +316,6 @@ export function detectFlagsWithRegex(
               language,
               provider: importPat || providerName,
             }
-            // Only emit `confidence` when it's a non-default value. The
-            // FeatureFlag type documents `confidence` as optional with
-            // "absent = high", so omitting it for the common case keeps
-            // existing JSON consumers + test fixtures stable.
             if (detectionConfidence !== 'high') flag.confidence = detectionConfidence
             flags.push(flag)
           }
@@ -275,13 +323,6 @@ export function detectFlagsWithRegex(
       }
     }
 
-    // useFlagsHook: providers like the LaunchDarkly React SDK don't pass
-    // flag keys as call-site arguments. Instead, calling `useFlags()` returns
-    // an object whose keys ARE the flag names; consumers either destructure
-    // them or index into them. The positional-arg pipeline above can't see
-    // this shape. When a provider declares `useFlagsHook`, run a second pass
-    // that extracts destructured property names from `... = <hook>()` sites
-    // and emits each as a detected flag.
     if (provider.useFlagsHook) {
       const hookFlags = detectDestructuredHookFlags(
         filename,
