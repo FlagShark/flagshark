@@ -107,7 +107,8 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 
 **AI baseline run manifest v1**
 
-- Model identifier: `openai-codex/gpt-5.6-luna`
+- Model identifier: `openai-codex/gpt-5.4-mini:low`
+- Verification note: the exact selected model must be verified and recorded before the run.
 - Prompt: `Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the same output schema and evaluation criteria as FlagShark, and do not use network access or provider credentials on the public track.`
 - Inputs: frozen repo snapshot plus the allowed provider/config files for the benchmark corpus.
 - Outputs: structured candidate flag locations/names; stale/safe/unsafe/unknown classification; evidence citations; proposed patch/diff for safe candidates; validation commands/results; explicit abstentions.
@@ -117,6 +118,10 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - Snapshot: frozen repo snapshot and frozen output schema for the run.
 - Record: model identifier, date, tool versions, snapshot ID, prompt text/template, and output schema before executing the benchmark.
 - Status: this is an initial benchmark configuration, not a success threshold.
+
+**Current status**
+
+No head-to-head FlagShark-versus-AI comparison has been run; therefore there is no comparative result and no technical go/no-go decision.
 
 **Source-backed inputs**
 
