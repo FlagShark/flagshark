@@ -12,8 +12,8 @@
 - `dev-detection-msr-strudel-cloudfoundry-user_org_creation` is covered by conservative Ruby config detection: the annotated construct is the static `DEFAULT_FLAGS` hash in `tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb:23-39`, and the detector emits the symbol keys `user_org_creation` and `private_domain_creation` at medium confidence.
 - `dev-detection-msr-strudel-digitalmarketplace-edit-service-page` is covered by conservative Python config detection: the annotated construct is `enabled_since('2016-01-25')` in `tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py:96-120`, and the detector emits the uppercase assignment identifiers at medium confidence.
 - `dev-detection-msr-strudel-opengever-activity` is covered by conservative Python config detection: the annotated construct is `api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)` and related registry reads in `tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py:48-69`, and the detector emits the registry key names at medium confidence.
+
 ## Status interpretation
 
-- These annotations are supported as benchmark references only; they are not within the detector/provider semantics currently implemented for automatic callsite extraction.
-- Supported detection semantics have not been demonstrated for these annotations.
+- These annotations are supported by the conservative config regression path at medium confidence, but they are development-only and are not held-out evidence.
 - If a source cannot be independently downloaded or pinned, it is excluded and must be listed as excluded rather than inferred.

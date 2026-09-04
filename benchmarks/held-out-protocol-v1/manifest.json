@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "status": "dev-regression-only",
   "generatedAt": "2026-09-04",
   "artifactDir": "benchmarks/held-out-protocol-v1",
   "artifactChecksums": {
     "source-revisions.json": "8a2778bb145626af5a39525837e677f10d46c122d958ad8fe608d8f5342425ef",
     "exclusions.json": "5dffb1da04259e9d22597b23cf8e216ede8e01b113da7e45c57931b1030bfb55",
-    "capability-matrix.json": "e942418205556088d0bc27fcb826755a235780dd25be7cb05c07f35de18f732d",
-    "source-truth-index.md": "bd6a353221860940bdf1a5b4441d4ffd609c0d22eff958c221e64dc397551824",
+    "capability-matrix.json": "1c635c9943b5ef7c34fcf62df8c18263763738236d0b2b72a021bd7e5be6e782",
+    "source-truth-index.md": "f0ac1089323790fd38150cecaecfc489bb5fb5ac9a01e2e9d8c3c9c864214f30",
     "tasks/dev/detection/internal-fixture-ts-001.json": "8f37cbd1b6ac1c833fbefa58bc34d5800922ac5c48baa814f7c47acbedca976a",
     "tasks/dev/detection/dev-detection-msr-strudel-cloudfoundry-user_org_creation.json": "fa3c3ae796ada20532d23d8ec8c5f472e65fcefa9055638420d03ad2c784b7ed",
     "tasks/dev/detection/dev-detection-msr-strudel-digitalmarketplace-edit-service-page.json": "dc25fef97e8d3fae1ca9c6d77038f75f5afe5ea4e2af0b21890b3cbe947ee853",
