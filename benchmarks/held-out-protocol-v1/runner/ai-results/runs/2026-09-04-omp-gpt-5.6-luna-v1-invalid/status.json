@@ -1,0 +1,5 @@
+{
+  "status": "invalid",
+  "reason": "provenance-only capture until comparator accepts complete per-task provenance",
+  "version": "1.0.3"
+}

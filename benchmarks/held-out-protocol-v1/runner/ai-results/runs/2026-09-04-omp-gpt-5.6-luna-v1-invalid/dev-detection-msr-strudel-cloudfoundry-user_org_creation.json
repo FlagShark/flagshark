@@ -1,0 +1,43 @@
+{
+  "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
+  "model_version": "gpt-5.6-luna",
+  "raw_response": "I must abstain. The local frozen repository snapshot and frozen input/output schemas are not accessible in this session; the only available tool is web access, which would violate the no-network requirement.\n\n- Candidate locations/names: not inspected.\n- Classifications: none; no evidence available.\n- Safe-candidate patch/diff: none proposed.\n- Validation commands/results: none run.\n- Provider credentials, network access, FlagShark internals, goldens, and hidden adjudication notes: not used.\n\nProducing candidates, classifications, a diff, or schema-conforming output without the snapshot would fabricate evidence.",
+  "raw_response_id": "resp_0069bdb026dd9f75016a9b4db916a087d2a2fdc9ed72ed2d8f",
+  "raw_response_api": "openai-codex-responses",
+  "runtime_seconds": 24.509887,
+  "token_usage": {
+    "input": 3145,
+    "output": 644,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 3789
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_0069bdb026dd9f75016a9b4db916a087d2a2fdc9ed72ed2d8f",
+    "parsed predicted_flags=0"
+  ],
+  "predicted_flags": [],
+  "predicted_provider_state": {
+    "task_partition": "dev",
+    "source": "msr-strudel-2020",
+    "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+    "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "model_version": "gpt-5.6-luna",
+    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+    "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+    "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+  },
+  "evidence_citations": [],
+  "abstentions": [
+    "assistant response was not JSON schema valid"
+  ]
+}

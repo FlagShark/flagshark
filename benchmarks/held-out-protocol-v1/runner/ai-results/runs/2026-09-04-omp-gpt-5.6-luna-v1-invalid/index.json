@@ -1,0 +1,131 @@
+[
+  {
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "Unable to perform the analysis from this interface.\n\n- **Repository access:** No local filesystem tool is available. The frozen snapshot and allowed provider/config files could not be read.\n- **Schema access:** The frozen input/output schemas were not available in the supplied context, so inventing a schema would violate the request.\n- **Candidates:** None identified.\n- **Classifications:** Abstain for every candidate; no evidence was available.\n- **Patch/diff:** None proposed.\n- **Validation:** No repository commands or validation scenarios were run.\n- **Network/provider use:** No public-network lookup or provider credentials were used.\n\nThe only attempted repository read targeted the supplied local path and returned `404`; it did not expose snapshot contents.",
+    "raw_response_id": "resp_04e771acd3eb53e8016a9b4d73afcc87d281b13afe65d0e813",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 35.740295125,
+    "token_usage": {
+      "input": 845,
+      "output": 611,
+      "cacheRead": 2560,
+      "cacheWrite": 0,
+      "totalTokens": 4016
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_04e771acd3eb53e8016a9b4d73afcc87d281b13afe65d0e813",
+      "parsed predicted_flags=0"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "The snapshot remains inaccessible: this session has no local filesystem or command-execution tool, and the only available fetch tool cannot read the local `file://` paths. I therefore cannot read `input-schema.json`, `output-schema.json`, or the manifests without violating the no-network constraint.\n\nI abstain from producing candidates, classifications, patches, schema output, or validation results rather than fabricate repository evidence.",
+    "raw_response_id": "resp_0e628da274d4dca3016a9b4da8df7487d2807eff20f72d2fba",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 38.940029417,
+    "token_usage": {
+      "input": 708,
+      "output": 319,
+      "cacheRead": 3584,
+      "cacheWrite": 0,
+      "totalTokens": 4611
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_0e628da274d4dca3016a9b4da8df7487d2807eff20f72d2fba",
+      "parsed predicted_flags=0"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "I must abstain. The local frozen repository snapshot and frozen input/output schemas are not accessible in this session; the only available tool is web access, which would violate the no-network requirement.\n\n- Candidate locations/names: not inspected.\n- Classifications: none; no evidence available.\n- Safe-candidate patch/diff: none proposed.\n- Validation commands/results: none run.\n- Provider credentials, network access, FlagShark internals, goldens, and hidden adjudication notes: not used.\n\nProducing candidates, classifications, a diff, or schema-conforming output without the snapshot would fabricate evidence.",
+    "raw_response_id": "resp_0069bdb026dd9f75016a9b4db916a087d2a2fdc9ed72ed2d8f",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 24.509887,
+    "token_usage": {
+      "input": 3145,
+      "output": 644,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 3789
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_0069bdb026dd9f75016a9b4db916a087d2a2fdc9ed72ed2d8f",
+      "parsed predicted_flags=0"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "config_version": "1.0.3",
+  "task_id": "dev-detection-msr-strudel-opengever-activity",
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "model_version": "gpt-5.6-luna",
+  "date": "2026-09-04T23:00:32.301Z",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "2.8.0"
+  },
+  "snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+  "prompt": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
+  "prompt_template": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
+  "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+  "output_schema_version": "1.0.0",
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "benchmark_version": "1.5.3",
+  "cli_version": "18.1.10",
+  "raw_response_id": "resp_04e771acd3eb53e8016a9b4d73afcc87d281b13afe65d0e813",
+  "raw_response_api": "openai-codex-responses",
+  "raw_response": "Unable to perform the analysis from this interface.\n\n- **Repository access:** No local filesystem tool is available. The frozen snapshot and allowed provider/config files could not be read.\n- **Schema access:** The frozen input/output schemas were not available in the supplied context, so inventing a schema would violate the request.\n- **Candidates:** None identified.\n- **Classifications:** Abstain for every candidate; no evidence was available.\n- **Patch/diff:** None proposed.\n- **Validation:** No repository commands or validation scenarios were run.\n- **Network/provider use:** No public-network lookup or provider credentials were used.\n\nThe only attempted repository read targeted the supplied local path and returned `404`; it did not expose snapshot contents.",
+  "runtime_seconds": 35.740295125,
+  "token_usage": {
+    "input": 845,
+    "output": 611,
+    "cacheRead": 2560,
+    "cacheWrite": 0,
+    "totalTokens": 4016
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "provider=openai-codex; model=gpt-5.6-luna; api=openai-codex-responses; responseId=resp_04e771acd3eb53e8016a9b4d73afcc87d281b13afe65d0e813",
+    "parsed predicted_flags=0"
+  ],
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+}
