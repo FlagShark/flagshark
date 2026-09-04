@@ -1,0 +1,152 @@
+[
+  {
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v2",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-opengever-activity\",\"runner\":null,\"provider\":\"openai-codex\",\"model\":\"gpt-5.6-luna\",\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":{\"input_tokens\":null,\"output_tokens\":null,\"total_tokens\":null},\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[],\"predicted_provider_state\":null,\"evidence_citations\":[\"opengever/base/configuration.py:22-45\",\"opengever/api/config.py:4-6\"],\"abstentions\":[{\"reason\":\"Provenance is incomplete: the source-manifest JSON contents and benchmark flag/provider-state taxonomy were not provided, so no flag or provider state can be predicted reliably from the source snippets alone.\"}]}",
+    "raw_response_id": "resp_0db55dc97c251a6b016a9b4f4bc4ac87d2b8e98e30064e139f",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 37.600189,
+    "token_usage": {
+      "input": 4391,
+      "output": 1668,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 6059,
+      "reasoningTokens": 1489
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "raw_response parsed"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "93da01f88d4c9b0f17499b91f0ddb0b7258de3d641cdd601d8153f4861dc597e",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+    },
+    "evidence_citations": [
+      "opengever/base/configuration.py:22-45",
+      "opengever/api/config.py:4-6"
+    ],
+    "abstentions": [
+      {
+        "reason": "Provenance is incomplete: the source-manifest JSON contents and benchmark flag/provider-state taxonomy were not provided, so no flag or provider state can be predicted reliably from the source snippets alone."
+      }
+    ]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v2",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-digitalmarketplace-edit-service-page\",\"runner\":null,\"provider\":null,\"model\":null,\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"name\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\",\"state\":\"enabled_since\",\"enabled_since\":\"2016-02-02\",\"effective_state\":\"enabled\"}],\"predicted_provider_state\":{\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\":\"enabled since 2016-02-02\"},\"evidence_citations\":[{\"file\":\"config.py\",\"lines\":\"65-65\",\"evidence\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02')\"}],\"abstentions\":[]}",
+    "raw_response_id": "resp_0dc4a6a39709997e016a9b4f71a92087d2b3a96dbc63b1daa9",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 49.160795542,
+    "token_usage": {
+      "input": 1434,
+      "output": 2241,
+      "cacheRead": 2560,
+      "cacheWrite": 0,
+      "totalTokens": 6235,
+      "reasoningTokens": 2070
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "raw_response parsed"
+    ],
+    "predicted_flags": [
+      {
+        "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
+        "state": "enabled_since",
+        "enabled_since": "2016-02-02",
+        "effective_state": "enabled"
+      }
+    ],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "f62e8e805640d6087e0b341f77beb6228ae55f265c7abc0fdbea58fbd719ae7b",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+    },
+    "evidence_citations": [
+      {
+        "file": "config.py",
+        "lines": "65-65",
+        "evidence": "FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02')"
+      }
+    ],
+    "abstentions": []
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v2",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-cloudfoundry-user_org_creation\",\"runner\":\"openai-codex\",\"provider\":\"openai\",\"model\":\"gpt-5.6-luna\",\"model_version\":\"gpt-5.6-luna\",\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[],\"predicted_provider_state\":null,\"evidence_citations\":[{\"file\":\"app/models/runtime/feature_flag.rb\",\"evidence\":\"DEFAULT_FLAGS defines user_org_creation as false and private_domain_creation as true.\"}],\"abstentions\":[\"Source-manifest.json contents were not provided, so provenance is incomplete; abstaining from predicted_flags and predicted_provider_state.\"]}",
+    "raw_response_id": "resp_0810780fbbb90259016a9b4fa2871087d298e9eedffddcac30",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 30.235050667,
+    "token_usage": {
+      "input": 3594,
+      "output": 1109,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 4703,
+      "reasoningTokens": 941
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "raw_response parsed"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "e6dcee0f4e83d197b25dbd6ace2918c048e0c2517967bb3e78dc0ca46ab8d061",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+    },
+    "evidence_citations": [
+      {
+        "file": "app/models/runtime/feature_flag.rb",
+        "evidence": "DEFAULT_FLAGS defines user_org_creation as false and private_domain_creation as true."
+      }
+    ],
+    "abstentions": [
+      "Source-manifest.json contents were not provided, so provenance is incomplete; abstaining from predicted_flags and predicted_provider_state."
+    ]
+  }
+]

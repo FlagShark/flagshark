@@ -1,0 +1,62 @@
+{
+  "config_version": "2.0.0",
+  "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "model_version": "gpt-5.6-luna",
+  "date": "2026-09-04T23:09:20.878Z",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "18.1.10"
+  },
+  "snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+  "prompt": "You are given one frozen benchmark task. Return exactly one JSON object and nothing else. The JSON object must contain: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Use only the provided frozen task_id, task files, and source-manifest contents. Do not use FlagShark internals, goldens, hidden notes, or network access. If provenance is incomplete, return an empty predicted_flags array and an explicit abstention.\n\nTASK_ID: dev-detection-msr-strudel-cloudfoundry-user_org_creation\nSOURCE_MANIFEST: tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json\nSOURCE_ROOT: tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation\nSNAPSHOT_ID: cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0\nSOURCE_REVISION: 8c9b41eac985c27467fe71ce493090d4537990b0\nFILES:\nFILE app/models/runtime/feature_flag.rb\nmodule VCAP::CloudController\n  class FeatureFlag < Sequel::Model\n\n    class UndefinedFeatureFlagError < StandardError\n    end\n\n    DEFAULT_FLAGS = {\n      user_org_creation: false,\n      private_domain_creation: true\n    }.freeze\n\n    export_attributes :name, :enabled\n    import_attributes :name, :enabled\n\n    def validate\n      validates_presence :name\n      validates_unique :name\n      validates_presence :enabled\n\n      validates_includes DEFAULT_FLAGS.keys.map(&:to_s), :name\n    end\n\n    def self.enabled?(feature_flag_name)\n      feature_flag = FeatureFlag.find(name: feature_flag_name)\n      return feature_flag.enabled if feature_flag\n      DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\n\n    rescue KeyError\n      raise UndefinedFeatureFlagError.new \"invalid key: #{feature_flag_name}\"\n    end\n\n    def self.raise_unless_enabled!(feature_flag_name, message)\n      error_message = message\n      if Config.config[:feature_disabled_message]\n        error_message = \"#{error_message}: #{Config.config[:feature_disabled_message]}\"\n      end\n\n      raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', error_message) if !enabled?(feature_flag_name)\n    end\n  end\nend\n\n\nCHECKSUMS:\napp/models/runtime/feature_flag.rb:503663f840d864bb521d23fe7457a4eb5b1c6697ea718235b74883b39fc5a6b2\n\nReturn exactly one JSON object and nothing else.",
+  "prompt_template": "You are given one frozen benchmark task. Return exactly one JSON object and nothing else. The JSON object must contain: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Use only the provided frozen task_id, task files, and source-manifest contents. Do not use FlagShark internals, goldens, hidden notes, or network access. If provenance is incomplete, return an empty predicted_flags array and an explicit abstention.\n\nTASK_ID: {{task_id}}\nSOURCE_MANIFEST: {{source_manifest}}\nSOURCE_ROOT: {{source_root}}\nSNAPSHOT_ID: {{repo_snapshot_id}}\nSOURCE_REVISION: {{source_revision}}\nFILES:\n{{files}}",
+  "prompt_hash": "e6dcee0f4e83d197b25dbd6ace2918c048e0c2517967bb3e78dc0ca46ab8d061",
+  "output_schema_version": "1.1.0",
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "benchmark_version": "1.5.3",
+  "cli_version": "18.1.10",
+  "raw_response_id": "resp_0810780fbbb90259016a9b4fa2871087d298e9eedffddcac30",
+  "raw_response_api": "openai-codex-responses",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-cloudfoundry-user_org_creation\",\"runner\":\"openai-codex\",\"provider\":\"openai\",\"model\":\"gpt-5.6-luna\",\"model_version\":\"gpt-5.6-luna\",\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[],\"predicted_provider_state\":null,\"evidence_citations\":[{\"file\":\"app/models/runtime/feature_flag.rb\",\"evidence\":\"DEFAULT_FLAGS defines user_org_creation as false and private_domain_creation as true.\"}],\"abstentions\":[\"Source-manifest.json contents were not provided, so provenance is incomplete; abstaining from predicted_flags and predicted_provider_state.\"]}",
+  "runtime_seconds": 30.235050667,
+  "token_usage": {
+    "input": 3594,
+    "output": 1109,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 4703,
+    "reasoningTokens": 941,
+    "cost": {
+      "input": 0.0007188,
+      "output": 0.0013308,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0.0020496
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parsed"
+  ],
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "source_checksums": [
+    "app/models/runtime/feature_flag.rb:503663f840d864bb521d23fe7457a4eb5b1c6697ea718235b74883b39fc5a6b2"
+  ]
+}

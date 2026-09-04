@@ -1,0 +1,54 @@
+{
+  "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v2",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
+  "model_version": "gpt-5.6-luna",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-digitalmarketplace-edit-service-page\",\"runner\":null,\"provider\":null,\"model\":null,\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"name\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\",\"state\":\"enabled_since\",\"enabled_since\":\"2016-02-02\",\"effective_state\":\"enabled\"}],\"predicted_provider_state\":{\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\":\"enabled since 2016-02-02\"},\"evidence_citations\":[{\"file\":\"config.py\",\"lines\":\"65-65\",\"evidence\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02')\"}],\"abstentions\":[]}",
+  "raw_response_id": "resp_0dc4a6a39709997e016a9b4f71a92087d2b3a96dbc63b1daa9",
+  "raw_response_api": "openai-codex-responses",
+  "runtime_seconds": 49.160795542,
+  "token_usage": {
+    "input": 1434,
+    "output": 2241,
+    "cacheRead": 2560,
+    "cacheWrite": 0,
+    "totalTokens": 6235,
+    "reasoningTokens": 2070
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parsed"
+  ],
+  "predicted_flags": [
+    {
+      "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
+      "state": "enabled_since",
+      "enabled_since": "2016-02-02",
+      "effective_state": "enabled"
+    }
+  ],
+  "predicted_provider_state": {
+    "task_partition": "dev",
+    "source": "msr-strudel-2020",
+    "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+    "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "model_version": "gpt-5.6-luna",
+    "prompt_hash": "f62e8e805640d6087e0b341f77beb6228ae55f265c7abc0fdbea58fbd719ae7b",
+    "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+    "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+  },
+  "evidence_citations": [
+    {
+      "file": "config.py",
+      "lines": "65-65",
+      "evidence": "FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02')"
+    }
+  ],
+  "abstentions": []
+}

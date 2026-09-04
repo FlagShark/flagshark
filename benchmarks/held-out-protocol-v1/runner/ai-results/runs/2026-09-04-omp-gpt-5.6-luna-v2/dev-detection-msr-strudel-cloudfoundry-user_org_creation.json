@@ -1,0 +1,48 @@
+{
+  "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v2",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
+  "model_version": "gpt-5.6-luna",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-cloudfoundry-user_org_creation\",\"runner\":\"openai-codex\",\"provider\":\"openai\",\"model\":\"gpt-5.6-luna\",\"model_version\":\"gpt-5.6-luna\",\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[],\"predicted_provider_state\":null,\"evidence_citations\":[{\"file\":\"app/models/runtime/feature_flag.rb\",\"evidence\":\"DEFAULT_FLAGS defines user_org_creation as false and private_domain_creation as true.\"}],\"abstentions\":[\"Source-manifest.json contents were not provided, so provenance is incomplete; abstaining from predicted_flags and predicted_provider_state.\"]}",
+  "raw_response_id": "resp_0810780fbbb90259016a9b4fa2871087d298e9eedffddcac30",
+  "raw_response_api": "openai-codex-responses",
+  "runtime_seconds": 30.235050667,
+  "token_usage": {
+    "input": 3594,
+    "output": 1109,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 4703,
+    "reasoningTokens": 941
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parsed"
+  ],
+  "predicted_flags": [],
+  "predicted_provider_state": {
+    "task_partition": "dev",
+    "source": "msr-strudel-2020",
+    "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+    "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "model_version": "gpt-5.6-luna",
+    "prompt_hash": "e6dcee0f4e83d197b25dbd6ace2918c048e0c2517967bb3e78dc0ca46ab8d061",
+    "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+    "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+  },
+  "evidence_citations": [
+    {
+      "file": "app/models/runtime/feature_flag.rb",
+      "evidence": "DEFAULT_FLAGS defines user_org_creation as false and private_domain_creation as true."
+    }
+  ],
+  "abstentions": [
+    "Source-manifest.json contents were not provided, so provenance is incomplete; abstaining from predicted_flags and predicted_provider_state."
+  ]
+}

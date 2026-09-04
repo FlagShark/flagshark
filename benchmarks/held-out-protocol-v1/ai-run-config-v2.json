@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "benchmark": "flagshark-held-out-technical-comparison",
+  "benchmark_version": "1.5.3",
+  "model": "default",
+  "provider": "openai-codex",
+  "model_version": "default",
+  "prompt_template": "You are given one frozen benchmark task. Return exactly one JSON object and nothing else. The JSON object must contain: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Use only the provided frozen task_id, task files, and source-manifest contents. Do not use FlagShark internals, goldens, hidden notes, or network access. If provenance is incomplete, return an empty predicted_flags array and an explicit abstention.\n\nTASK_ID: {{task_id}}\nSOURCE_MANIFEST: {{source_manifest}}\nSOURCE_ROOT: {{source_root}}\nSNAPSHOT_ID: {{repo_snapshot_id}}\nSOURCE_REVISION: {{source_revision}}\nFILES:\n{{files}}",
+  "output_schema_version": "1.1.0",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "18.1.10"
+  },
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "prompt_hash": "440f2be490044c7205dedfad1da6af379679724bf446b7a6d8ba6b7ce70de2f9",
+  "constraints": {
+    "noNetwork": true,
+    "noCustomerData": true,
+    "noFlagSharkInternals": true,
+    "singleFreshRunPerTask": true,
+    "noRetries": true,
+    "freezeBeforeRun": true
+  }
+}

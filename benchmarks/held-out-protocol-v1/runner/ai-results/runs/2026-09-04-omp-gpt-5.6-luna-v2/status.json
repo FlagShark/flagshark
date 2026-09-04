@@ -1,0 +1,6 @@
+{
+  "status": "invalid",
+  "reason": "retried task and schema/provenance failure; run ineligible under singleFreshRunPerTask/noRetries",
+  "version": "2.0.0",
+  "run_dir": "runner/ai-results/runs/2026-09-04-omp-gpt-5.6-luna-v2"
+}

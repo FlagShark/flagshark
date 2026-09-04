@@ -1,0 +1,62 @@
+{
+  "config_version": "2.0.0",
+  "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "model_version": "gpt-5.6-luna",
+  "date": "2026-09-04T23:08:31.717Z",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "18.1.10"
+  },
+  "snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+  "prompt": "You are given one frozen benchmark task. Return exactly one JSON object and nothing else. The JSON object must contain: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Use only the provided frozen task_id, task files, and source-manifest contents. Do not use FlagShark internals, goldens, hidden notes, or network access. If provenance is incomplete, return an empty predicted_flags array and an explicit abstention.\n\nTASK_ID: dev-detection-msr-strudel-digitalmarketplace-edit-service-page\nSOURCE_MANIFEST: tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json\nSOURCE_ROOT: tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page\nSNAPSHOT_ID: alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6\nSOURCE_REVISION: 03f05626295ce114624edd9c1ac86da46ddeebe6\nFILES:\nFILE config.py\n# coding=utf-8\n\nimport os\nimport jinja2\nfrom dmutils.status import enabled_since, get_version_label\nfrom dmutils.asset_fingerprint import AssetFingerprinter\n\nclass Config(object):\n\n    VERSION = get_version_label(\n        os.path.abspath(os.path.dirname(__file__))\n    )\n    SESSION_COOKIE_NAME = 'dm_session'\n    SESSION_COOKIE_PATH = '/'\n    SESSION_COOKIE_HTTPONLY = True\n    SESSION_COOKIE_SECURE = True\n\n    PERMANENT_SESSION_LIFETIME = 4*3600\n\n    WTF_CSRF_ENABLED = True\n    WTF_CSRF_TIME_LIMIT = None\n\n    DM_DATA_API_URL = None\n    DM_DATA_API_AUTH_TOKEN = None\n    DM_MANDRILL_API_KEY = None\n    DM_CLARIFICATION_QUESTION_EMAIL = 'digitalmarketplace@mailinator.com'\n    DM_FRAMEWORK_AGREEMENTS_EMAIL = 'enquiries@example.com'\n\n    DM_AGREEMENTS_BUCKET = None\n    DM_COMMUNICATIONS_BUCKET = None\n    DM_DOCUMENTS_BUCKET = None\n    DM_SUBMISSIONS_BUCKET = None\n    DM_ASSETS_URL = None\n\n    DEBUG = False\n\n    RESET_PASSWORD_EMAIL_NAME = 'Digital Marketplace Admin'\n    RESET_PASSWORD_EMAIL_FROM = 'enquiries@digitalmarketplace.service.gov.uk'\n    RESET_PASSWORD_EMAIL_SUBJECT = 'Reset your Digital Marketplace password'\n\n    INVITE_EMAIL_NAME = 'Digital Marketplace Admin'\n    INVITE_EMAIL_FROM = 'enquiries@digitalmarketplace.service.gov.uk'\n    INVITE_EMAIL_SUBJECT = 'Your Digital Marketplace invitation'\n\n    CLARIFICATION_EMAIL_NAME = 'Digital Marketplace Admin'\n    CLARIFICATION_EMAIL_FROM = 'do-not-reply@digitalmarketplace.service.gov.uk'\n    CLARIFICATION_EMAIL_SUBJECT = 'Thanks for your clarification question'\n    DM_FOLLOW_UP_EMAIL_TO = 'digitalmarketplace@mailinator.com'\n\n    CREATE_USER_SUBJECT = 'Create your Digital Marketplace account'\n    SECRET_KEY = os.getenv('DM_PASSWORD_SECRET_KEY')\n    SHARED_EMAIL_KEY = os.getenv('DM_SHARED_EMAIL_KEY')\n    RESET_PASSWORD_SALT = 'ResetPasswordSalt'\n    INVITE_EMAIL_SALT = 'InviteEmailSalt'\n\n    STATIC_URL_PATH = '/suppliers/static'\n    ASSET_PATH = STATIC_URL_PATH + '/'\n    BASE_TEMPLATE_DATA = {\n        'header_class': 'with-proposition',\n        'asset_path': ASSET_PATH,\n        'asset_fingerprinter': AssetFingerprinter(asset_root=ASSET_PATH)\n    }\n\n    # Feature Flags\n    RAISE_ERROR_ON_MISSING_FEATURES = True\n\n    FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02')\n    FEATURE_FLAGS_EDIT_SECTIONS = False\n\n    # Logging\n    DM_LOG_LEVEL = 'DEBUG'\n    DM_APP_NAME = 'supplier-frontend'\n    DM_LOG_PATH = '/var/log/digitalmarketplace/application.log'\n    DM_DOWNSTREAM_REQUEST_ID_HEADER = 'X-Amz-Cf-Id'\n\n    @staticmethod\n    def init_app(app):\n        repo_root = os.path.abspath(os.path.dirname(__file__))\n        template_folders = [\n            os.path.join(repo_root, 'app/templates')\n        ]\n        jinja_loader = jinja2.FileSystemLoader(template_folders)\n        app.jinja_loader = jinja_loader\n\n\nCHECKSUMS:\nconfig.py:d1cae7c6515bcbdd962131c31b96571564918b2a4e5ddb8e7905882897bec4aa\n\nReturn exactly one JSON object and nothing else.",
+  "prompt_template": "You are given one frozen benchmark task. Return exactly one JSON object and nothing else. The JSON object must contain: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Use only the provided frozen task_id, task files, and source-manifest contents. Do not use FlagShark internals, goldens, hidden notes, or network access. If provenance is incomplete, return an empty predicted_flags array and an explicit abstention.\n\nTASK_ID: {{task_id}}\nSOURCE_MANIFEST: {{source_manifest}}\nSOURCE_ROOT: {{source_root}}\nSNAPSHOT_ID: {{repo_snapshot_id}}\nSOURCE_REVISION: {{source_revision}}\nFILES:\n{{files}}",
+  "prompt_hash": "f62e8e805640d6087e0b341f77beb6228ae55f265c7abc0fdbea58fbd719ae7b",
+  "output_schema_version": "1.1.0",
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "benchmark_version": "1.5.3",
+  "cli_version": "18.1.10",
+  "raw_response_id": "resp_0dc4a6a39709997e016a9b4f71a92087d2b3a96dbc63b1daa9",
+  "raw_response_api": "openai-codex-responses",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-digitalmarketplace-edit-service-page\",\"runner\":null,\"provider\":null,\"model\":null,\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"name\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\",\"state\":\"enabled_since\",\"enabled_since\":\"2016-02-02\",\"effective_state\":\"enabled\"}],\"predicted_provider_state\":{\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\":\"enabled since 2016-02-02\"},\"evidence_citations\":[{\"file\":\"config.py\",\"lines\":\"65-65\",\"evidence\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02')\"}],\"abstentions\":[]}",
+  "runtime_seconds": 49.160795542,
+  "token_usage": {
+    "input": 1434,
+    "output": 2241,
+    "cacheRead": 2560,
+    "cacheWrite": 0,
+    "totalTokens": 6235,
+    "reasoningTokens": 2070,
+    "cost": {
+      "input": 0.00028680000000000003,
+      "output": 0.0026891999999999997,
+      "cacheRead": 0.0000512,
+      "cacheWrite": 0,
+      "total": 0.0030271999999999994
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parsed"
+  ],
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "source_checksums": [
+    "config.py:d1cae7c6515bcbdd962131c31b96571564918b2a4e5ddb8e7905882897bec4aa"
+  ]
+}
