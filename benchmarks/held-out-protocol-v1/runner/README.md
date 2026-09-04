@@ -29,11 +29,5 @@ bun packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file
 
 - writes one JSON result per task to `benchmarks/held-out-protocol-v1/runner/results/`
 
-Output shape highlights:
-
-- `benchmark_version` is copied from the manifest version
-- `cli_version` comes from the CLI JSON summary
-- `source_root`, `source_manifest`, and detector `filePath` values are benchmark-relative
-- `cli_summary` keeps only stable summary fields: total/stale flags, flags, health score, providers, languages, and error counts
-- `detections` contains the full detector-level matches separately, including name, file path, line number, provider, and confidence
-- the runner never mutates the benchmark manifest or source snapshots
+- `comparison.json` is generated with `status: "invalid"` and a `status_reason` because the checked-in AI artifacts are audit-only harness captures, not valid benchmark evidence
+- `ai-results/normalized.json` and the per-task raw JSON files are retained for audit, but comparison tooling must treat them as invalid provenance

@@ -35,6 +35,8 @@ test('comparison prefixes ai locations with the matched scanner source_root and 
   ]
 
   const result = compareResults(scanner as never, ai as never)
+  expect(result.status).toBe('invalid')
+  expect(result.status_reason).toContain('audit-only')
   expect(result.tasks[0].ai.predicted_flags[0].filePath).toBe('tasks/dev/a/app/models/runtime/feature_flag.rb')
   expect(result.tasks[0].ai.predicted_flags[0].lineStart).toBe(7)
   expect(result.tasks[0].ai.predicted_flags[0].lineEnd).toBe(10)

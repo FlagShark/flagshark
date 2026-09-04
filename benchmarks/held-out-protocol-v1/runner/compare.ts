@@ -112,8 +112,11 @@ export interface ComparisonResult {
   ai_runner: string
   scanner_results: string
   ai_results: string
+  status: 'invalid'
+  status_reason: string
   tasks: ComparisonTask[]
 }
+
 
 const repoRoot = resolve(dirname(new URL(import.meta.url).pathname), '../../..')
 const benchmarkRoot = resolve(repoRoot, 'benchmarks/held-out-protocol-v1')
@@ -311,6 +314,9 @@ export function compareResults(scannerResults: ScannerTaskResult[], aiResults: N
     ai_runner: 'benchmark-local-ai/default',
     scanner_results: 'benchmarks/held-out-protocol-v1/runner/results/index.json',
     ai_results: 'benchmarks/held-out-protocol-v1/runner/ai-results/normalized.json',
+    status: 'invalid',
+    status_reason:
+      'AI artifacts are audit-only and do not satisfy benchmark provenance: they were generated through direct harness completion calls, use placeholder token_usage, and are not valid comparison evidence.',
     tasks,
   }
 }
