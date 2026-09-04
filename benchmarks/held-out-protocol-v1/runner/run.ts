@@ -31,6 +31,7 @@ interface SourceManifest {
 }
 
 interface CliSummary {
+  version: string
   totalFlags: number
   staleFlags: number
   flags: Array<{ name: string; filePath: string; lineNumber: number; language: string; provider?: string; confidence?: string }>
@@ -67,8 +68,8 @@ const repoRoot = resolve(import.meta.dirname, '../../..')
 const benchmarkRoot = resolve(repoRoot, 'benchmarks/held-out-protocol-v1')
 const manifestPath = resolve(benchmarkRoot, 'manifest.json')
 const cliBin = resolve(repoRoot, 'packages/cli/bin/flagshark.mjs')
+const command = 'bun packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file'
 const resultsDir = resolve(benchmarkRoot, 'runner/results')
-const command = `bun ${cliBin} scan --json --no-config --no-ignore-file`
 
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T
@@ -163,7 +164,6 @@ async function runTask(task: ManifestTask): Promise<RunnerResult> {
   if (cli.status === null || cli.status !== 0) {
     throw new Error(`CLI failed for ${task.task_id}: ${cli.status}\n${cli.stderr}`)
   }
-
   const cliSummary = JSON.parse(cli.stdout) as CliSummary
   const detections = await detectFlags(sourceRoot)
   const benchmarkVersion = readJson<{ version: string }>(manifestPath).version
