@@ -1,0 +1,24 @@
+{
+  "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "source": "msr-strudel-2020",
+  "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+  "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+  "task_type": "detection",
+  "partition": "held-out",
+  "language": "Ruby",
+  "provider": "feature-flag-presence/lifetime",
+  "files": [
+    "app/models/runtime/feature_flag.rb"
+  ],
+  "config_files": [
+    "flagshark/benchmarks/held-out-protocol-v1/tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json"
+  ],
+  "ground_truth_refs": [
+    "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=cloudfoundry__cloud_controller_ng,flag=user_org_creation,last_hash=8c9b41eac985c27467fe71ce493090d4537990b0"
+  ],
+  "allowed_tools": [
+    "read",
+    "jq"
+  ],
+  "notes": "Project-level feature-flag presence/lifetime detection task derived from the MSR/Strudel corpus. Scope is detection and lifetime classification only; not exact safe retirement."
+}

@@ -1,0 +1,16 @@
+{
+  "source": "msr-strudel-2020",
+  "record_id": 3712228,
+  "record_url": "https://zenodo.org/records/3712228",
+  "zip_md5": "60b7b976e76cd70379bd45db26b6a412",
+  "zip_sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+  "repo_url": "https://github.com/alphagov/digitalmarketplace-supplier-frontend",
+  "commit": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+  "files": [
+    {
+      "path": "config.py",
+      "url": "https://raw.githubusercontent.com/alphagov/digitalmarketplace-supplier-frontend/03f05626295ce114624edd9c1ac86da46ddeebe6/config.py",
+      "sha256": "d1cae7c6515bcbdd962131c31b96571564918b2a4e5ddb8e7905882897bec4aa"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.2.0",
-  "status": "protocol-ready-but-no-comparable-task",
+  "version": "1.5.0",
+  "status": "positive-detection-smoke-only",
   "matrix": [
     {
       "task_id": "dev-detection-internal-fixture-ts-001",
@@ -13,13 +13,40 @@
       "reason": "development/regression only; not eligible for held-out score"
     },
     {
+      "task_id": "held-out-detection-msr-strudel-opengever-activity",
+      "partition": "held-out",
+      "truth_type": "positive-detection-reference",
+      "flagshark_support": true,
+      "ai_baseline_support": true,
+      "comparable": true,
+      "reason": "positive MSR/Strudel detection compatibility task with pinned file set and external labels; known-positive hit-rate smoke only"
+    },
+    {
+      "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
+      "partition": "held-out",
+      "truth_type": "positive-detection-reference",
+      "flagshark_support": true,
+      "ai_baseline_support": true,
+      "comparable": true,
+      "reason": "positive MSR/Strudel detection compatibility task with pinned file set and external labels; known-positive hit-rate smoke only"
+    },
+    {
+      "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
+      "partition": "held-out",
+      "truth_type": "positive-detection-reference",
+      "flagshark_support": true,
+      "ai_baseline_support": true,
+      "comparable": true,
+      "reason": "positive MSR/Strudel detection compatibility task with pinned file set and external labels; known-positive hit-rate smoke only"
+    },
+    {
       "task_id": "held-out-provider-openfeature-flagd-001",
       "partition": "held-out",
       "truth_type": "provider-config-truth",
       "flagshark_support": false,
       "ai_baseline_support": true,
       "comparable": false,
-      "reason": "provider-config component task only; does not test FlagShark-vs-AI end-to-end transformation"
+      "reason": "provider-config reference task only; not a FlagShark-vs-AI end-to-end transformation comparison"
     },
     {
       "task_id": "held-out-provider-openfeature-goff-001",
@@ -28,14 +55,14 @@
       "flagshark_support": false,
       "ai_baseline_support": true,
       "comparable": false,
-      "reason": "provider-config component task only; does not test FlagShark-vs-AI end-to-end transformation"
+      "reason": "provider-config reference task only; not a FlagShark-vs-AI end-to-end transformation comparison"
     }
   ],
   "scorableTaskIds": [],
   "excludedTasks": [
     {
       "task_id": "held-out-transform-piranha-java-if-cleanup-001",
-      "reason": "excluded for speed and honesty; the bundle does not prove a runnable FlagShark transformation entrypoint with vendored rule/input files"
+      "reason": "excluded from held-out scoring because the bundle does not prove a pre-existing external annotation source or a runnable FlagShark transformation entrypoint; any post-hoc synthetic rewrite remains regression-only"
     }
   ]
 }

@@ -1,0 +1,25 @@
+{
+  "task_id": "held-out-detection-msr-strudel-opengever-activity",
+  "source": "msr-strudel-2020",
+  "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+  "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+  "task_type": "detection",
+  "partition": "held-out",
+  "language": "Python",
+  "provider": "feature-flag-presence/lifetime",
+  "files": [
+    "opengever/base/configuration.py",
+    "opengever/api/config.py"
+  ],
+  "config_files": [
+    "flagshark/benchmarks/held-out-protocol-v1/tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json"
+  ],
+  "ground_truth_refs": [
+    "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=4teamwork__opengever.core,flag=activity,last_hash=e035573bc9dc8756a31d4860cbb2307c58840897"
+  ],
+  "allowed_tools": [
+    "read",
+    "jq"
+  ],
+  "notes": "Project-level feature-flag presence/lifetime detection task derived from the MSR/Strudel corpus. Scope is detection and lifetime classification only; not exact safe retirement."
+}

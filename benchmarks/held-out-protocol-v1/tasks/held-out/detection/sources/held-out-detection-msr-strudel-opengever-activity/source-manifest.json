@@ -1,0 +1,21 @@
+{
+  "source": "msr-strudel-2020",
+  "record_id": 3712228,
+  "record_url": "https://zenodo.org/records/3712228",
+  "zip_md5": "60b7b976e76cd70379bd45db26b6a412",
+  "zip_sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+  "repo_url": "https://github.com/4teamwork/opengever.core",
+  "commit": "e035573bc9dc8756a31d4860cbb2307c58840897",
+  "files": [
+    {
+      "path": "opengever/base/configuration.py",
+      "url": "https://raw.githubusercontent.com/4teamwork/opengever.core/e035573bc9dc8756a31d4860cbb2307c58840897/opengever/base/configuration.py",
+      "sha256": "dc400ff06a61f791a734bfd67c5aae9717a9089725cd5c04f5115f7871d0fa29"
+    },
+    {
+      "path": "opengever/api/config.py",
+      "url": "https://raw.githubusercontent.com/4teamwork/opengever.core/e035573bc9dc8756a31d4860cbb2307c58840897/opengever/api/config.py",
+      "sha256": "939121c432b15711787ecb4b013f5a69b46a63d54058b6acdf4606324f889446"
+    }
+  ]
+}

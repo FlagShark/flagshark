@@ -1,0 +1,16 @@
+{
+  "source": "msr-strudel-2020",
+  "record_id": 3712228,
+  "record_url": "https://zenodo.org/records/3712228",
+  "zip_md5": "60b7b976e76cd70379bd45db26b6a412",
+  "zip_sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+  "repo_url": "https://github.com/cloudfoundry/cloud_controller_ng",
+  "commit": "8c9b41eac985c27467fe71ce493090d4537990b0",
+  "files": [
+    {
+      "path": "app/models/runtime/feature_flag.rb",
+      "url": "https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b0/app/models/runtime/feature_flag.rb",
+      "sha256": "503663f840d864bb521d23fe7457a4eb5b1c6697ea718235b74883b39fc5a6b2"
+    }
+  ]
+}

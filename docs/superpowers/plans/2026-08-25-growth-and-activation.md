@@ -225,10 +225,12 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
   - `ai-run-config.json`
   - `scorer-contract.md`
   - `tasks/dev/detection/internal-fixture-ts-001.json`
-  - `tasks/held-out/detection/msr-strudel-source-bundle.json`
-  - `tasks/held-out/detection/msr-strudel-digitalmarketplace-edit-service-page.json`
-  - `tasks/held-out/detection/msr-strudel-opengever-activity.json`
-  - `tasks/held-out/detection/msr-strudel-18f-identity-idp-pt-mode.json`
+  - `tasks/held-out/detection/held-out-detection-msr-strudel-cloudfoundry-user_org_creation.json`
+  - `tasks/held-out/detection/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page.json`
+  - `tasks/held-out/detection/held-out-detection-msr-strudel-opengever-activity.json`
+  - `tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json`
+  - `tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json`
+  - `tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json`
   - `tasks/held-out/provider/openfeature-flagd-001.json` — reference-only provider-config task
   - `tasks/held-out/provider/openfeature-goff-001.json` — reference-only provider-config task
   - `tasks/held-out/transformation/piranha-java-if-cleanup.json` — excluded/reference-only; not scoreable
@@ -237,8 +239,10 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - The manifest records checksums for the task rows and frozen fixtures.
 - The protocol is runnable only after these artifacts are generated, checksummed, and verified as frozen.
 - Do not run the AI comparison until the manifest and schemas are frozen and validated.
-- This bundle is `detection-comparable-ready` for the three MSR/Strudel detection tasks only; provider-config tasks are reference-only and no transformation tasks are scoreable.
+- This bundle is `positive-detection-smoke-only`; the three MSR/Strudel detection tasks are positive-detection compatibility/reference tasks only, provider-config tasks are reference-only, and no transformation tasks are scoreable.
+- A valid detection comparison still requires an independent exhaustive candidate/negative set and more projects, or external blinded labeling before seeing FlagShark outputs.
 - No AI comparison run has been executed, there is no comparative result, and there is no technical go/no-go decision.
+
 
 
 **Run manifest v1**

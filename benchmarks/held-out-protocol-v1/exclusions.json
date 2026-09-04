@@ -1,18 +1,32 @@
 {
   "excludedSources": [
     {
-      "sourceId": "msr-strudel-2020",
-      "reason": "not materialized into task-level OSS presence/lifetime labels from a pinned, independently downloadable corpus during this run"
-    },
-    {
       "sourceId": "customer-repos",
       "reason": "no customer-approved scope exists for this public protocol"
+    },
+    {
+      "sourceId": "any-undownloadable-or-unpinned-source",
+      "reason": "excluded rather than invented"
     }
   ],
   "excludedTaskTypes": [
     {
       "taskType": "provider-truth-from-public-production",
       "reason": "public provider truth is limited; the protocol does not claim safe-retirement or production truth"
+    },
+    {
+      "taskType": "transformation-held-out",
+      "reason": "held-out transformation tasks are excluded from this bundle; only positive detection compatibility/reference tasks are comparable"
+    },
+    {
+      "taskType": "precision-recall-detection",
+      "reason": "positive snippets alone do not establish precision or complete recall without an independent exhaustive candidate/negative set"
+    }
+  ],
+  "excludedTaskIds": [
+    {
+      "task_id": "held-out-transform-piranha-java-if-cleanup-001",
+      "reason": "no pre-existing external annotation source was materialized for a comparable held-out transformation task"
     }
   ]
 }

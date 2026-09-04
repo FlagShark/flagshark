@@ -6,15 +6,77 @@
   },
   "msr-strudel-2020": {
     "doi": "10.5281/zenodo.3712227",
-    "status": "excluded",
-    "reason": "task-level OSS presence/lifetime labels were not materialized from a pinned, independently downloadable corpus in this run"
+    "record": 3712228,
+    "record_url": "https://zenodo.org/records/3712228",
+    "file_name": "CMUSTRUDEL/Capture-The-Feature-Flag-V1.zip",
+    "file_id": "4b41f5f2-be69-4d37-85dc-ce9f74cc0206",
+    "md5": "60b7b976e76cd70379bd45db26b6a412",
+    "sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+    "status": "positive-detection-smoke-only"
   },
   "uber-piranha": {
     "repo": "https://github.com/uber/piranha",
-    "commit": "2c173203e61febd43ab75df277b978927f061f93"
+    "commit": "2c173203e61febd43ab75df277b978927f061f93",
+    "usage": "reference only"
   },
   "openfeature-playground": {
     "repo": "https://github.com/open-feature/playground",
-    "commit": "6ddba35e86678bf5150211c53e973f43ae47e706"
+    "commit": "6ddba35e86678bf5150211c53e973f43ae47e706",
+    "usage": "reference only"
+  },
+  "msr-strudel-2020-sources": {
+    "opengever": {
+      "source": "msr-strudel-2020",
+      "record_id": 3712228,
+      "record_url": "https://zenodo.org/records/3712228",
+      "zip_md5": "60b7b976e76cd70379bd45db26b6a412",
+      "zip_sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+      "repo_url": "https://github.com/4teamwork/opengever.core",
+      "commit": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "files": [
+        {
+          "path": "opengever/base/configuration.py",
+          "url": "https://raw.githubusercontent.com/4teamwork/opengever.core/e035573bc9dc8756a31d4860cbb2307c58840897/opengever/base/configuration.py",
+          "sha256": "dc400ff06a61f791a734bfd67c5aae9717a9089725cd5c04f5115f7871d0fa29"
+        },
+        {
+          "path": "opengever/api/config.py",
+          "url": "https://raw.githubusercontent.com/4teamwork/opengever.core/e035573bc9dc8756a31d4860cbb2307c58840897/opengever/api/config.py",
+          "sha256": "939121c432b15711787ecb4b013f5a69b46a63d54058b6acdf4606324f889446"
+        }
+      ]
+    },
+    "digitalmarketplace": {
+      "source": "msr-strudel-2020",
+      "record_id": 3712228,
+      "record_url": "https://zenodo.org/records/3712228",
+      "zip_md5": "60b7b976e76cd70379bd45db26b6a412",
+      "zip_sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+      "repo_url": "https://github.com/alphagov/digitalmarketplace-supplier-frontend",
+      "commit": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "files": [
+        {
+          "path": "config.py",
+          "url": "https://raw.githubusercontent.com/alphagov/digitalmarketplace-supplier-frontend/03f05626295ce114624edd9c1ac86da46ddeebe6/config.py",
+          "sha256": "d1cae7c6515bcbdd962131c31b96571564918b2a4e5ddb8e7905882897bec4aa"
+        }
+      ]
+    },
+    "cloudfoundry": {
+      "source": "msr-strudel-2020",
+      "record_id": 3712228,
+      "record_url": "https://zenodo.org/records/3712228",
+      "zip_md5": "60b7b976e76cd70379bd45db26b6a412",
+      "zip_sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c",
+      "repo_url": "https://github.com/cloudfoundry/cloud_controller_ng",
+      "commit": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "files": [
+        {
+          "path": "app/models/runtime/feature_flag.rb",
+          "url": "https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b0/app/models/runtime/feature_flag.rb",
+          "sha256": "503663f840d864bb521d23fe7457a4eb5b1c6697ea718235b74883b39fc5a6b2"
+        }
+      ]
+    }
   }
 }

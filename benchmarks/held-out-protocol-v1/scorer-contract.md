@@ -15,7 +15,9 @@ This benchmark is runnable only after the manifest and schemas are frozen and ve
 
 - A project or commit may belong to development or held-out, never both.
 - Shared snapshots leak wrappers, conventions, and goldens.
+- Held-out scoring requires pre-existing, externally versioned public repository files or annotations, or an independent dataset created before FlagShark implementation.
 - If a source or task cannot be independently pinned, it is excluded rather than inferred.
+
 
 ## Scoring by task type
 

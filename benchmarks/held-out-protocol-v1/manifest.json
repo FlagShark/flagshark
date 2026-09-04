@@ -1,34 +1,52 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.3.1",
-  "status": "protocol-ready-but-no-comparable-task",
+  "version": "1.5.1",
+  "status": "positive-detection-smoke-only",
   "generatedAt": "2026-09-04",
   "artifactDir": "benchmarks/held-out-protocol-v1",
   "artifactChecksums": {
-    "source-revisions.json": "aca8405fabe6d773e1ac02776706fdd68d0108dba1c436bc921df825b7390169",
-    "exclusions.json": "58343553fbb6192c7055116feadffd88d25f66b066eceba9b4d00eab6ba60b47",
-    "capability-matrix.json": "5c6de285653c187bfefae1c32c60f785851716e3e0a664b65df1029ca55cfa81",
+    "source-revisions.json": "8a2778bb145626af5a39525837e677f10d46c122d958ad8fe608d8f5342425ef",
+    "exclusions.json": "5dffb1da04259e9d22597b23cf8e216ede8e01b113da7e45c57931b1030bfb55",
+    "capability-matrix.json": "0d4b858d2428ddb82ba74a90b9a2761a4fb5a8768c25d5c722984e1df7189919",
+    "source-truth-index.md": "ffd7dd4bb9efc653af2d560a3cbb8ccad85ea856a02a137c220e363c7dbc6481",
     "tasks/dev/detection/internal-fixture-ts-001.json": "8f37cbd1b6ac1c833fbefa58bc34d5800922ac5c48baa814f7c47acbedca976a",
+    "tasks/held-out/detection/held-out-detection-msr-strudel-cloudfoundry-user_org_creation.json": "40d64b57f7b014ba7d978b59fafb0a6308c0a016ca8e538114d4edc92c9c71a1",
+    "tasks/held-out/detection/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page.json": "f7ffb1eb8e269debd3e21166beb1742fa414adce1a5077b922ff08be0431f099",
+    "tasks/held-out/detection/held-out-detection-msr-strudel-opengever-activity.json": "35c022b39b7c61ce04b05462a159661829936ec8a1fb18e6142979b8da3c627f",
+    "tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json": "00bee36796a77f9b8995e94f19347962016b965270257ffc55ed04767cd9e92a",
+    "tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json": "c454f71585e26451947d6f4a796231035a2f1b508ac14b914370ce1d85ce5671",
+    "tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json": "6d67ee85b27b0e982e76bdc14f3e683b46557a0aceaa34e613273e5caa0fe191",
     "tasks/held-out/provider/openfeature-flagd-001.json": "3fb77b985d227f6cd77e8c74022ff35c6cb5807959c85c8042dc71376a74cddb",
-    "tasks/held-out/provider/openfeature-goff-001.json": "d42349430071ca6e53afa93d17931b668f44e796f789b29ff900a198ccb777f0",
-    "tasks/held-out/transform/piranha-java-if-cleanup/input.java": "e57f56eb5953e91e2ded2541d29b9dd2070aa427e943442dd7d37168c73f0ad5",
-    "tasks/held-out/transform/piranha-java-if-cleanup/expected.java": "19744c3429a1a548ab9b4cdf2215afb356d8e94e57d3af9ebaf11415abb2b499"
+    "tasks/held-out/provider/openfeature-goff-001.json": "d42349430071ca6e53afa93d17931b668f44e796f789b29ff900a198ccb777f0"
   },
   "protocol": {
     "partition": {
       "type": "project-level",
       "devHeldOutOverlap": false,
-      "devUse": ["tuning rules", "prompt wording", "runner glue", "scoring thresholds"],
-      "heldOutUse": ["reference tasks only; no comparable scoreable tasks selected"],
+      "devUse": [
+        "tuning rules",
+        "prompt wording",
+        "runner glue",
+        "scoring thresholds"
+      ],
+      "heldOutUse": [
+        "positive detection compatibility/reference only; provider-config reference-only; transformation excluded"
+      ],
       "rescorePolicy": "only when runner code or evaluation schema changes; version increments and prior scores remain archived"
     },
-    "taskTypes": ["detection", "provider-config", "transformation"],
+    "taskTypes": [
+      "detection",
+      "provider-config",
+      "transformation"
+    ],
     "publicConclusionLimits": [
-      "public provider truth is limited",
-      "no customer conclusion follows",
-      "no market or willingness-to-pay conclusion follows",
-      "no production provider safe-retirement proof is claimed"
+      "known-positive hit rate only",
+      "no precision",
+      "no complete recall",
+      "no safe-retirement",
+      "no production-provider truth claim",
+      "no customer or market inference"
     ]
   },
   "sources": [
@@ -46,21 +64,26 @@
     {
       "sourceId": "msr-strudel-2020",
       "kind": "public-dataset",
-      "purpose": "OSS feature-flag presence/lifetime truth only",
+      "purpose": "positive detection compatibility/reference only",
       "doi": "10.5281/zenodo.3712227",
-      "zenodoRecord": "https://zenodo.org/records/3712227",
-      "paper": "Capture the Feature Flag: Detecting Feature Flags in Open-Source (MSR 2020)",
-      "pin": {
-        "datasetVersion": "Zenodo record 3712227"
+      "zenodoRecord": "https://zenodo.org/records/3712228",
+      "file": {
+        "name": "CMUSTRUDEL/Capture-The-Feature-Flag-V1.zip",
+        "id": "4b41f5f2-be69-4d37-85dc-ce9f74cc0206",
+        "downloadUrl": "https://zenodo.org/api/records/3712228/files/CMUSTRUDEL/Capture-The-Feature-Flag-V1.zip/content",
+        "md5": "60b7b976e76cd70379bd45db26b6a412",
+        "sha256": "bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c"
       },
-      "status": "excluded",
-      "exclusionReason": "task-level OSS presence/lifetime labels were not materialized from a pinned, independently downloadable corpus in this run",
-      "checksumPolicy": "record archive checksum if the dataset is downloaded into the evaluation workspace"
+      "pin": {
+        "datasetVersion": "Zenodo record 3712228"
+      },
+      "status": "positive-detection-smoke-only",
+      "checksumPolicy": "record archive checksum and task-row refs in the workspace"
     },
     {
       "sourceId": "uber-piranha",
       "kind": "public-corpus",
-      "purpose": "transformation expectations only",
+      "purpose": "transformation excluded",
       "repo": "https://github.com/uber/piranha",
       "pin": {
         "commit": "2c173203e61febd43ab75df277b978927f061f93"
@@ -70,7 +93,7 @@
     {
       "sourceId": "openfeature-playground",
       "kind": "public-corpus",
-      "purpose": "checked-in provider-config truth only",
+      "purpose": "checked-in provider-config reference only",
       "repo": "https://github.com/open-feature/playground",
       "pin": {
         "commit": "6ddba35e86678bf5150211c53e973f43ae47e706"
@@ -81,7 +104,8 @@
   "exclusions": {
     "customerRepos": "no customer-approved scope exists for this public protocol",
     "undownloadableOrUnpinnedSources": "excluded rather than invented",
-    "productionProviderTruth": "public provider truth is limited; safe-retirement proof is not claimed"
+    "productionProviderTruth": "public provider truth is limited; safe-retirement proof is not claimed",
+    "precisionRecallDetection": "requires an independent exhaustive candidate/negative set and/or external blinded labeling before any FlagShark outputs are seen"
   },
   "capabilityMatrix": "capability-matrix.json",
   "tasks": [
@@ -94,11 +118,94 @@
       "partition": "dev",
       "language": "typescript",
       "provider": "launchdarkly-node-server-sdk",
-      "files": ["packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/positive/single-line.ts"],
-      "config_files": ["packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json"],
-      "ground_truth_refs": ["packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json#positive/single-line.ts"],
-      "allowed_tools": ["read", "grep", "jq"],
+      "files": [
+        "packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/positive/single-line.ts"
+      ],
+      "config_files": [
+        "packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json"
+      ],
+      "ground_truth_refs": [
+        "packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json#positive/single-line.ts"
+      ],
+      "allowed_tools": [
+        "read",
+        "grep",
+        "jq"
+      ],
       "notes": "Development-only regression fixture; may be inspected repeatedly for tuning, but is excluded from held-out scoring."
+    },
+    {
+      "task_id": "held-out-detection-msr-strudel-opengever-activity",
+      "source": "msr-strudel-2020",
+      "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+      "task_type": "detection",
+      "partition": "held-out",
+      "language": "Python",
+      "provider": "feature-flag-presence/lifetime",
+      "files": [
+        "opengever/base/configuration.py",
+        "opengever/api/config.py"
+      ],
+      "config_files": [
+        "tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json"
+      ],
+      "ground_truth_refs": [
+        "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=4teamwork__opengever.core,flag=activity,last_hash=e035573bc9dc8756a31d4860cbb2307c58840897"
+      ],
+      "allowed_tools": [
+        "read",
+        "jq"
+      ],
+      "notes": "Positive-detection compatibility task derived from the MSR/Strudel corpus. Known-positive hit rate only; no precision, no complete recall, no safe-retirement claim."
+    },
+    {
+      "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
+      "source": "msr-strudel-2020",
+      "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "task_type": "detection",
+      "partition": "held-out",
+      "language": "Python",
+      "provider": "feature-flag-presence/lifetime",
+      "files": [
+        "config.py"
+      ],
+      "config_files": [
+        "tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json"
+      ],
+      "ground_truth_refs": [
+        "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=alphagov__digitalmarketplace-supplier-frontend,flag=EDIT_SERVICE_PAGE,last_hash=03f05626295ce114624edd9c1ac86da46ddeebe6"
+      ],
+      "allowed_tools": [
+        "read",
+        "jq"
+      ],
+      "notes": "Positive-detection compatibility task derived from the MSR/Strudel corpus. Known-positive hit rate only; no precision, no complete recall, no safe-retirement claim."
+    },
+    {
+      "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
+      "source": "msr-strudel-2020",
+      "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+      "task_type": "detection",
+      "partition": "held-out",
+      "language": "Ruby",
+      "provider": "feature-flag-presence/lifetime",
+      "files": [
+        "app/models/runtime/feature_flag.rb"
+      ],
+      "config_files": [
+        "tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json"
+      ],
+      "ground_truth_refs": [
+        "zenodo:3712228#Preliminary-Study/featureflags.csv:slug=cloudfoundry__cloud_controller_ng,flag=user_org_creation,last_hash=8c9b41eac985c27467fe71ce493090d4537990b0"
+      ],
+      "allowed_tools": [
+        "read",
+        "jq"
+      ],
+      "notes": "Positive-detection compatibility task derived from the MSR/Strudel corpus. Known-positive hit rate only; no precision, no complete recall, no safe-retirement claim."
     },
     {
       "task_id": "held-out-provider-openfeature-flagd-001",
@@ -108,16 +215,23 @@
       "task_type": "provider-config",
       "partition": "held-out",
       "provider": "openfeature-flagd",
-      "files": ["config/flagd/flags.json"],
-      "config_files": ["config/flagd/flags.json"],
+      "files": [
+        "config/flagd/flags.json"
+      ],
+      "config_files": [
+        "config/flagd/flags.json"
+      ],
       "ground_truth_refs": [
         "config/flagd/flags.json#flags.new-welcome-message",
         "config/flagd/flags.json#flags.hex-color",
         "config/flagd/flags.json#flags.use-remote-fib-service",
         "config/flagd/flags.json#flags.fib-algo"
       ],
-      "allowed_tools": ["read", "jq"],
-      "notes": "Held-out provider-config reference task pinned to the checked-in playground config. Not comparable to FlagShark end-to-end feature-flag transformation because FlagShark does not extract provider configs from these files in this bundle."
+      "allowed_tools": [
+        "read",
+        "jq"
+      ],
+      "notes": "Reference-only provider-config task; no production-provider truth, no safe-retirement claim."
     },
     {
       "task_id": "held-out-provider-openfeature-goff-001",
@@ -127,22 +241,29 @@
       "task_type": "provider-config",
       "partition": "held-out",
       "provider": "go-feature-flag",
-      "files": ["config/go-feature-flag/flags.yaml"],
-      "config_files": ["config/go-feature-flag/flags.yaml"],
+      "files": [
+        "config/go-feature-flag/flags.yaml"
+      ],
+      "config_files": [
+        "config/go-feature-flag/flags.yaml"
+      ],
       "ground_truth_refs": [
         "config/go-feature-flag/flags.yaml#new-welcome-message",
         "config/go-feature-flag/flags.yaml#hex-color",
         "config/go-feature-flag/flags.yaml#use-remote-fib-service",
         "config/go-feature-flag/flags.yaml#fib-algo"
       ],
-      "allowed_tools": ["read", "jq"],
-      "notes": "Held-out provider-config reference task pinned to the checked-in playground config. Not comparable to FlagShark end-to-end feature-flag transformation because the file is provider-state truth, not code-removal evidence."
+      "allowed_tools": [
+        "read",
+        "jq"
+      ],
+      "notes": "Reference-only provider-config task; no production-provider truth, no safe-retirement claim."
     }
   ],
   "excludedTasks": [
     {
       "task_id": "held-out-transform-piranha-java-if-cleanup-001",
-      "reason": "excluded for speed and honesty; the bundle does not prove a runnable FlagShark transformation entrypoint with vendored rule/input files"
+      "reason": "excluded from held-out scoring because the bundle does not prove a pre-existing external annotation source or a runnable FlagShark transformation entrypoint; any post-hoc synthetic rewrite remains regression-only"
     }
   ]
 }
