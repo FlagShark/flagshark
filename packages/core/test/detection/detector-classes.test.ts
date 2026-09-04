@@ -283,6 +283,8 @@ describe('config-style feature-flag detection', () => {
   it('detects Ruby DEFAULT_FLAGS symbol keys with medium confidence and preserves declaration line numbers', () => {
     const d = new RubyDetector()
     const src = [
+      ``,
+      ``,
       `DEFAULT_FLAGS = {`,
       `  user_org_creation: false,`,
       `  private_domain_creation: true,`,
@@ -300,7 +302,7 @@ describe('config-style feature-flag detection', () => {
         ['user_org_creation', 'medium', 'ruby-config'],
       ].sort(),
     )
-    expect(user?.lineNumber).toBe(1)
-    expect(privateDomain?.lineNumber).toBe(1)
+    expect(user?.lineNumber).toBe(3)
+    expect(privateDomain?.lineNumber).toBe(3)
   })
 })
