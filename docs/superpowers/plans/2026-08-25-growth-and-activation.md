@@ -25,6 +25,12 @@
 
 ## Customer evidence gate: prove FlagShark beats AI-assisted DIY on safe feature-flag transformation
 
+**Owner:** Joseph Daniel McGrath (founder)
+
+**Decision date:** 2026-09-24
+
+**Decision:** Go / no-go on substantial hosted-product expansion
+
 Before any substantial SaaS rebuild, product expansion, or “AI can do this now” repositioning, FlagShark must clear a customer-approved evidence gate.
 
 ### What this gate is for
@@ -32,6 +38,7 @@ Before any substantial SaaS rebuild, product expansion, or “AI can do this now
 - Determine whether FlagShark is actually better than an AI-assisted DIY workflow on **safe feature-flag transformation**.
 - Treat the synthetic benchmark and the hand-written enumerator benchmark as **tool-behavior smoke only**. They prove the implementation runs; they do **not** establish market validation.
 - Require evidence from **customer-approved repos** with independently verifiable flag/provider ground truth.
+- Customer-approved pilot-repository selection remains blocked until written consent, named owners, provider access/ground truth, and permissions are obtained. Public, demo, and synthetic repos cannot substitute.
 
 ### Required experimental design
 
@@ -41,9 +48,11 @@ Before any substantial SaaS rebuild, product expansion, or “AI can do this now
 - Measure end-to-end **time, cost, effort, unsafe changes, and verification outcomes**.
 - Let the signed pilot/customer define success thresholds from repo complexity and risk tolerance; do **not** hardcode fixed percentage or speed targets into the gate.
 - Compare FlagShark’s implemented system against the baseline on the same work, not against a strawman.
+
 ### Decision rules
 
 - This gate must end in a **commercial commitment** before FlagShark expands the hosted product materially.
+- The decision date is hard: unless customer-approved evidence exists by 2026-09-24, the gate remains **no-go** for substantial hosted-product expansion.
 - If FlagShark does **not** beat the AI-assisted DIY baseline on safe transformation, customer trust, or operational burden, do **not** proceed as if the platform has a durable advantage.
 - If the result is only “good scanner” parity, that is not enough.
 
@@ -80,11 +89,14 @@ This gate is the pre-rebuild decision gate. It must be passed before the plan pr
 | P2 | Retention and governance | Self | Make the product recur after first cleanup | Workspaces return for scheduled health/cleanup workflows |
 | P3 | Larger platform additions | Self | Expand only after evidence supports them | Activation and paid retention gates pass |
 
-Do not start P2/P3 engineering until P0 is complete and the P1 validation gate has either passed or produced a documented product decision.
+Do not start P1/P2/P3 hosted-product engineering until the customer evidence gate is satisfied or a documented product decision says the hosted expansion is no-go.
+
+P0 reliability, security, deployment-health, and trust-repair work may continue regardless of the evidence gate. P1 onboarding/design-partner work may also continue only when it is part of the minimum path needed to restore and validate the funnel, not as a step toward hosted expansion.
 
 ---
 
 ## File Structure
+
 
 ### Existing files to modify
 
