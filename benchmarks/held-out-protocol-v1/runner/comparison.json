@@ -455,7 +455,7 @@
           {
             "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-            "lineNumber": 66,
+            "lineNumber": 67,
             "language": "python",
             "provider": "python-config",
             "confidence": "medium"
@@ -501,18 +501,16 @@
         ],
         "cost_usd": 0
       },
-      "overlap": [],
-      "location_uncertain": [],
-      "location_mismatches": [
+      "overlap": [
         {
           "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
           "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-          "scannerLineNumber": 66,
-          "aiLineNumber": 67,
-          "aiLineStart": 67,
-          "aiLineEnd": 67
+          "lineNumber": 67,
+          "lineKnown": true
         }
       ],
+      "location_uncertain": [],
+      "location_mismatches": [],
       "scanner_only": [],
       "ai_only": [
         {
@@ -539,7 +537,7 @@
           {
             "name": "private_domain_creation",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 6,
+            "lineNumber": 7,
             "language": "ruby",
             "provider": "ruby-config",
             "confidence": "medium"
@@ -547,7 +545,7 @@
           {
             "name": "user_org_creation",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 6,
+            "lineNumber": 7,
             "language": "ruby",
             "provider": "ruby-config",
             "confidence": "medium"
@@ -603,23 +601,22 @@
         "abstentions": [],
         "cost_usd": 0
       },
-      "overlap": [],
+      "overlap": [
+        {
+          "name": "user_org_creation",
+          "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
+          "lineNumber": 7,
+          "lineKnown": true
+        }
+      ],
       "location_uncertain": [],
       "location_mismatches": [
         {
           "name": "private_domain_creation",
           "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-          "scannerLineNumber": 6,
+          "scannerLineNumber": 7,
           "aiLineNumber": 8,
           "aiLineStart": 8,
-          "aiLineEnd": 10
-        },
-        {
-          "name": "user_org_creation",
-          "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-          "scannerLineNumber": 6,
-          "aiLineNumber": 7,
-          "aiLineStart": 7,
           "aiLineEnd": 10
         }
       ],
