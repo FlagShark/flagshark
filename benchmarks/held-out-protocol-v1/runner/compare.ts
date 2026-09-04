@@ -45,10 +45,12 @@ interface PredictedFlag {
 interface PredictedProviderState {
   task_partition?: string
   source?: string
-  task_source?: string
   source_revision?: string
-  task_source_revision?: string
   repo_snapshot_id?: string
+  model: string
+  provider: string
+  model_version: string
+  prompt_hash: string
   source_manifest: string
   source_root: string
 }
@@ -288,6 +290,7 @@ function validateValidRun(status: AiRunStatus, config: AiRunConfig, manifest: Be
   if (!compareStringArray([...expectedDevDetectionIds].sort(), [...aiTaskIds].sort())) return 'normalized task set does not match dev msr detection manifest set'
   if (!Array.isArray(provenance.tasks) || provenance.tasks.length !== expectedDevDetectionIds.length) return 'status provenance must include per-task records'
   const provenanceByTaskId = new Map(provenance.tasks.map((record) => [record.task_id, record]))
+  if (!compareStringArray([...expectedDevDetectionIds].sort(), [...provenanceByTaskId.keys()].sort())) return 'status provenance task_id set must exactly match dev msr detection manifest set'
 
   for (const scannerTask of scannerResults) {
     if (scannerTask.exit_code !== 0) return `scanner task ${scannerTask.task_id} exit_code must be 0`
@@ -304,7 +307,7 @@ function validateValidRun(status: AiRunStatus, config: AiRunConfig, manifest: Be
     if (!record) return `status provenance missing task record for ${expectedTask.task_id}`
     if (record.model !== config.model || record.provider !== config.provider || record.model_version !== config.model_version) return `status provenance model/provider/version mismatch for ${expectedTask.task_id}`
     if (!isIsoLikeDate(record.date)) return `status provenance date must be ISO-like for ${expectedTask.task_id}`
-    if (!compareStringArray(record.tool_versions ? [record.tool_versions.comparator, record.tool_versions.cli] : [], [config.tool_versions.comparator, config.tool_versions.cli])) return `status provenance tool version mismatch for ${expectedTask.task_id}`
+    if (!compareStringArray([record.tool_versions.comparator, record.tool_versions.cli], [config.tool_versions.comparator, config.tool_versions.cli])) return `status provenance tool version mismatch for ${expectedTask.task_id}`
     if (record.snapshot_id !== expectedTask.repo_snapshot_id) return `status provenance snapshot_id mismatch for ${expectedTask.task_id}`
     if (record.prompt !== config.prompt || record.prompt_template !== config.prompt_template || record.prompt_hash !== config.prompt_hash) return `status provenance prompt mismatch for ${expectedTask.task_id}`
     if (record.output_schema_version !== config.output_schema_version) return `status provenance output schema version mismatch for ${expectedTask.task_id}`
@@ -330,7 +333,10 @@ function validateValidRun(status: AiRunStatus, config: AiRunConfig, manifest: Be
     if (task.config_files[0] !== `tasks/dev/detection/sources/${task.task_id}/source-manifest.json`) return `manifest task ${row.task_id} has unexpected config file`
 
     const providerState = row.predicted_provider_state
-    if (providerState.task_partition !== task.partition || providerState.source !== task.source || providerState.source_revision !== task.source_revision || providerState.repo_snapshot_id !== task.repo_snapshot_id) return `provider state mismatch for ${row.task_id}`
+    const provenanceRecord = provenanceByTaskId.get(row.task_id)
+    if (!provenanceRecord) return `status provenance missing task record for ${row.task_id}`
+    if (providerState.task_partition !== task.partition || providerState.source !== task.source || providerState.source_revision !== task.source_revision || providerState.repo_snapshot_id !== provenanceRecord.snapshot_id) return `provider state mismatch for ${row.task_id}`
+    if (providerState.model !== provenanceRecord.model || providerState.provider !== provenanceRecord.provider || providerState.model_version !== provenanceRecord.model_version || providerState.prompt_hash !== provenanceRecord.prompt_hash) return `provider model provenance mismatch for ${row.task_id}`
     if (providerState.source_manifest !== task.config_files[0]) return `provider manifest mismatch for ${row.task_id}`
     if (providerState.source_root !== `tasks/dev/detection/sources/${task.task_id}`) return `provider source root mismatch for ${row.task_id}`
 
@@ -437,4 +443,4 @@ export function writeComparisonResult(outputPath: string): ComparisonResult {
   return result
 }
 
-if (process.argv[1] && process.argv[1].endsWith('compare.ts')) writeComparisonResult(resolve(benchmarkRoot, 'runner/comparison.json'))
+if (import.meta.main) writeComparisonResult(resolve(benchmarkRoot, 'runner/comparison.json'))

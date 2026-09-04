@@ -42,7 +42,7 @@ const validAiResults = devDetectionTasks.map((task) => ({
   validation_commands: ['completion(prompt, \'default\', ...)'],
   validation_results: [],
   predicted_flags: [{ name: task.task_id === 'dev-detection-msr-strudel-cloudfoundry-user_org_creation' ? 'user_org_creation' : task.task_id === 'dev-detection-msr-strudel-digitalmarketplace-edit-service-page' ? 'EDIT_SERVICE_PAGE' : 'activity', location: `${task.files[0]}:7-10`, classification: 'safe', evidence_citations: ['fixture'] }],
-  predicted_provider_state: { task_partition: 'dev', source: 'msr-strudel-2020', source_revision: task.source_revision, repo_snapshot_id: task.repo_snapshot_id, source_manifest: task.config_files[0], source_root: `tasks/dev/detection/sources/${task.task_id}` },
+  predicted_provider_state: { task_partition: 'dev', source: 'msr-strudel-2020', source_revision: task.source_revision, repo_snapshot_id: task.repo_snapshot_id, model: config.model, provider: config.provider, model_version: config.model_version, prompt_hash: config.prompt_hash, source_manifest: task.config_files[0], source_root: `tasks/dev/detection/sources/${task.task_id}` },
   abstentions: [],
 }))
 const invalidAiResults = validAiResults.map((row) => ({ ...row, predicted_provider_state: row.predicted_provider_state ? { ...row.predicted_provider_state, source_root: `${row.predicted_provider_state.source_root}-placeholder` } : row.predicted_provider_state }))
@@ -68,6 +68,8 @@ test('comparison validates a provenance-complete valid run and rejects mutated p
   expect(compareResults(scannerResults as never, validAiResults as never, mutatedPrompt as never).status_reason).toContain('prompt mismatch')
   const mutatedSourceRoot = validAiResults.map((row) => row.task_id === 'dev-detection-msr-strudel-cloudfoundry-user_org_creation' ? { ...row, predicted_provider_state: { ...row.predicted_provider_state!, source_root: 'tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation-bad' } } : row)
   expect(compareResults(scannerResults as never, mutatedSourceRoot as never, validStatus as never).status_reason).toContain('scanner provider state mismatch')
+  const mutatedSnapshot = validAiResults.map((row) => row.task_id === 'dev-detection-msr-strudel-opengever-activity' ? { ...row, predicted_provider_state: { ...row.predicted_provider_state!, repo_snapshot_id: `${row.predicted_provider_state!.repo_snapshot_id}-bad` } } : row)
+  expect(compareResults(scannerResults as never, mutatedSnapshot as never, validStatus as never).status_reason).toContain('provider state mismatch for dev-detection-msr-strudel-opengever-activity')
   const mutatedScanner = scannerResults.map((row) => row.task_id === 'dev-detection-msr-strudel-opengever-activity' ? { ...row, source_root: `${row.source_root}-bad` } : row)
   expect(compareResults(mutatedScanner as never, validAiResults as never, validStatus as never).status_reason).toContain('scanner provider state mismatch for dev-detection-msr-strudel-opengever-activity')
 })
