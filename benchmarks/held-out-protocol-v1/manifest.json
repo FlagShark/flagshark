@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.1.0",
-  "status": "frozen-artifacts-ready",
+  "version": "1.3.1",
+  "status": "protocol-ready-but-no-comparable-task",
   "generatedAt": "2026-09-04",
   "artifactDir": "benchmarks/held-out-protocol-v1",
   "artifactChecksums": {
     "source-revisions.json": "aca8405fabe6d773e1ac02776706fdd68d0108dba1c436bc921df825b7390169",
     "exclusions.json": "58343553fbb6192c7055116feadffd88d25f66b066eceba9b4d00eab6ba60b47",
+    "capability-matrix.json": "5c6de285653c187bfefae1c32c60f785851716e3e0a664b65df1029ca55cfa81",
     "tasks/dev/detection/internal-fixture-ts-001.json": "8f37cbd1b6ac1c833fbefa58bc34d5800922ac5c48baa814f7c47acbedca976a",
     "tasks/held-out/provider/openfeature-flagd-001.json": "3fb77b985d227f6cd77e8c74022ff35c6cb5807959c85c8042dc71376a74cddb",
     "tasks/held-out/provider/openfeature-goff-001.json": "d42349430071ca6e53afa93d17931b668f44e796f789b29ff900a198ccb777f0",
-    "tasks/held-out/transformation/piranha-java-if-cleanup.json": "38c8f444dfc98b602c08c3df85d1bb25e7cd27b1b07cd43bb31acd48921e9b75",
     "tasks/held-out/transform/piranha-java-if-cleanup/input.java": "e57f56eb5953e91e2ded2541d29b9dd2070aa427e943442dd7d37168c73f0ad5",
     "tasks/held-out/transform/piranha-java-if-cleanup/expected.java": "19744c3429a1a548ab9b4cdf2215afb356d8e94e57d3af9ebaf11415abb2b499"
   },
@@ -20,7 +20,7 @@
       "type": "project-level",
       "devHeldOutOverlap": false,
       "devUse": ["tuning rules", "prompt wording", "runner glue", "scoring thresholds"],
-      "heldOutUse": ["single scored run per frozen runner/schema version"],
+      "heldOutUse": ["reference tasks only; no comparable scoreable tasks selected"],
       "rescorePolicy": "only when runner code or evaluation schema changes; version increments and prior scores remain archived"
     },
     "taskTypes": ["detection", "provider-config", "transformation"],
@@ -83,6 +83,7 @@
     "undownloadableOrUnpinnedSources": "excluded rather than invented",
     "productionProviderTruth": "public provider truth is limited; safe-retirement proof is not claimed"
   },
+  "capabilityMatrix": "capability-matrix.json",
   "tasks": [
     {
       "task_id": "dev-detection-internal-fixture-ts-001",
@@ -116,7 +117,7 @@
         "config/flagd/flags.json#flags.fib-algo"
       ],
       "allowed_tools": ["read", "jq"],
-      "notes": "Held-out provider-config task pinned to the checked-in playground config. Truth is the exact enabled/defaultVariant/targeting state in the frozen config tree."
+      "notes": "Held-out provider-config reference task pinned to the checked-in playground config. Not comparable to FlagShark end-to-end feature-flag transformation because FlagShark does not extract provider configs from these files in this bundle."
     },
     {
       "task_id": "held-out-provider-openfeature-goff-001",
@@ -135,28 +136,13 @@
         "config/go-feature-flag/flags.yaml#fib-algo"
       ],
       "allowed_tools": ["read", "jq"],
-      "notes": "Held-out provider-config task pinned to the checked-in playground config. Truth is the exact flag values and rollout settings in the frozen config tree."
-    },
+      "notes": "Held-out provider-config reference task pinned to the checked-in playground config. Not comparable to FlagShark end-to-end feature-flag transformation because the file is provider-state truth, not code-removal evidence."
+    }
+  ],
+  "excludedTasks": [
     {
       "task_id": "held-out-transform-piranha-java-if-cleanup-001",
-      "source": "uber-piranha",
-      "source_revision": "2c173203e61febd43ab75df277b978927f061f93",
-      "repo_snapshot_id": "uber/piranha@2c173203e61febd43ab75df277b978927f061f93",
-      "task_type": "transformation",
-      "partition": "held-out",
-      "language": "java",
-      "provider": "piranha-java-rules",
-      "files": ["tasks/held-out/transform/piranha-java-if-cleanup/input.java"],
-      "config_files": ["crates/core/src/cleanup_rules/java/rules.toml", "crates/core/src/cleanup_rules/java/scope_config.toml"],
-      "ground_truth_refs": [
-        "crates/core/src/cleanup_rules/java/rules.toml#simplify_if_statement_true",
-        "crates/core/src/cleanup_rules/java/rules.toml#simplify_if_statement_false",
-        "crates/core/src/cleanup_rules/java/scope_config.toml#Method",
-        "crates/core/src/cleanup_rules/java/scope_config.toml#Class",
-        "tasks/held-out/transform/piranha-java-if-cleanup/expected.java"
-      ],
-      "allowed_tools": ["read", "jq"],
-      "notes": "Held-out transformation task uses the pinned Piranha Java cleanup rules as the expectation source. The input fixture is frozen in the benchmark bundle; the expected output is the exact safe rewrite for the selected rules."
+      "reason": "excluded for speed and honesty; the bundle does not prove a runnable FlagShark transformation entrypoint with vendored rule/input files"
     }
   ]
 }

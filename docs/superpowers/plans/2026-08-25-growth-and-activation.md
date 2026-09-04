@@ -232,6 +232,7 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - The manifest records checksums for the task rows and frozen fixtures.
 - The protocol is runnable only after these artifacts are generated, checksummed, and verified as frozen.
 - Do not run the AI comparison until the manifest and schemas are frozen and validated.
+- This bundle is `protocol-ready-but-no-comparable-task`: the held-out tasks are reference-only and are not scored as FlagShark-vs-AI end-to-end transformation evidence.
 
 **Run manifest v1**
 
