@@ -16,28 +16,28 @@
       "task_id": "held-out-detection-msr-strudel-opengever-activity",
       "partition": "held-out",
       "truth_type": "positive-detection-reference",
-      "flagshark_support": true,
+      "flagshark_support": false,
       "ai_baseline_support": true,
       "comparable": false,
-      "reason": "FlagShark CLI 2.8.0 executed but detected 0 flags on this externally annotated positive task; failed known-positive compatibility smoke"
+      "reason": "annotated construct is registry-based feature gating (`api.portal.get_registry_record(...)`), while supported Python detector semantics are SDK/provider import-gated call extraction"
     },
     {
       "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
       "partition": "held-out",
       "truth_type": "positive-detection-reference",
-      "flagshark_support": true,
+      "flagshark_support": false,
       "ai_baseline_support": true,
       "comparable": false,
-      "reason": "FlagShark CLI 2.8.0 executed but detected 0 flags on this externally annotated positive task; failed known-positive compatibility smoke"
+      "reason": "annotated construct is `enabled_since(...)` config gating, while supported Python detector semantics are SDK/provider import-gated call extraction"
     },
     {
       "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
       "partition": "held-out",
       "truth_type": "positive-detection-reference",
-      "flagshark_support": true,
+      "flagshark_support": false,
       "ai_baseline_support": true,
       "comparable": false,
-      "reason": "FlagShark CLI 2.8.0 executed but detected 0 flags on this externally annotated positive task; failed known-positive compatibility smoke"
+      "reason": "annotated construct is model-level feature flag gating (`FeatureFlag.enabled?` / `raise_unless_enabled!`), while supported Ruby detector semantics are SDK/provider import-gated call extraction"
     },
     {
       "task_id": "held-out-provider-openfeature-flagd-001",

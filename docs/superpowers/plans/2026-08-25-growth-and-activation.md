@@ -240,7 +240,7 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - The protocol is runnable only after these artifacts are generated, checksummed, and verified as frozen.
 - Do not run the AI comparison until the manifest and schemas are frozen and validated.
 - This bundle is `failed-positive-detection-smoke`; FlagShark CLI 2.8.0 executed successfully on the three pinned MSR tasks but detected 0 flags on each externally annotated positive task, so this is a failed known-positive compatibility smoke, not a valid positive-detection bundle.
-- Supported detection semantics have not been demonstrated for these annotations.
+- Supported detection semantics have not been demonstrated for these annotations: the CloudFoundry task is model-level gating (`FeatureFlag.enabled?` / `raise_unless_enabled!`), the DigitalMarketplace task is `enabled_since(...)` config gating, and the OpenGever task is registry-based gating via `api.portal.get_registry_record(...)`.
 - A valid detection comparison still requires an independent exhaustive candidate/negative set and more projects, or external blinded labeling before seeing FlagShark outputs.
 - No AI comparison run has been executed, there is no comparative result, and there is no technical go/no-go decision.
 
