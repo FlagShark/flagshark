@@ -211,6 +211,19 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - If the public corpora do not provide truth for a task, the task remains out of scope for comparative claims.
 - No customer, adoption, or market conclusion follows from this track alone.
 
+**Artifact bundle**
+
+- Benchmark artifacts live at `flagshark/benchmarks/held-out-protocol-v1/`.
+- Files:
+  - `manifest.json`
+  - `source-truth-index.md`
+  - `input-schema.json`
+  - `output-schema.json`
+  - `ai-run-config.json`
+  - `scorer-contract.md`
+- The protocol is runnable only after these artifacts are generated and verified as frozen.
+- Do not run the AI comparison until the manifest and schemas are frozen and validated.
+
 **Run manifest v1**
 
 - Model identifier: `openai-codex/gpt-5.4-mini:low`

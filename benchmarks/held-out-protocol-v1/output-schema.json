@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flagshark.local/benchmarks/held-out-protocol-v1/output-schema.json",
+  "title": "FlagShark Held-Out Benchmark Output Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "runner", "runtime_seconds", "token_usage", "validation_commands", "validation_results"],
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1 },
+    "runner": { "type": "string", "minLength": 1 },
+    "predicted_flags": { "type": "array", "items": { "type": "object" }, "default": [] },
+    "predicted_provider_state": { "type": "object", "default": {} },
+    "predicted_transform": { "type": ["object", "null"], "default": null },
+    "evidence_citations": { "type": "array", "items": { "type": "string", "minLength": 1 }, "default": [] },
+    "abstentions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "default": [] },
+    "runtime_seconds": { "type": "number", "minimum": 0 },
+    "token_usage": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0 }, "default": {} },
+    "validation_commands": { "type": "array", "items": { "type": "string", "minLength": 1 }, "default": [] },
+    "validation_results": { "type": "array", "items": { "type": "object" }, "default": [] }
+  }
+}

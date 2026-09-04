@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "benchmark": "flagshark-held-out-technical-comparison",
+  "version": "1.0.0",
+  "status": "frozen-spec-only",
+  "generatedAt": "2026-09-04",
+  "protocol": {
+    "partition": {
+      "type": "project-level",
+      "devHeldOutOverlap": false,
+      "devUse": ["tuning rules", "prompt wording", "runner glue", "scoring thresholds"],
+      "heldOutUse": ["single scored run per frozen runner/schema version"],
+      "rescorePolicy": "only when runner code or evaluation schema changes; version increments and prior scores remain archived"
+    },
+    "taskTypes": ["detection", "provider-config", "transformation"],
+    "publicConclusionLimits": [
+      "public provider truth is limited",
+      "no customer conclusion follows",
+      "no market or willingness-to-pay conclusion follows"
+    ]
+  },
+  "sources": [
+    {
+      "sourceId": "flagshark-internal-fixtures",
+      "kind": "internal-fixtures",
+      "purpose": "development/regression only",
+      "location": "/Users/joe/projects/flagshark/flagshark/packages/core/test/fixtures/**",
+      "pin": {
+        "repo": "flagshark",
+        "commit": "b6ec21d"
+      },
+      "checksumPolicy": "use local fixture checksums when materialized; not held-out truth"
+    },
+    {
+      "sourceId": "msr-strudel-2020",
+      "kind": "public-dataset",
+      "purpose": "OSS feature-flag presence/lifetime truth only",
+      "doi": "10.5281/zenodo.3712227",
+      "zenodoRecord": "https://zenodo.org/records/3712227",
+      "paper": "Capture the Feature Flag: Detecting Feature Flags in Open-Source (MSR 2020)",
+      "pin": {
+        "datasetVersion": "Zenodo record 3712227"
+      },
+      "checksumPolicy": "record archive checksum if the dataset is downloaded into the evaluation workspace"
+    },
+    {
+      "sourceId": "uber-piranha",
+      "kind": "public-corpus",
+      "purpose": "transformation expectations only",
+      "repo": "https://github.com/uber/piranha",
+      "pin": {
+        "commit": "2c173203e61febd43ab75df277b978927f061f93"
+      },
+      "checksumPolicy": "record archive checksum after cloning or vendoring the pinned commit"
+    },
+    {
+      "sourceId": "openfeature-playground",
+      "kind": "public-corpus",
+      "purpose": "checked-in provider-config truth only",
+      "repo": "https://github.com/open-feature/playground",
+      "pin": {
+        "commit": "6ddba35e86678bf5150211c53e973f43ae47e706"
+      },
+      "checksumPolicy": "record archive checksum after cloning or vendoring the pinned commit"
+    }
+  ],
+  "excludedSources": [
+    {
+      "sourceId": "customer-repos",
+      "reason": "no customer access or customer-approved evaluation scope exists for this public protocol"
+    },
+    {
+      "sourceId": "undownloadable-or-unpinned-source",
+      "reason": "excluded unless a source can be independently downloaded and pinned; never invent tasks"
+    }
+  ],
+  "artifacts": {
+    "sourceTruthIndex": "source-truth-index.md",
+    "inputSchema": "input-schema.json",
+    "outputSchema": "output-schema.json",
+    "aiRunConfig": "ai-run-config.json",
+    "scorerContract": "scorer-contract.md"
+  }
+}

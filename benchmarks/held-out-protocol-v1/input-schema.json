@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flagshark.local/benchmarks/held-out-protocol-v1/input-schema.json",
+  "title": "FlagShark Held-Out Benchmark Input Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "source", "source_revision", "repo_snapshot_id", "task_type", "files", "allowed_tools", "ground_truth_refs"],
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "string",
+      "enum": ["flagshark-internal-fixtures", "msr-strudel-2020", "uber-piranha", "openfeature-playground"]
+    },
+    "source_revision": { "type": "string", "minLength": 1 },
+    "repo_snapshot_id": { "type": "string", "minLength": 1 },
+    "task_type": { "type": "string", "enum": ["detection", "provider-config", "transformation"] },
+    "language": { "type": "string" },
+    "provider": { "type": "string" },
+    "files": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "config_files": { "type": "array", "items": { "type": "string", "minLength": 1 }, "default": [] },
+    "ground_truth_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "allowed_tools": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "notes": { "type": "string" }
+  }
+}
