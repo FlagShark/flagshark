@@ -1,6 +1,61 @@
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { expect, test } from 'bun:test'
 
 import { compareResults } from './compare'
+
+const repoRoot = resolve(import.meta.dir, '../../..')
+const benchmarkRoot = resolve(repoRoot, 'benchmarks/held-out-protocol-v1')
+const sourceRoot = 'tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation'
+const sourceManifestPath = resolve(benchmarkRoot, sourceRoot, 'source-manifest.json')
+const manifestPath = resolve(benchmarkRoot, 'manifest.json')
+const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+  tasks: Array<{ task_id: string; repo_snapshot_id: string }>
+}
+const sourceManifest = JSON.parse(readFileSync(sourceManifestPath, 'utf8')) as {
+  source: string
+  commit: string
+  files: Array<{ path: string; sha256: string }>
+}
+const sourceFilePath = resolve(benchmarkRoot, sourceRoot, sourceManifest.files[0].path)
+const sourceFileChecksum = createHash('sha256').update(readFileSync(sourceFilePath, 'utf8')).digest('hex')
+const manifestTask = manifest.tasks.find((task) => task.task_id === 'dev-detection-msr-strudel-cloudfoundry-user_org_creation')
+if (!manifestTask) throw new Error('missing manifest task fixture')
+if (sourceFileChecksum !== sourceManifest.files[0].sha256) throw new Error('source checksum drifted')
+
+const prompt = 'compare normalized AI outputs against scanner results'
+const provenance = {
+  model: 'gpt-5.4-mini',
+  provider: 'openai',
+  date: '2026-09-04',
+  tool_versions: {
+    model: 'gpt-5.4-mini',
+    provider: 'openai',
+    comparator: '2026-09-04',
+  },
+  snapshot_id: manifestTask.repo_snapshot_id,
+  prompt,
+  prompt_template: 'benchmark comparator validation prompt',
+  prompt_hash: createHash('sha256').update(prompt).digest('hex'),
+  output_schema_version: '1.0.0',
+  recordBeforeRun: [
+    {
+      model: 'gpt-5.4-mini',
+      provider: 'openai',
+      date: '2026-09-04',
+      tool_versions: {
+        model: 'gpt-5.4-mini',
+        provider: 'openai',
+        comparator: '2026-09-04',
+      },
+      snapshot_id: manifestTask.repo_snapshot_id,
+      prompt,
+      prompt_template: 'benchmark comparator validation prompt',
+      output_schema_version: '1.0.0',
+    },
+  ],
+}
 
 const invalidStatus = {
   status: 'invalid' as const,
@@ -11,8 +66,53 @@ const invalidStatus = {
 const validStatus = {
   status: 'valid' as const,
   reason: 'future provenance-complete benchmark run',
-  version: '2026-08-29',
+  version: '1.5.3',
+  provenance,
 }
+const validScanner = [
+  {
+    task_id: 'dev-detection-msr-strudel-cloudfoundry-user_org_creation',
+    benchmark_version: '1.5.3',
+    cli_version: '2.8.0',
+    source_root: sourceRoot,
+    source_manifest: `${sourceRoot}/source-manifest.json`,
+    command: 'bun packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file',
+    exit_code: 0,
+    cost_usd: 0,
+    cli_summary: { totalFlags: 1, staleFlags: 0, flags: [], healthScore: 100, detectedProviders: [], languages: { ruby: 1 } },
+    detections: [{ name: 'user_org_creation', filePath: `${sourceRoot}/${sourceManifest.files[0].path}`, lineNumber: 7, language: 'ruby' }],
+  },
+]
+
+const validAi = [
+  {
+    task_id: 'dev-detection-msr-strudel-cloudfoundry-user_org_creation',
+    runner: 'benchmark-local-ai/default',
+    runtime_seconds: 1.25,
+    token_usage: {},
+    validation_commands: ['completion(prompt, \'default\', ...)'],
+    validation_results: ['validated'],
+    predicted_flags: [
+      {
+        name: 'user_org_creation',
+        location: `${sourceManifest.files[0].path}:7-7`,
+        classification: 'safe',
+        evidence_citations: [],
+      },
+    ],
+    predicted_provider_state: {
+      task_partition: 'dev',
+      source: 'msr-strudel-2020',
+      source_revision: sourceManifest.commit,
+      repo_snapshot_id: manifestTask.repo_snapshot_id,
+      source_manifest: `${sourceRoot}/source-manifest.json`,
+      source_root: sourceRoot,
+    },
+    predicted_transform: null,
+    evidence_citations: [],
+    abstentions: [],
+  },
+]
 
 test('comparison prefixes ai locations with the matched scanner source_root and treats scanner lines inside ai ranges as overlap', () => {
   const scanner = [
@@ -34,6 +134,10 @@ test('comparison prefixes ai locations with the matched scanner source_root and 
     {
       task_id: 'task-a',
       runner: 'benchmark-local-ai/default',
+      runtime_seconds: 0,
+      token_usage: {},
+      validation_commands: [],
+      validation_results: [],
       predicted_flags: [
         {
           name: 'shared',
@@ -42,6 +146,14 @@ test('comparison prefixes ai locations with the matched scanner source_root and 
           evidence_citations: [],
         },
       ],
+      predicted_provider_state: {
+        task_partition: 'dev',
+        source: 'msr-strudel-2020',
+        source_revision: 'rev',
+        repo_snapshot_id: 'snapshot',
+        source_manifest: 'tasks/dev/a/source-manifest.json',
+        source_root: 'tasks/dev/a',
+      },
       abstentions: [],
     },
   ]
@@ -60,11 +172,24 @@ test('comparison prefixes ai locations with the matched scanner source_root and 
   expect(result.tasks[0].ai_only).toEqual([])
 })
 
-test('comparison can emit valid status from an explicit status fixture without code changes', () => {
-  const result = compareResults([], [], validStatus)
-  expect(result.status).toBe('valid')
-  expect(result.status_reason).toBe(validStatus.reason)
-  expect(result.status_version).toBe(validStatus.version)
+test('comparison validates a provenance-complete valid run and rejects a mutated prompt hash', () => {
+  const validResult = compareResults(validScanner as never, validAi as never, validStatus)
+  expect(validResult.status).toBe('valid')
+  expect(validResult.status_reason).toBe(validStatus.reason)
+  expect(validResult.status_version).toBe(validStatus.version)
+  expect(validResult.tasks).toHaveLength(1)
+  expect(validResult.tasks[0].overlap).toEqual([{ name: 'user_org_creation', filePath: `${sourceRoot}/${sourceManifest.files[0].path}`, lineNumber: 7, lineKnown: true }])
+
+  const mutatedStatus = {
+    ...validStatus,
+    provenance: {
+      ...validStatus.provenance,
+      prompt: `${prompt} mutated`,
+    },
+  }
+  const mutatedResult = compareResults(validScanner as never, validAi as never, mutatedStatus)
+  expect(mutatedResult.status).toBe('invalid')
+  expect(mutatedResult.status_reason).toContain('prompt hash mismatch')
 })
 
 test('comparison keeps same-name same-file unknown-line pairs in location_uncertain instead of scanner_only or ai_only', () => {
@@ -87,6 +212,10 @@ test('comparison keeps same-name same-file unknown-line pairs in location_uncert
     {
       task_id: 'task-b',
       runner: 'benchmark-local-ai/default',
+      runtime_seconds: 0,
+      token_usage: {},
+      validation_commands: [],
+      validation_results: [],
       predicted_flags: [
         {
           name: 'maybe-line',
@@ -95,6 +224,14 @@ test('comparison keeps same-name same-file unknown-line pairs in location_uncert
           evidence_citations: [],
         },
       ],
+      predicted_provider_state: {
+        task_partition: 'dev',
+        source: 'msr-strudel-2020',
+        source_revision: 'rev',
+        repo_snapshot_id: 'snapshot',
+        source_manifest: 'tasks/dev/b/source-manifest.json',
+        source_root: 'tasks/dev/b',
+      },
       abstentions: [],
     },
   ]
@@ -133,6 +270,10 @@ test('comparison records same-name same-file differing known lines as location_m
     {
       task_id: 'task-c',
       runner: 'benchmark-local-ai/default',
+      runtime_seconds: 0,
+      token_usage: {},
+      validation_commands: [],
+      validation_results: [],
       predicted_flags: [
         {
           name: 'mismatch',
@@ -141,6 +282,14 @@ test('comparison records same-name same-file differing known lines as location_m
           evidence_citations: [],
         },
       ],
+      predicted_provider_state: {
+        task_partition: 'dev',
+        source: 'msr-strudel-2020',
+        source_revision: 'rev',
+        repo_snapshot_id: 'snapshot',
+        source_manifest: 'tasks/dev/c/source-manifest.json',
+        source_root: 'tasks/dev/c',
+      },
       abstentions: [],
     },
   ]
