@@ -1,0 +1,18 @@
+{
+  "excludedSources": [
+    {
+      "sourceId": "msr-strudel-2020",
+      "reason": "not materialized into task-level OSS presence/lifetime labels from a pinned, independently downloadable corpus during this run"
+    },
+    {
+      "sourceId": "customer-repos",
+      "reason": "no customer-approved scope exists for this public protocol"
+    }
+  ],
+  "excludedTaskTypes": [
+    {
+      "taskType": "provider-truth-from-public-production",
+      "reason": "public provider truth is limited; the protocol does not claim safe-retirement or production truth"
+    }
+  ]
+}

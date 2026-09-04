@@ -216,12 +216,21 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 - Benchmark artifacts live at `flagshark/benchmarks/held-out-protocol-v1/`.
 - Files:
   - `manifest.json`
+  - `source-revisions.json`
   - `source-truth-index.md`
+  - `exclusions.json`
   - `input-schema.json`
   - `output-schema.json`
   - `ai-run-config.json`
   - `scorer-contract.md`
-- The protocol is runnable only after these artifacts are generated and verified as frozen.
+  - `tasks/dev/detection/internal-fixture-ts-001.json`
+  - `tasks/held-out/provider/openfeature-flagd-001.json`
+  - `tasks/held-out/provider/openfeature-goff-001.json`
+  - `tasks/held-out/transformation/piranha-java-if-cleanup.json`
+  - `tasks/held-out/transform/piranha-java-if-cleanup/input.java`
+  - `tasks/held-out/transform/piranha-java-if-cleanup/expected.java`
+- The manifest records checksums for the task rows and frozen fixtures.
+- The protocol is runnable only after these artifacts are generated, checksummed, and verified as frozen.
 - Do not run the AI comparison until the manifest and schemas are frozen and validated.
 
 **Run manifest v1**

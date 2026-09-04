@@ -1,0 +1,20 @@
+{
+  "flagshark-internal-fixtures": {
+    "repo": "flagshark",
+    "commit": "b6ec21d",
+    "usage": "dev/regression only"
+  },
+  "msr-strudel-2020": {
+    "doi": "10.5281/zenodo.3712227",
+    "status": "excluded",
+    "reason": "task-level OSS presence/lifetime labels were not materialized from a pinned, independently downloadable corpus in this run"
+  },
+  "uber-piranha": {
+    "repo": "https://github.com/uber/piranha",
+    "commit": "2c173203e61febd43ab75df277b978927f061f93"
+  },
+  "openfeature-playground": {
+    "repo": "https://github.com/open-feature/playground",
+    "commit": "6ddba35e86678bf5150211c53e973f43ae47e706"
+  }
+}

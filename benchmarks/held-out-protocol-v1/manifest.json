@@ -1,9 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.0.0",
-  "status": "frozen-spec-only",
+  "version": "1.1.0",
+  "status": "frozen-artifacts-ready",
   "generatedAt": "2026-09-04",
+  "artifactDir": "benchmarks/held-out-protocol-v1",
+  "artifactChecksums": {
+    "source-revisions.json": "aca8405fabe6d773e1ac02776706fdd68d0108dba1c436bc921df825b7390169",
+    "exclusions.json": "58343553fbb6192c7055116feadffd88d25f66b066eceba9b4d00eab6ba60b47",
+    "tasks/dev/detection/internal-fixture-ts-001.json": "8f37cbd1b6ac1c833fbefa58bc34d5800922ac5c48baa814f7c47acbedca976a",
+    "tasks/held-out/provider/openfeature-flagd-001.json": "3fb77b985d227f6cd77e8c74022ff35c6cb5807959c85c8042dc71376a74cddb",
+    "tasks/held-out/provider/openfeature-goff-001.json": "d42349430071ca6e53afa93d17931b668f44e796f789b29ff900a198ccb777f0",
+    "tasks/held-out/transformation/piranha-java-if-cleanup.json": "38c8f444dfc98b602c08c3df85d1bb25e7cd27b1b07cd43bb31acd48921e9b75",
+    "tasks/held-out/transform/piranha-java-if-cleanup/input.java": "e57f56eb5953e91e2ded2541d29b9dd2070aa427e943442dd7d37168c73f0ad5",
+    "tasks/held-out/transform/piranha-java-if-cleanup/expected.java": "19744c3429a1a548ab9b4cdf2215afb356d8e94e57d3af9ebaf11415abb2b499"
+  },
   "protocol": {
     "partition": {
       "type": "project-level",
@@ -16,7 +27,8 @@
     "publicConclusionLimits": [
       "public provider truth is limited",
       "no customer conclusion follows",
-      "no market or willingness-to-pay conclusion follows"
+      "no market or willingness-to-pay conclusion follows",
+      "no production provider safe-retirement proof is claimed"
     ]
   },
   "sources": [
@@ -41,6 +53,8 @@
       "pin": {
         "datasetVersion": "Zenodo record 3712227"
       },
+      "status": "excluded",
+      "exclusionReason": "task-level OSS presence/lifetime labels were not materialized from a pinned, independently downloadable corpus in this run",
       "checksumPolicy": "record archive checksum if the dataset is downloaded into the evaluation workspace"
     },
     {
@@ -64,21 +78,85 @@
       "checksumPolicy": "record archive checksum after cloning or vendoring the pinned commit"
     }
   ],
-  "excludedSources": [
+  "exclusions": {
+    "customerRepos": "no customer-approved scope exists for this public protocol",
+    "undownloadableOrUnpinnedSources": "excluded rather than invented",
+    "productionProviderTruth": "public provider truth is limited; safe-retirement proof is not claimed"
+  },
+  "tasks": [
     {
-      "sourceId": "customer-repos",
-      "reason": "no customer access or customer-approved evaluation scope exists for this public protocol"
+      "task_id": "dev-detection-internal-fixture-ts-001",
+      "source": "flagshark-internal-fixtures",
+      "source_revision": "b6ec21d",
+      "repo_snapshot_id": "flagshark@b6ec21d",
+      "task_type": "detection",
+      "partition": "dev",
+      "language": "typescript",
+      "provider": "launchdarkly-node-server-sdk",
+      "files": ["packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/positive/single-line.ts"],
+      "config_files": ["packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json"],
+      "ground_truth_refs": ["packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json#positive/single-line.ts"],
+      "allowed_tools": ["read", "grep", "jq"],
+      "notes": "Development-only regression fixture; may be inspected repeatedly for tuning, but is excluded from held-out scoring."
     },
     {
-      "sourceId": "undownloadable-or-unpinned-source",
-      "reason": "excluded unless a source can be independently downloaded and pinned; never invent tasks"
+      "task_id": "held-out-provider-openfeature-flagd-001",
+      "source": "openfeature-playground",
+      "source_revision": "6ddba35e86678bf5150211c53e973f43ae47e706",
+      "repo_snapshot_id": "openfeature/playground@6ddba35e86678bf5150211c53e973f43ae47e706",
+      "task_type": "provider-config",
+      "partition": "held-out",
+      "provider": "openfeature-flagd",
+      "files": ["config/flagd/flags.json"],
+      "config_files": ["config/flagd/flags.json"],
+      "ground_truth_refs": [
+        "config/flagd/flags.json#flags.new-welcome-message",
+        "config/flagd/flags.json#flags.hex-color",
+        "config/flagd/flags.json#flags.use-remote-fib-service",
+        "config/flagd/flags.json#flags.fib-algo"
+      ],
+      "allowed_tools": ["read", "jq"],
+      "notes": "Held-out provider-config task pinned to the checked-in playground config. Truth is the exact enabled/defaultVariant/targeting state in the frozen config tree."
+    },
+    {
+      "task_id": "held-out-provider-openfeature-goff-001",
+      "source": "openfeature-playground",
+      "source_revision": "6ddba35e86678bf5150211c53e973f43ae47e706",
+      "repo_snapshot_id": "openfeature/playground@6ddba35e86678bf5150211c53e973f43ae47e706",
+      "task_type": "provider-config",
+      "partition": "held-out",
+      "provider": "go-feature-flag",
+      "files": ["config/go-feature-flag/flags.yaml"],
+      "config_files": ["config/go-feature-flag/flags.yaml"],
+      "ground_truth_refs": [
+        "config/go-feature-flag/flags.yaml#new-welcome-message",
+        "config/go-feature-flag/flags.yaml#hex-color",
+        "config/go-feature-flag/flags.yaml#use-remote-fib-service",
+        "config/go-feature-flag/flags.yaml#fib-algo"
+      ],
+      "allowed_tools": ["read", "jq"],
+      "notes": "Held-out provider-config task pinned to the checked-in playground config. Truth is the exact flag values and rollout settings in the frozen config tree."
+    },
+    {
+      "task_id": "held-out-transform-piranha-java-if-cleanup-001",
+      "source": "uber-piranha",
+      "source_revision": "2c173203e61febd43ab75df277b978927f061f93",
+      "repo_snapshot_id": "uber/piranha@2c173203e61febd43ab75df277b978927f061f93",
+      "task_type": "transformation",
+      "partition": "held-out",
+      "language": "java",
+      "provider": "piranha-java-rules",
+      "files": ["tasks/held-out/transform/piranha-java-if-cleanup/input.java"],
+      "config_files": ["crates/core/src/cleanup_rules/java/rules.toml", "crates/core/src/cleanup_rules/java/scope_config.toml"],
+      "ground_truth_refs": [
+        "crates/core/src/cleanup_rules/java/rules.toml#simplify_if_statement_true",
+        "crates/core/src/cleanup_rules/java/rules.toml#simplify_if_statement_false",
+        "crates/core/src/cleanup_rules/java/scope_config.toml#Method",
+        "crates/core/src/cleanup_rules/java/scope_config.toml#Class",
+        "tasks/held-out/transform/piranha-java-if-cleanup/expected.java"
+      ],
+      "allowed_tools": ["read", "jq"],
+      "notes": "Held-out transformation task uses the pinned Piranha Java cleanup rules as the expectation source. The input fixture is frozen in the benchmark bundle; the expected output is the exact safe rewrite for the selected rules."
     }
-  ],
-  "artifacts": {
-    "sourceTruthIndex": "source-truth-index.md",
-    "inputSchema": "input-schema.json",
-    "outputSchema": "output-schema.json",
-    "aiRunConfig": "ai-run-config.json",
-    "scorerContract": "scorer-contract.md"
-  }
+  ]
 }

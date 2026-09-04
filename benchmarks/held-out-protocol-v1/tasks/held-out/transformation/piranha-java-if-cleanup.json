@@ -1,0 +1,26 @@
+{
+  "task_id": "held-out-transform-piranha-java-if-cleanup-001",
+  "source": "uber-piranha",
+  "source_revision": "2c173203e61febd43ab75df277b978927f061f93",
+  "repo_snapshot_id": "uber/piranha@2c173203e61febd43ab75df277b978927f061f93",
+  "task_type": "transformation",
+  "partition": "held-out",
+  "language": "java",
+  "provider": "piranha-java-rules",
+  "files": [
+    "tasks/held-out/transform/piranha-java-if-cleanup/input.java"
+  ],
+  "config_files": [
+    "crates/core/src/cleanup_rules/java/rules.toml",
+    "crates/core/src/cleanup_rules/java/scope_config.toml"
+  ],
+  "ground_truth_refs": [
+    "crates/core/src/cleanup_rules/java/rules.toml#simplify_if_statement_true",
+    "crates/core/src/cleanup_rules/java/rules.toml#simplify_if_statement_false",
+    "crates/core/src/cleanup_rules/java/scope_config.toml#Method",
+    "crates/core/src/cleanup_rules/java/scope_config.toml#Class",
+    "tasks/held-out/transform/piranha-java-if-cleanup/expected.java"
+  ],
+  "allowed_tools": ["read", "jq"],
+  "notes": "Held-out transformation task uses the pinned Piranha Java cleanup rules as the expectation source. The input fixture is frozen in the benchmark bundle; the expected output is the exact safe rewrite for the selected rules."
+}

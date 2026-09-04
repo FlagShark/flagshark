@@ -1,0 +1,23 @@
+{
+  "task_id": "held-out-provider-openfeature-flagd-001",
+  "source": "openfeature-playground",
+  "source_revision": "6ddba35e86678bf5150211c53e973f43ae47e706",
+  "repo_snapshot_id": "openfeature/playground@6ddba35e86678bf5150211c53e973f43ae47e706",
+  "task_type": "provider-config",
+  "partition": "held-out",
+  "provider": "openfeature-flagd",
+  "files": [
+    "config/flagd/flags.json"
+  ],
+  "config_files": [
+    "config/flagd/flags.json"
+  ],
+  "ground_truth_refs": [
+    "config/flagd/flags.json#flags.new-welcome-message",
+    "config/flagd/flags.json#flags.hex-color",
+    "config/flagd/flags.json#flags.use-remote-fib-service",
+    "config/flagd/flags.json#flags.fib-algo"
+  ],
+  "allowed_tools": ["read", "jq"],
+  "notes": "Held-out provider-config task pinned to the checked-in playground config. Truth is the exact enabled/defaultVariant/targeting state in the frozen config tree."
+}

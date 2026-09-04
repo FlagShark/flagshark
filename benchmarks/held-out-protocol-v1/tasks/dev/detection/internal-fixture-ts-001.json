@@ -1,0 +1,21 @@
+{
+  "task_id": "dev-detection-internal-fixture-ts-001",
+  "source": "flagshark-internal-fixtures",
+  "source_revision": "b6ec21d",
+  "repo_snapshot_id": "flagshark@b6ec21d",
+  "task_type": "detection",
+  "partition": "dev",
+  "language": "typescript",
+  "provider": "launchdarkly-node-server-sdk",
+  "files": [
+    "packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/positive/single-line.ts"
+  ],
+  "config_files": [
+    "packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json"
+  ],
+  "ground_truth_refs": [
+    "packages/core/test/fixtures/tree-sitter/typescript/launchdarkly/expected.json#positive/single-line.ts"
+  ],
+  "allowed_tools": ["read", "grep", "jq"],
+  "notes": "Development-only regression fixture; may be inspected repeatedly for tuning, but is excluded from held-out scoring."
+}
