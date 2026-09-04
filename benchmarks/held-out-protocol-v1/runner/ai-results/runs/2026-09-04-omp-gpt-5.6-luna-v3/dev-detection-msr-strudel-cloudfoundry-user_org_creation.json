@@ -1,0 +1,50 @@
+{
+  "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v3",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
+  "model_version": "gpt-5.6-luna",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-cloudfoundry-user_org_creation\",\"runner\":\"held-out-protocol-v1\",\"provider\":\"openai-codex\",\"model\":\"gpt-5.6-luna\",\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"name\":\"user_org_creation\",\"default_enabled\":false,\"effective_enabled_without_persisted_override\":false,\"persisted_override_supported\":true}],\"predicted_provider_state\":{\"provider\":\"cloudfoundry\",\"feature_flag\":\"user_org_creation\",\"default_state\":\"disabled\",\"enforcement\":\"FeatureFlag.raise_unless_enabled! raises FeatureDisabled when the resolved flag is disabled\",\"resolution_order\":[\"persisted FeatureFlag record\",\"DEFAULT_FLAGS fallback\"]},\"evidence_citations\":[{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"7-10\",\"quote\":\"user_org_creation: false\"},{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"23-26\",\"quote\":\"return feature_flag.enabled if feature_flag; DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\"},{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"32-38\",\"quote\":\"raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', error_message) if !enabled?(feature_flag_name)\"}],\"abstentions\":[{\"field\":\"effective_enabled\",\"reason\":\"The supplied source does not include the persisted FeatureFlag database record, so only the default and fallback behavior can be determined.\"}]}",
+  "raw_response_id": "resp_0a7d8c61fdfa0c56016a9b51103e7087d2a0febb03cef3f9c4",
+  "raw_response_api": "openai-codex-responses",
+  "runtime_seconds": 60.722449,
+  "token_usage": {
+    "input": 18831,
+    "output": 1543,
+    "cacheRead": 3584,
+    "cacheWrite": 0,
+    "totalTokens": 23958,
+    "reasoningTokens": 1086,
+    "cost": {
+      "input": 0.0037662000000000004,
+      "output": 0.0018516,
+      "cacheRead": 0.00007168,
+      "cacheWrite": 0,
+      "total": 0.00568948
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parse error: unknown"
+  ],
+  "predicted_flags": [],
+  "predicted_provider_state": {
+    "task_partition": "dev",
+    "source": "msr-strudel-2020",
+    "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+    "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "model_version": "gpt-5.6-luna",
+    "prompt_hash": "60462b5bd7c4b5ab5c3eaa262ebfaefd41889d0a5cf3d0cf49c0ff009bba3456",
+    "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+    "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+  },
+  "evidence_citations": [],
+  "abstentions": [
+    "assistant response was not JSON schema valid"
+  ]
+}

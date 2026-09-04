@@ -1,0 +1,50 @@
+{
+  "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v3",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
+  "model_version": "gpt-5.6-luna",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-digitalmarketplace-edit-service-page\",\"runner\":\"api\",\"provider\":\"openai-codex\",\"model\":\"gpt-5.6-luna\",\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":{\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\":{\"state\":\"enabled\",\"definition\":\"enabled_since('2016-02-02')\"},\"FEATURE_FLAGS_EDIT_SECTIONS\":{\"state\":\"disabled\",\"definition\":\"False\"}},\"predicted_provider_state\":null,\"evidence_citations\":[{\"source_id\":\"config.py\",\"source_kind\":\"source_file\",\"location\":\"config.py:66-70\",\"quote_or_summary\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02'); FEATURE_FLAGS_EDIT_SECTIONS = False.\",\"supports\":\"The edit-service-page feature flag is configured to become enabled from 2016-02-02, while edit-sections is disabled.\"}],\"abstentions\":[\"No provider runtime state is present in the supplied source file; the effective enabled_since evaluation was not executed.\"]}",
+  "raw_response_id": "resp_0249cc0373bc5d7d016a9b50ec931c87d288d3125fe45b3fac",
+  "raw_response_api": "openai-codex-responses",
+  "runtime_seconds": 73.341148458,
+  "token_usage": {
+    "input": 2163,
+    "output": 432,
+    "cacheRead": 48640,
+    "cacheWrite": 0,
+    "totalTokens": 51235,
+    "reasoningTokens": 186,
+    "cost": {
+      "input": 0.00043260000000000005,
+      "output": 0.0005184,
+      "cacheRead": 0.0009728,
+      "cacheWrite": 0,
+      "total": 0.0019238
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parse error: unknown"
+  ],
+  "predicted_flags": [],
+  "predicted_provider_state": {
+    "task_partition": "dev",
+    "source": "msr-strudel-2020",
+    "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+    "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "model_version": "gpt-5.6-luna",
+    "prompt_hash": "6134925f192e72b588c3b2b269c6a50909f33ecbc5c0d78d3eeb7dedf057e609",
+    "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+    "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+  },
+  "evidence_citations": [],
+  "abstentions": [
+    "assistant response was not JSON schema valid"
+  ]
+}

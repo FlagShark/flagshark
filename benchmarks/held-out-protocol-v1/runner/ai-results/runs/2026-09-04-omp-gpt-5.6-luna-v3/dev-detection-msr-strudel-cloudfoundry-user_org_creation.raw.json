@@ -1,0 +1,62 @@
+{
+  "config_version": "3.0.0",
+  "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "model_version": "gpt-5.6-luna",
+  "date": "2026-09-04T23:15:06.689Z",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "18.1.10"
+  },
+  "snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+  "prompt": "TASK_ID=dev-detection-msr-strudel-cloudfoundry-user_org_creation\nSOURCE_MANIFEST={\n  \"source\": \"msr-strudel-2020\",\n  \"record_id\": 3712228,\n  \"record_url\": \"https://zenodo.org/records/3712228\",\n  \"zip_md5\": \"60b7b976e76cd70379bd45db26b6a412\",\n  \"zip_sha256\": \"bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c\",\n  \"repo_url\": \"https://github.com/cloudfoundry/cloud_controller_ng\",\n  \"commit\": \"8c9b41eac985c27467fe71ce493090d4537990b0\",\n  \"files\": [\n    {\n      \"path\": \"app/models/runtime/feature_flag.rb\",\n      \"url\": \"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b0/app/models/runtime/feature_flag.rb\",\n      \"sha256\": \"503663f840d864bb521d23fe7457a4eb5b1c6697ea718235b74883b39fc5a6b2\"\n    }\n  ]\n}\nSOURCE_ROOT=tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation\nSNAPSHOT_ID=cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0\nSOURCE_REVISION=8c9b41eac985c27467fe71ce493090d4537990b0\nFILES:\nFILE app/models/runtime/feature_flag.rb\nmodule VCAP::CloudController\n  class FeatureFlag < Sequel::Model\n\n    class UndefinedFeatureFlagError < StandardError\n    end\n\n    DEFAULT_FLAGS = {\n      user_org_creation: false,\n      private_domain_creation: true\n    }.freeze\n\n    export_attributes :name, :enabled\n    import_attributes :name, :enabled\n\n    def validate\n      validates_presence :name\n      validates_unique :name\n      validates_presence :enabled\n\n      validates_includes DEFAULT_FLAGS.keys.map(&:to_s), :name\n    end\n\n    def self.enabled?(feature_flag_name)\n      feature_flag = FeatureFlag.find(name: feature_flag_name)\n      return feature_flag.enabled if feature_flag\n      DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\n\n    rescue KeyError\n      raise UndefinedFeatureFlagError.new \"invalid key: #{feature_flag_name}\"\n    end\n\n    def self.raise_unless_enabled!(feature_flag_name, message)\n      error_message = message\n      if Config.config[:feature_disabled_message]\n        error_message = \"#{error_message}: #{Config.config[:feature_disabled_message]}\"\n      end\n\n      raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', error_message) if !enabled?(feature_flag_name)\n    end\n  end\nend\n\n\nReturn exactly one JSON object conforming to the output schema fields: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Do not use markdown or extra prose.",
+  "prompt_template": "TASK_ID={{task_id}}\nSOURCE_MANIFEST={{source_manifest_json}}\nSOURCE_ROOT={{source_root}}\nSNAPSHOT_ID={{repo_snapshot_id}}\nSOURCE_REVISION={{source_revision}}\nFILES:\n{{files}}\n\nReturn exactly one JSON object conforming to the output schema fields: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Do not use markdown or extra prose.",
+  "prompt_hash": "60462b5bd7c4b5ab5c3eaa262ebfaefd41889d0a5cf3d0cf49c0ff009bba3456",
+  "output_schema_version": "1.1.0",
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "benchmark_version": "1.5.3",
+  "cli_version": "18.1.10",
+  "raw_response_id": "resp_0a7d8c61fdfa0c56016a9b51103e7087d2a0febb03cef3f9c4",
+  "raw_response_api": "openai-codex-responses",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-cloudfoundry-user_org_creation\",\"runner\":\"held-out-protocol-v1\",\"provider\":\"openai-codex\",\"model\":\"gpt-5.6-luna\",\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"name\":\"user_org_creation\",\"default_enabled\":false,\"effective_enabled_without_persisted_override\":false,\"persisted_override_supported\":true}],\"predicted_provider_state\":{\"provider\":\"cloudfoundry\",\"feature_flag\":\"user_org_creation\",\"default_state\":\"disabled\",\"enforcement\":\"FeatureFlag.raise_unless_enabled! raises FeatureDisabled when the resolved flag is disabled\",\"resolution_order\":[\"persisted FeatureFlag record\",\"DEFAULT_FLAGS fallback\"]},\"evidence_citations\":[{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"7-10\",\"quote\":\"user_org_creation: false\"},{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"23-26\",\"quote\":\"return feature_flag.enabled if feature_flag; DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\"},{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"32-38\",\"quote\":\"raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', error_message) if !enabled?(feature_flag_name)\"}],\"abstentions\":[{\"field\":\"effective_enabled\",\"reason\":\"The supplied source does not include the persisted FeatureFlag database record, so only the default and fallback behavior can be determined.\"}]}",
+  "runtime_seconds": 60.722449,
+  "token_usage": {
+    "input": 18831,
+    "output": 1543,
+    "cacheRead": 3584,
+    "cacheWrite": 0,
+    "totalTokens": 23958,
+    "reasoningTokens": 1086,
+    "cost": {
+      "input": 0.0037662000000000004,
+      "output": 0.0018516,
+      "cacheRead": 0.00007168,
+      "cacheWrite": 0,
+      "total": 0.00568948
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parse error: unknown"
+  ],
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "source_checksums": [
+    "app/models/runtime/feature_flag.rb:503663f840d864bb521d23fe7457a4eb5b1c6697ea718235b74883b39fc5a6b2"
+  ]
+}

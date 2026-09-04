@@ -1,0 +1,63 @@
+{
+  "config_version": "3.0.0",
+  "task_id": "dev-detection-msr-strudel-opengever-activity",
+  "model": "gpt-5.6-luna",
+  "provider": "openai-codex",
+  "model_version": "gpt-5.6-luna",
+  "date": "2026-09-04T23:13:17.378Z",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "18.1.10"
+  },
+  "snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+  "prompt": "TASK_ID=dev-detection-msr-strudel-opengever-activity\nSOURCE_MANIFEST={\n  \"source\": \"msr-strudel-2020\",\n  \"record_id\": 3712228,\n  \"record_url\": \"https://zenodo.org/records/3712228\",\n  \"zip_md5\": \"60b7b976e76cd70379bd45db26b6a412\",\n  \"zip_sha256\": \"bbb6ddb91ed0821428ed3199f8afe1544ea166212a7ebe364d13585f85fef50c\",\n  \"repo_url\": \"https://github.com/4teamwork/opengever.core\",\n  \"commit\": \"e035573bc9dc8756a31d4860cbb2307c58840897\",\n  \"files\": [\n    {\n      \"path\": \"opengever/base/configuration.py\",\n      \"url\": \"https://raw.githubusercontent.com/4teamwork/opengever.core/e035573bc9dc8756a31d4860cbb2307c58840897/opengever/base/configuration.py\",\n      \"sha256\": \"dc400ff06a61f791a734bfd67c5aae9717a9089725cd5c04f5115f7871d0fa29\"\n    },\n    {\n      \"path\": \"opengever/api/config.py\",\n      \"url\": \"https://raw.githubusercontent.com/4teamwork/opengever.core/e035573bc9dc8756a31d4860cbb2307c58840897/opengever/api/config.py\",\n      \"sha256\": \"939121c432b15711787ecb4b013f5a69b46a63d54058b6acdf4606324f889446\"\n    }\n  ]\n}\nSOURCE_ROOT=tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity\nSNAPSHOT_ID=4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897\nSOURCE_REVISION=e035573bc9dc8756a31d4860cbb2307c58840897\nFILES:\nFILE opengever/base/configuration.py\nfrom collections import OrderedDict\nfrom opengever.activity.interfaces import IActivitySettings\nfrom opengever.base.interfaces import IFavoritesSettings\nfrom opengever.base.interfaces import IGeverSettings\nfrom opengever.base.interfaces import ISearchSettings\nfrom opengever.bumblebee.interfaces import IGeverBumblebeeSettings\nfrom opengever.contact.interfaces import IContactSettings\nfrom opengever.dossier.dossiertemplate.interfaces import IDossierTemplateSettings\nfrom opengever.dossier.interfaces import IDossierContainerTypes\nfrom opengever.dossier.interfaces import ITemplateFolderProperties\nfrom opengever.ech0147.interfaces import IECH0147Settings\nfrom opengever.meeting.interfaces import IMeetingSettings\nfrom opengever.officeatwork.interfaces import IOfficeatworkSettings\nfrom opengever.officeconnector.interfaces import IOfficeConnectorSettings\nfrom opengever.repository.interfaces import IRepositoryFolderRecords\nfrom opengever.workspace.interfaces import IWorkspaceSettings\nfrom plone import api\nfrom Products.CMFCore.interfaces import ISiteRoot\nfrom zope.component import adapter\nfrom zope.interface import implementer\n\n@implementer(IGeverSettings)\n@adapter(ISiteRoot)\nclass GeverSettingsAdpaterV1(object):\n    \"\"\"Returns the current site configuration in the API v1 format.\"\"\"\n\n    def __init__(self, context):\n        super(GeverSettingsAdpaterV1, self).__init__()\n        self.context = context\n\n    def get_config(self):\n        config = self.get_info()\n        config.update(self.get_settings())\n        config['features'] = self.get_features()\n        return config\n\n    def get_info(self):\n        info = OrderedDict()\n        info['@id'] = self.context.absolute_url() + '/@config'\n        return info\n\n    def get_settings(self):\n        settings = OrderedDict()\n        settings['max_dossier_levels'] = api.portal.get_registry_record('maximum_dossier_depth', interface=IDossierContainerTypes) + 1  # noqa\n        settings['max_repositoryfolder_levels'] = api.portal.get_registry_record('maximum_repository_depth', interface=IRepositoryFolderRecords)  # noqa\n        return settings\n\n    def get_features(self):\n        features = OrderedDict()\n        features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)\n        features['contacts'] = api.portal.get_registry_record('is_feature_enabled', interface=IContactSettings)\n        features['doc_properties'] = api.portal.get_registry_record('create_doc_properties', interface=ITemplateFolderProperties)  # noqa\n        features['dossier_templates'] = api.portal.get_registry_record('is_feature_enabled', interface=IDossierTemplateSettings)  # noqa\n        features['ech0147_export'] = api.portal.get_registry_record('ech0147_export_enabled', interface=IECH0147Settings)\n        features['ech0147_import'] = api.portal.get_registry_record('ech0147_import_enabled', interface=IECH0147Settings)\n        features['favorites'] = api.portal.get_registry_record('is_feature_enabled', interface=IFavoritesSettings)\n        features['meetings'] = api.portal.get_registry_record('is_feature_enabled', interface=IMeetingSettings)\n        features['officeatwork'] = api.portal.get_registry_record('is_feature_enabled', interface=IOfficeatworkSettings)\n        features['officeconnector_attach'] = api.portal.get_registry_record('attach_to_outlook_enabled', interface=IOfficeConnectorSettings)  # noqa\n        features['officeconnector_checkout'] = api.portal.get_registry_record('direct_checkout_and_edit_enabled', interface=IOfficeConnectorSettings)  # noqa\n        features['preview_auto_refresh'] = api.portal.get_registry_record('is_auto_refresh_enabled', interface=IGeverBumblebeeSettings)  # noqa\n        features['preview_open_pdf_in_new_window'] = api.portal.get_registry_record('open_pdf_in_a_new_window', interface=IGeverBumblebeeSettings)  # noqa\n        features['preview'] = api.portal.get_registry_record('is_feature_enabled', interface=IGeverBumblebeeSettings)\n        features['repositoryfolder_documents_tab'] = api.portal.get_registry_record('show_documents_tab', interface=IRepositoryFolderRecords)  # noqa\n        features['repositoryfolder_tasks_tab'] = api.portal.get_registry_record('show_tasks_tab', interface=IRepositoryFolderRecords)  # noqa\n        features['solr'] = api.portal.get_registry_record('use_solr', interface=ISearchSettings)\n        features['word_meetings'] = api.portal.get_registry_record('is_word_implementation_enabled', interface=IMeetingSettings)  # noqa\n        features['workspace'] = api.portal.get_registry_record('is_feature_enabled', interface=IWorkspaceSettings)\n        return features\n\n\nFILE opengever/api/config.py\nfrom opengever.base.interfaces import IGeverSettings\nfrom plone.restapi.services import Service\n\nclass Config(Service):\n    \"\"\"GEVER configuration\"\"\"\n\n    def reply(self):\n        return IGeverSettings(self.context).get_config()\n\n\nReturn exactly one JSON object conforming to the output schema fields: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Do not use markdown or extra prose.",
+  "prompt_template": "TASK_ID={{task_id}}\nSOURCE_MANIFEST={{source_manifest_json}}\nSOURCE_ROOT={{source_root}}\nSNAPSHOT_ID={{repo_snapshot_id}}\nSOURCE_REVISION={{source_revision}}\nFILES:\n{{files}}\n\nReturn exactly one JSON object conforming to the output schema fields: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Do not use markdown or extra prose.",
+  "prompt_hash": "3eb767b9855247d2656cb24b564ca7ac40fda11f8ec88ecede7890fbaffa8afd",
+  "output_schema_version": "1.1.0",
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "benchmark_version": "1.5.3",
+  "cli_version": "18.1.10",
+  "raw_response_id": "resp_0c50da605600de86016a9b508efc0487d289ef24bbba45c8bc",
+  "raw_response_api": "openai-codex-responses",
+  "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-opengever-activity\",\"runner\":\"assistant\",\"provider\":\"openai\",\"model\":\"openai-codex/gpt-5.6-luna\",\"model_version\":\"gpt-5.6-luna\",\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"flag\":\"activity\",\"value\":true,\"confidence\":0.99}],\"predicted_provider_state\":{\"activity\":\"exposed_as_configuration_feature\"},\"evidence_citations\":[{\"file\":\"opengever/base/configuration.py\",\"symbol\":\"GeverSettingsAdpaterV1.get_features\",\"evidence\":\"features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)\"},{\"file\":\"opengever/base/configuration.py\",\"evidence\":\"from opengever.activity.interfaces import IActivitySettings\"},{\"file\":\"opengever/api/config.py\",\"symbol\":\"Config.reply\",\"evidence\":\"return IGeverSettings(self.context).get_config()\"}],\"abstentions\":[]}",
+  "runtime_seconds": 35.969358833,
+  "token_usage": {
+    "input": 2019,
+    "output": 1265,
+    "cacheRead": 2560,
+    "cacheWrite": 0,
+    "totalTokens": 5844,
+    "reasoningTokens": 1034,
+    "cost": {
+      "input": 0.00040380000000000006,
+      "output": 0.001518,
+      "cacheRead": 0.0000512,
+      "cacheWrite": 0,
+      "total": 0.001973
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parsed"
+  ],
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
+  "source_checksums": [
+    "opengever/base/configuration.py:dc400ff06a61f791a734bfd67c5aae9717a9089725cd5c04f5115f7871d0fa29",
+    "opengever/api/config.py:939121c432b15711787ecb4b013f5a69b46a63d54058b6acdf4606324f889446"
+  ]
+}

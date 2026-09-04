@@ -1,0 +1,170 @@
+[
+  {
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v3",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response_id": "resp_0c50da605600de86016a9b508efc0487d289ef24bbba45c8bc",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 35.969358833,
+    "token_usage": {
+      "input": 2019,
+      "output": 1265,
+      "cacheRead": 2560,
+      "cacheWrite": 0,
+      "totalTokens": 5844,
+      "reasoningTokens": 1034,
+      "cost": {
+        "input": 0.00040380000000000006,
+        "output": 0.001518,
+        "cacheRead": 0.0000512,
+        "cacheWrite": 0,
+        "total": 0.001973
+      }
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "raw_response parsed"
+    ],
+    "predicted_flags": [
+      {
+        "flag": "activity",
+        "value": true,
+        "confidence": 0.99
+      }
+    ],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "3eb767b9855247d2656cb24b564ca7ac40fda11f8ec88ecede7890fbaffa8afd",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+    },
+    "evidence_citations": [
+      {
+        "file": "opengever/base/configuration.py",
+        "symbol": "GeverSettingsAdpaterV1.get_features",
+        "evidence": "features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)"
+      },
+      {
+        "file": "opengever/base/configuration.py",
+        "evidence": "from opengever.activity.interfaces import IActivitySettings"
+      },
+      {
+        "file": "opengever/api/config.py",
+        "symbol": "Config.reply",
+        "evidence": "return IGeverSettings(self.context).get_config()"
+      }
+    ],
+    "abstentions": []
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v3",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-digitalmarketplace-edit-service-page\",\"runner\":\"api\",\"provider\":\"openai-codex\",\"model\":\"gpt-5.6-luna\",\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":{\"FEATURE_FLAGS_EDIT_SERVICE_PAGE\":{\"state\":\"enabled\",\"definition\":\"enabled_since('2016-02-02')\"},\"FEATURE_FLAGS_EDIT_SECTIONS\":{\"state\":\"disabled\",\"definition\":\"False\"}},\"predicted_provider_state\":null,\"evidence_citations\":[{\"source_id\":\"config.py\",\"source_kind\":\"source_file\",\"location\":\"config.py:66-70\",\"quote_or_summary\":\"FEATURE_FLAGS_EDIT_SERVICE_PAGE = enabled_since('2016-02-02'); FEATURE_FLAGS_EDIT_SECTIONS = False.\",\"supports\":\"The edit-service-page feature flag is configured to become enabled from 2016-02-02, while edit-sections is disabled.\"}],\"abstentions\":[\"No provider runtime state is present in the supplied source file; the effective enabled_since evaluation was not executed.\"]}",
+    "raw_response_id": "resp_0249cc0373bc5d7d016a9b50ec931c87d288d3125fe45b3fac",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 73.341148458,
+    "token_usage": {
+      "input": 2163,
+      "output": 432,
+      "cacheRead": 48640,
+      "cacheWrite": 0,
+      "totalTokens": 51235,
+      "reasoningTokens": 186,
+      "cost": {
+        "input": 0.00043260000000000005,
+        "output": 0.0005184,
+        "cacheRead": 0.0009728,
+        "cacheWrite": 0,
+        "total": 0.0019238
+      }
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "raw_response parse error: unknown"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "repo_snapshot_id": "alphagov__digitalmarketplace-supplier-frontend@03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "6134925f192e72b588c3b2b269c6a50909f33ecbc5c0d78d3eeb7dedf057e609",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v3",
+    "provider": "openai-codex",
+    "model": "gpt-5.6-luna",
+    "model_version": "gpt-5.6-luna",
+    "raw_response": "{\"task_id\":\"dev-detection-msr-strudel-cloudfoundry-user_org_creation\",\"runner\":\"held-out-protocol-v1\",\"provider\":\"openai-codex\",\"model\":\"gpt-5.6-luna\",\"model_version\":null,\"raw_response_id\":null,\"raw_response_api\":null,\"runtime_seconds\":null,\"token_usage\":null,\"validation_commands\":[],\"validation_results\":[],\"predicted_flags\":[{\"name\":\"user_org_creation\",\"default_enabled\":false,\"effective_enabled_without_persisted_override\":false,\"persisted_override_supported\":true}],\"predicted_provider_state\":{\"provider\":\"cloudfoundry\",\"feature_flag\":\"user_org_creation\",\"default_state\":\"disabled\",\"enforcement\":\"FeatureFlag.raise_unless_enabled! raises FeatureDisabled when the resolved flag is disabled\",\"resolution_order\":[\"persisted FeatureFlag record\",\"DEFAULT_FLAGS fallback\"]},\"evidence_citations\":[{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"7-10\",\"quote\":\"user_org_creation: false\"},{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"23-26\",\"quote\":\"return feature_flag.enabled if feature_flag; DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\"},{\"source\":\"https://raw.githubusercontent.com/cloudfoundry/cloud_controller_ng/8c9b41eac985c27467fe71ce493090d4537990b/app/models/runtime/feature_flag.rb\",\"file\":\"app/models/runtime/feature_flag.rb\",\"lines\":\"32-38\",\"quote\":\"raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', error_message) if !enabled?(feature_flag_name)\"}],\"abstentions\":[{\"field\":\"effective_enabled\",\"reason\":\"The supplied source does not include the persisted FeatureFlag database record, so only the default and fallback behavior can be determined.\"}]}",
+    "raw_response_id": "resp_0a7d8c61fdfa0c56016a9b51103e7087d2a0febb03cef3f9c4",
+    "raw_response_api": "openai-codex-responses",
+    "runtime_seconds": 60.722449,
+    "token_usage": {
+      "input": 18831,
+      "output": 1543,
+      "cacheRead": 3584,
+      "cacheWrite": 0,
+      "totalTokens": 23958,
+      "reasoningTokens": 1086,
+      "cost": {
+        "input": 0.0037662000000000004,
+        "output": 0.0018516,
+        "cacheRead": 0.00007168,
+        "cacheWrite": 0,
+        "total": 0.00568948
+      }
+    },
+    "validation_commands": [
+      "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+      "JSON.parse(raw_response)"
+    ],
+    "validation_results": [
+      "raw_response parse error: unknown"
+    ],
+    "predicted_flags": [],
+    "predicted_provider_state": {
+      "task_partition": "dev",
+      "source": "msr-strudel-2020",
+      "source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "repo_snapshot_id": "cloudfoundry__cloud_controller_ng@8c9b41eac985c27467fe71ce493090d4537990b0",
+      "model": "gpt-5.6-luna",
+      "provider": "openai-codex",
+      "model_version": "gpt-5.6-luna",
+      "prompt_hash": "60462b5bd7c4b5ab5c3eaa262ebfaefd41889d0a5cf3d0cf49c0ff009bba3456",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+      "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+    },
+    "evidence_citations": [],
+    "abstentions": [
+      "assistant response was not JSON schema valid"
+    ]
+  }
+]

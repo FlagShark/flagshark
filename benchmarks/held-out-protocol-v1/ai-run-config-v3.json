@@ -1,0 +1,35 @@
+{
+  "version": "3.0.0",
+  "benchmark": "flagshark-held-out-technical-comparison",
+  "benchmark_version": "1.5.3",
+  "model": "default",
+  "provider": "openai-codex",
+  "model_version": "default",
+  "prompt_template": "TASK_ID={{task_id}}\nSOURCE_MANIFEST={{source_manifest_json}}\nSOURCE_ROOT={{source_root}}\nSNAPSHOT_ID={{repo_snapshot_id}}\nSOURCE_REVISION={{source_revision}}\nFILES:\n{{files}}\n\nReturn exactly one JSON object conforming to the output schema fields: task_id, runner, provider, model, model_version, raw_response_id, raw_response_api, runtime_seconds, token_usage, validation_commands, validation_results, predicted_flags, predicted_provider_state, evidence_citations, abstentions. Do not use markdown or extra prose.",
+  "output_schema_version": "1.1.0",
+  "tool_versions": {
+    "comparator": "2026-09-04",
+    "cli": "18.1.10"
+  },
+  "recordBeforeRun": [
+    "model",
+    "provider",
+    "model_version",
+    "date",
+    "tool_versions",
+    "snapshot_ids",
+    "prompt",
+    "prompt_template",
+    "prompt_hash",
+    "output_schema_version"
+  ],
+  "prompt_hash": "c40bb7ac3a0d5563d51d9edf3582bc017a076c100dffe25c7ef7fe33a74d85b9",
+  "constraints": {
+    "noNetwork": true,
+    "noCustomerData": true,
+    "noFlagSharkInternals": true,
+    "singleFreshRunPerTask": true,
+    "noRetries": true,
+    "freezeBeforeRun": true
+  }
+}

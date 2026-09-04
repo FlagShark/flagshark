@@ -1,0 +1,68 @@
+{
+  "task_id": "dev-detection-msr-strudel-opengever-activity",
+  "runner": "benchmark-held-out-protocol-v1/chatgpt-baseline-v3",
+  "provider": "openai-codex",
+  "model": "gpt-5.6-luna",
+  "model_version": "gpt-5.6-luna",
+  "raw_response_id": "resp_0c50da605600de86016a9b508efc0487d289ef24bbba45c8bc",
+  "raw_response_api": "openai-codex-responses",
+  "runtime_seconds": 35.969358833,
+  "token_usage": {
+    "input": 2019,
+    "output": 1265,
+    "cacheRead": 2560,
+    "cacheWrite": 0,
+    "totalTokens": 5844,
+    "reasoningTokens": 1034,
+    "cost": {
+      "input": 0.00040380000000000006,
+      "output": 0.001518,
+      "cacheRead": 0.0000512,
+      "cacheWrite": 0,
+      "total": 0.001973
+    }
+  },
+  "validation_commands": [
+    "omp --mode json --no-session --no-rules --no-skills --no-tools --model default -p <prompt>",
+    "JSON.parse(raw_response)"
+  ],
+  "validation_results": [
+    "raw_response parsed"
+  ],
+  "predicted_flags": [
+    {
+      "flag": "activity",
+      "value": true,
+      "confidence": 0.99
+    }
+  ],
+  "predicted_provider_state": {
+    "task_partition": "dev",
+    "source": "msr-strudel-2020",
+    "source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+    "repo_snapshot_id": "4teamwork__opengever.core@e035573bc9dc8756a31d4860cbb2307c58840897",
+    "model": "gpt-5.6-luna",
+    "provider": "openai-codex",
+    "model_version": "gpt-5.6-luna",
+    "prompt_hash": "3eb767b9855247d2656cb24b564ca7ac40fda11f8ec88ecede7890fbaffa8afd",
+    "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+    "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+  },
+  "evidence_citations": [
+    {
+      "file": "opengever/base/configuration.py",
+      "symbol": "GeverSettingsAdpaterV1.get_features",
+      "evidence": "features['activity'] = api.portal.get_registry_record('is_feature_enabled', interface=IActivitySettings)"
+    },
+    {
+      "file": "opengever/base/configuration.py",
+      "evidence": "from opengever.activity.interfaces import IActivitySettings"
+    },
+    {
+      "file": "opengever/api/config.py",
+      "symbol": "Config.reply",
+      "evidence": "return IGeverSettings(self.context).get_config()"
+    }
+  ],
+  "abstentions": []
+}
