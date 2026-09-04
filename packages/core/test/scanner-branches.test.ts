@@ -5,7 +5,7 @@
  * - line 144: walkDir catches error for unreadable directory
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, chmodSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -14,9 +14,7 @@ import { collectFiles } from '../src/scanner.js'
 let workDir: string
 
 beforeEach(() => {
-  workDir = mkdirSync(join(tmpdir(), `flagshark-scanner-branch-${Date.now()}`), { recursive: false }) ?? ''
-  workDir = join(tmpdir(), `flagshark-scanner-branch-${Date.now()}`)
-  mkdirSync(workDir, { recursive: true })
+  workDir = mkdtempSync(join(tmpdir(), 'flagshark-scanner-branch-'))
 })
 
 afterEach(() => {
