@@ -1,0 +1,252 @@
+[
+  {
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "runner": "benchmark-local-ai/default",
+    "model": "default",
+    "provider": "openai-codex",
+    "model_version": "default",
+    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+    "provenance": {
+      "benchmark": "flagshark-held-out-technical-comparison",
+      "benchmark_version": "1.0.1",
+      "task_partition": "dev",
+      "task_source": "msr-strudel-2020",
+      "task_source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+      "frozen_inputs": ["app/models/runtime/feature_flag.rb"],
+      "no_flagshark_outputs_used": true
+    },
+    "task_source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "candidates": [
+      {
+        "name": "user_org_creation",
+        "file": "app/models/runtime/feature_flag.rb",
+        "line": 8,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "DEFAULT_FLAGS hash constant enumerates user_org_creation as a feature-flag key"
+      },
+      {
+        "name": "private_domain_creation",
+        "file": "app/models/runtime/feature_flag.rb",
+        "line": 9,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "DEFAULT_FLAGS hash constant enumerates private_domain_creation as a feature-flag key"
+      }
+    ],
+    "abstentions": [],
+    "cost_usd": 0,
+    "runtime_seconds": 0.0
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "runner": "benchmark-local-ai/default",
+    "model": "default",
+    "provider": "openai-codex",
+    "model_version": "default",
+    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+    "provenance": {
+      "benchmark": "flagshark-held-out-technical-comparison",
+      "benchmark_version": "1.0.1",
+      "task_partition": "dev",
+      "task_source": "msr-strudel-2020",
+      "task_source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+      "frozen_inputs": ["config.py"],
+      "no_flagshark_outputs_used": true
+    },
+    "task_source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "candidates": [
+      {
+        "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
+        "file": "config.py",
+        "line": 67,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "enabled_since('2016-02-02') gated feature-flag constant"
+      }
+    ],
+    "abstentions": [
+      "BUILD_DATE and VERSION are not feature flags and were excluded"
+    ],
+    "cost_usd": 0,
+    "runtime_seconds": 0.0
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "runner": "benchmark-local-ai/default",
+    "model": "default",
+    "provider": "openai-codex",
+    "model_version": "default",
+    "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+    "provenance": {
+      "benchmark": "flagshark-held-out-technical-comparison",
+      "benchmark_version": "1.0.1",
+      "task_partition": "dev",
+      "task_source": "msr-strudel-2020",
+      "task_source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+      "frozen_inputs": ["opengever/base/configuration.py", "opengever/api/config.py"],
+      "no_flagshark_outputs_used": true
+    },
+    "task_source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
+    "candidates": [
+      {
+        "name": "activity",
+        "file": "opengever/base/configuration.py",
+        "line": 50,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IActivitySettings"
+      },
+      {
+        "name": "contacts",
+        "file": "opengever/base/configuration.py",
+        "line": 51,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IContactSettings"
+      },
+      {
+        "name": "doc_properties",
+        "file": "opengever/base/configuration.py",
+        "line": 52,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for create_doc_properties in ITemplateFolderProperties"
+      },
+      {
+        "name": "dossier_templates",
+        "file": "opengever/base/configuration.py",
+        "line": 53,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IDossierTemplateSettings"
+      },
+      {
+        "name": "ech0147_export",
+        "file": "opengever/base/configuration.py",
+        "line": 54,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for ech0147_export_enabled in IECH0147Settings"
+      },
+      {
+        "name": "ech0147_import",
+        "file": "opengever/base/configuration.py",
+        "line": 55,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for ech0147_import_enabled in IECH0147Settings"
+      },
+      {
+        "name": "favorites",
+        "file": "opengever/base/configuration.py",
+        "line": 56,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IFavoritesSettings"
+      },
+      {
+        "name": "meetings",
+        "file": "opengever/base/configuration.py",
+        "line": 57,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IMeetingSettings"
+      },
+      {
+        "name": "officeatwork",
+        "file": "opengever/base/configuration.py",
+        "line": 58,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IOfficeatworkSettings"
+      },
+      {
+        "name": "officeconnector_attach",
+        "file": "opengever/base/configuration.py",
+        "line": 59,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for attach_to_outlook_enabled in IOfficeConnectorSettings"
+      },
+      {
+        "name": "officeconnector_checkout",
+        "file": "opengever/base/configuration.py",
+        "line": 60,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for direct_checkout_and_edit_enabled in IOfficeConnectorSettings"
+      },
+      {
+        "name": "preview_auto_refresh",
+        "file": "opengever/base/configuration.py",
+        "line": 61,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_auto_refresh_enabled in IGeverBumblebeeSettings"
+      },
+      {
+        "name": "preview_open_pdf_in_new_window",
+        "file": "opengever/base/configuration.py",
+        "line": 62,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for open_pdf_in_a_new_window in IGeverBumblebeeSettings"
+      },
+      {
+        "name": "preview",
+        "file": "opengever/base/configuration.py",
+        "line": 63,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IGeverBumblebeeSettings"
+      },
+      {
+        "name": "repositoryfolder_documents_tab",
+        "file": "opengever/base/configuration.py",
+        "line": 64,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for show_documents_tab in IRepositoryFolderRecords"
+      },
+      {
+        "name": "repositoryfolder_tasks_tab",
+        "file": "opengever/base/configuration.py",
+        "line": 65,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for show_tasks_tab in IRepositoryFolderRecords"
+      },
+      {
+        "name": "solr",
+        "file": "opengever/base/configuration.py",
+        "line": 66,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for use_solr in ISearchSettings"
+      },
+      {
+        "name": "word_meetings",
+        "file": "opengever/base/configuration.py",
+        "line": 67,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_word_implementation_enabled in IMeetingSettings"
+      },
+      {
+        "name": "workspace",
+        "file": "opengever/base/configuration.py",
+        "line": 68,
+        "confidence": "medium",
+        "status": "detected",
+        "evidence": "registry key read for is_feature_enabled in IWorkspaceSettings"
+      }
+    ],
+    "abstentions": [],
+    "cost_usd": 0,
+    "runtime_seconds": 0.0
+  }
+]

@@ -1,7 +1,9 @@
 {
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.0.0",
-  "model": "openai-codex/gpt-5.4-mini:low",
+  "version": "1.0.1",
+  "model": "default",
+  "provider": "openai-codex",
+  "selection_rationale": "The exact low-labeled model is not available in this environment; use the environment-accepted default model to keep the benchmark runnable and explicitly record the selection as a local execution choice.",
   "prompt": "Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag detection and transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the frozen input schema and frozen output schema, do not use network access or provider credentials on the public track, and do not consult goldens or hidden adjudication notes.",
   "constraints": {
     "noNetwork": true,
