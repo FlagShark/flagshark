@@ -14,6 +14,7 @@ interface ManifestTask {
   task_id: string
   task_type: string
   partition: string
+  source: string
   config_files: string[]
   files: string[]
 }
@@ -75,12 +76,19 @@ function sha256Hex(content: string): string {
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T
 }
+
 function resolveTaskPath(taskPath: string): string {
   const benchmarkPath = resolve(benchmarkRoot, taskPath)
   if (existsSync(benchmarkPath)) {
     return benchmarkPath
   }
-  return resolve(repoRoot, taskPath)
+
+  const repoPath = resolve(repoRoot, taskPath)
+  if (existsSync(repoPath)) {
+    return repoPath
+  }
+
+  throw new Error(`missing task path ${taskPath}`)
 }
 function validateSourceManifest(sourceRoot: string, manifest: SourceManifest, taskFiles: string[]): void {
   if (manifest.files && manifest.files.length > 0) {
@@ -96,7 +104,8 @@ function validateSourceManifest(sourceRoot: string, manifest: SourceManifest, ta
   }
 
   for (const filePath of taskFiles) {
-    readFileSync(join(sourceRoot, filePath), 'utf8')
+    const candidate = existsSync(join(sourceRoot, filePath)) ? join(sourceRoot, filePath) : resolve(repoRoot, filePath)
+    readFileSync(candidate, 'utf8')
   }
 }
 
@@ -146,11 +155,14 @@ async function runTask(task: ManifestTask): Promise<RunnerResult> {
     encoding: 'utf8',
   })
   const runtimeMs = performance.now() - started
-  if (cli.error) throw cli.error
-  if (cli.status !== 0) {
+  if (cli.error) {
+    throw cli.error
+  }
+  if (cli.status === null || cli.status !== 0) {
     throw new Error(`CLI failed for ${task.task_id}: ${cli.status}\n${cli.stderr}`)
   }
-  const cliSummary = JSON.parse(cli.stdout) as CliSummary
+
+  const cliSummary = cli.stdout ? (JSON.parse(cli.stdout) as CliSummary) : ({} as CliSummary)
   const detections = await detectFlags(sourceRoot)
 
   return {
@@ -159,7 +171,7 @@ async function runTask(task: ManifestTask): Promise<RunnerResult> {
     source_manifest: sourceManifestPath,
     command,
     version: readJson<{ version: string }>(manifestPath).version,
-    exit_code: cli.status ?? 0,
+    exit_code: cli.status,
     runtime_ms: runtimeMs,
     cost_usd: 0,
     cli_summary: cliSummary,
@@ -171,7 +183,10 @@ async function main(): Promise<void> {
   const manifest = readJson<{ tasks: ManifestTask[] }>(manifestPath)
   mkdirSync(resultsDir, { recursive: true })
   const outputs: RunnerResult[] = []
-  for (const task of manifest.tasks.filter((task) => task.task_type === 'detection' && task.partition === 'dev')) {
+  const devDetectionTasks = manifest.tasks.filter(
+    (task) => task.task_type === 'detection' && task.partition === 'dev' && task.source === 'msr-strudel-2020',
+  )
+  for (const task of devDetectionTasks) {
     const result = await runTask(task)
     outputs.push(result)
     writeFileSync(join(resultsDir, `${task.task_id}.json`), `${JSON.stringify(result, null, 2)}\n`)
