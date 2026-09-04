@@ -32,7 +32,15 @@ interface ScannerTaskResult {
     excludedPermanent?: string[]
     permanentByPlatform?: Record<string, string[]>
   }
-  }
+  detections: ScannerDetection[]
+}
+
+interface PredictedFlag {
+  name: string
+  location: string
+  classification: string
+  evidence_citations?: string[]
+}
 
 interface PredictedProviderState {
   task_partition?: string
@@ -78,19 +86,24 @@ interface AiRunConfig {
   inputs: { allowedSources: string[]; devSourcesOnly: string[]; heldOutSources: string[] }
 }
 
-interface AiRunProvenance {
-  config_version: string
+interface AiRunProvenanceRecord {
+  task_id: string
   model: string
   provider: string
   model_version: string
   date: string
   tool_versions: { comparator: string; cli: string }
-  snapshot_ids: string[]
+  snapshot_id: string
   prompt: string
   prompt_template: string
   prompt_hash: string
   output_schema_version: string
   recordBeforeRun: string[]
+}
+
+interface AiRunProvenance {
+  config_version: string
+  tasks: AiRunProvenanceRecord[]
 }
 
 interface AiRunStatus {
@@ -122,6 +135,8 @@ interface LocationUncertainMatch {
   aiLineKnown: boolean
   scannerLineNumber?: number
   aiLineNumber?: number
+  aiLineStart?: number
+  aiLineEnd?: number
 }
 
 interface LocationMismatchMatch {
@@ -264,21 +279,15 @@ function validateValidRun(status: AiRunStatus, config: AiRunConfig, manifest: Be
   if (status.version !== manifest.version) return 'status version must match manifest version'
   const provenance = status.provenance
   if (provenance.config_version !== config.version) return 'status provenance config version mismatch'
-  if (provenance.model !== config.model || provenance.provider !== config.provider || provenance.model_version !== config.model_version) return 'status provenance model/provider/version mismatch'
-  if (provenance.prompt !== config.prompt || provenance.prompt_template !== config.prompt_template || provenance.prompt_hash !== config.prompt_hash) return 'status provenance prompt mismatch'
-  if (provenance.output_schema_version !== config.output_schema_version) return 'status provenance output schema version mismatch'
-  if (provenance.tool_versions.comparator !== config.tool_versions.comparator || provenance.tool_versions.cli !== config.tool_versions.cli) return 'status provenance tool version mismatch'
-  if (!isIsoLikeDate(provenance.date)) return 'status provenance date must be ISO-like'
-  if (!compareStringArray(provenance.recordBeforeRun, config.recordBeforeRun)) return 'status provenance recordBeforeRun mismatch'
   const manifestTaskById = new Map(manifest.tasks.map((task) => [task.task_id, task]))
   const expectedDevDetectionTasks = manifest.tasks.filter((task) => task.task_type === 'detection' && task.partition === 'dev' && task.source === 'msr-strudel-2020')
   const expectedDevDetectionIds = expectedDevDetectionTasks.map((task) => task.task_id)
-  const expectedSnapshotIds = expectedDevDetectionTasks.map((task) => task.repo_snapshot_id)
   const scannerTaskIds = scannerResults.map((row) => row.task_id)
   const aiTaskIds = aiResults.map((row) => row.task_id)
   if (!compareStringArray([...expectedDevDetectionIds].sort(), [...scannerTaskIds].sort())) return 'scanner task set does not match dev msr detection manifest set'
   if (!compareStringArray([...expectedDevDetectionIds].sort(), [...aiTaskIds].sort())) return 'normalized task set does not match dev msr detection manifest set'
-  if (!compareStringArray([...expectedSnapshotIds].sort(), [...new Set(provenance.snapshot_ids)].sort())) return 'status provenance snapshot_ids must cover dev msr detection repo snapshots'
+  if (!Array.isArray(provenance.tasks) || provenance.tasks.length !== expectedDevDetectionIds.length) return 'status provenance must include per-task records'
+  const provenanceByTaskId = new Map(provenance.tasks.map((record) => [record.task_id, record]))
 
   for (const scannerTask of scannerResults) {
     if (scannerTask.exit_code !== 0) return `scanner task ${scannerTask.task_id} exit_code must be 0`
@@ -288,6 +297,18 @@ function validateValidRun(status: AiRunStatus, config: AiRunConfig, manifest: Be
     if (task.task_type !== 'detection' || task.partition !== 'dev' || task.source !== 'msr-strudel-2020') return `scanner task ${scannerTask.task_id} is not dev msr detection`
     if (scannerTask.source_root !== `tasks/dev/detection/sources/${scannerTask.task_id}`) return `scanner task ${scannerTask.task_id} source_root mismatch`
     if (scannerTask.source_manifest !== task.config_files[0]) return `scanner task ${scannerTask.task_id} source_manifest mismatch`
+  }
+
+  for (const expectedTask of expectedDevDetectionTasks) {
+    const record = provenanceByTaskId.get(expectedTask.task_id)
+    if (!record) return `status provenance missing task record for ${expectedTask.task_id}`
+    if (record.model !== config.model || record.provider !== config.provider || record.model_version !== config.model_version) return `status provenance model/provider/version mismatch for ${expectedTask.task_id}`
+    if (!isIsoLikeDate(record.date)) return `status provenance date must be ISO-like for ${expectedTask.task_id}`
+    if (!compareStringArray(record.tool_versions ? [record.tool_versions.comparator, record.tool_versions.cli] : [], [config.tool_versions.comparator, config.tool_versions.cli])) return `status provenance tool version mismatch for ${expectedTask.task_id}`
+    if (record.snapshot_id !== expectedTask.repo_snapshot_id) return `status provenance snapshot_id mismatch for ${expectedTask.task_id}`
+    if (record.prompt !== config.prompt || record.prompt_template !== config.prompt_template || record.prompt_hash !== config.prompt_hash) return `status provenance prompt mismatch for ${expectedTask.task_id}`
+    if (record.output_schema_version !== config.output_schema_version) return `status provenance output schema version mismatch for ${expectedTask.task_id}`
+    if (!compareStringArray(record.recordBeforeRun, config.recordBeforeRun)) return `status provenance recordBeforeRun mismatch for ${expectedTask.task_id}`
   }
 
   for (const row of aiResults) {
@@ -416,4 +437,4 @@ export function writeComparisonResult(outputPath: string): ComparisonResult {
   return result
 }
 
-if (import.meta.main) writeComparisonResult(resolve(benchmarkRoot, 'runner/comparison.json'))
+if (process.argv[1] && process.argv[1].endsWith('compare.ts')) writeComparisonResult(resolve(benchmarkRoot, 'runner/comparison.json'))

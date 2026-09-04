@@ -7,7 +7,7 @@ import { compareResults } from './compare'
 
 type ManifestTask = { task_id: string; source: string; source_revision: string; repo_snapshot_id: string; task_type: string; partition: string; files: string[]; config_files: string[] }
 type Manifest = { benchmark: string; version: string; tasks: ManifestTask[] }
-type Status = { status: 'valid' | 'invalid'; reason: string; version: string; provenance?: { config_version: string; model: string; provider: string; model_version: string; date: string; tool_versions: { comparator: string; cli: string }; snapshot_ids: string[]; prompt: string; prompt_template: string; prompt_hash: string; output_schema_version: string; recordBeforeRun: string[] } }
+type Status = { status: 'valid' | 'invalid'; reason: string; version: string; provenance?: { config_version: string; tasks: Array<{ task_id: string; model: string; provider: string; model_version: string; date: string; tool_versions: { comparator: string; cli: string }; snapshot_id: string; prompt: string; prompt_template: string; prompt_hash: string; output_schema_version: string; recordBeforeRun: string[] }> } }
 
 const repoRoot = resolve(import.meta.dir, '../../..')
 const benchmarkRoot = resolve(repoRoot, 'benchmarks/held-out-protocol-v1')
@@ -47,7 +47,7 @@ const validAiResults = devDetectionTasks.map((task) => ({
 }))
 const invalidAiResults = validAiResults.map((row) => ({ ...row, predicted_provider_state: row.predicted_provider_state ? { ...row.predicted_provider_state, source_root: `${row.predicted_provider_state.source_root}-placeholder` } : row.predicted_provider_state }))
 
-const validStatus: Status = { status: 'valid', reason: 'provenance-complete benchmark run', version: manifest.version, provenance: { config_version: config.version, model: config.model, provider: config.provider, model_version: config.model_version, date: '2026-09-04', tool_versions: config.tool_versions, snapshot_ids: devDetectionTasks.map((task) => task.repo_snapshot_id), prompt: config.prompt, prompt_template: config.prompt_template, prompt_hash: config.prompt_hash, output_schema_version: config.output_schema_version, recordBeforeRun: config.recordBeforeRun } }
+const validStatus: Status = { status: 'valid', reason: 'provenance-complete benchmark run', version: manifest.version, provenance: { config_version: config.version, tasks: devDetectionTasks.map((task) => ({ task_id: task.task_id, model: config.model, provider: config.provider, model_version: config.model_version, date: '2026-09-04', tool_versions: config.tool_versions, snapshot_id: task.repo_snapshot_id, prompt: config.prompt, prompt_template: config.prompt_template, prompt_hash: config.prompt_hash, output_schema_version: config.output_schema_version, recordBeforeRun: config.recordBeforeRun })) } }
 const invalidStatus: Status = { status: 'invalid', reason: 'audit-only harness capture', version: '2026-08-29' }
 
 test('comparison prefixes ai locations with the matched scanner source_root and treats scanner lines inside ai ranges as overlap', () => {
@@ -64,10 +64,12 @@ test('comparison validates a provenance-complete valid run and rejects mutated p
   expect(validResult.status).toBe('valid')
   expect(validResult.tasks).toHaveLength(3)
   expect(validResult.status_version).toBe(manifest.version)
-  const mutatedPrompt = { ...validStatus, provenance: { ...validStatus.provenance!, prompt_hash: `${validStatus.provenance!.prompt_hash.slice(0, -1)}0` } }
+  const mutatedPrompt = { ...validStatus, provenance: { ...validStatus.provenance!, tasks: validStatus.provenance!.tasks.map((record, index) => index === 0 ? { ...record, prompt_hash: `${record.prompt_hash.slice(0, -1)}0` } : record) } }
   expect(compareResults(scannerResults as never, validAiResults as never, mutatedPrompt as never).status_reason).toContain('prompt mismatch')
   const mutatedSourceRoot = validAiResults.map((row) => row.task_id === 'dev-detection-msr-strudel-cloudfoundry-user_org_creation' ? { ...row, predicted_provider_state: { ...row.predicted_provider_state!, source_root: 'tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation-bad' } } : row)
   expect(compareResults(scannerResults as never, mutatedSourceRoot as never, validStatus as never).status_reason).toContain('scanner provider state mismatch')
+  const mutatedScanner = scannerResults.map((row) => row.task_id === 'dev-detection-msr-strudel-opengever-activity' ? { ...row, source_root: `${row.source_root}-bad` } : row)
+  expect(compareResults(mutatedScanner as never, validAiResults as never, validStatus as never).status_reason).toContain('scanner provider state mismatch for dev-detection-msr-strudel-opengever-activity')
 })
 
 test('comparison keeps same-name same-file unknown-line pairs in location_uncertain instead of scanner_only or ai_only', () => {
