@@ -5,7 +5,7 @@
   "command": "bun /Users/joe/projects/flagshark/flagshark/packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file",
   "version": "1.5.3",
   "exit_code": 0,
-  "runtime_ms": 109.65174999999999,
+  "runtime_ms": 110.649167,
   "cost_usd": 0,
   "cli_summary": {
     "version": "2.8.0",
@@ -23,7 +23,7 @@
       "python": 1
     },
     "flags": [],
-    "scanDuration": 68,
+    "scanDuration": 69,
     "links": {
       "dashboard": "https://flagshark.com",
       "cli": "https://github.com/FlagShark/flagshark",
