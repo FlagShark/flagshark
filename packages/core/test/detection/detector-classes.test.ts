@@ -265,17 +265,22 @@ describe('config-style feature-flag detection', () => {
     ].join('\n')
 
     const flags = await d.detectFlags('config.py', src)
+    const editSections = flags.find((f) => f.name === 'FEATURE_FLAGS_EDIT_SECTIONS')
+    const activity = flags.find((f) => f.name === 'activity')
+
     expect(flags.map((f) => [f.name, f.confidence, f.provider]).sort()).toEqual(
       [
         ['FEATURE_FLAGS_EDIT_SECTIONS', 'medium', 'python-config'],
         ['activity', 'medium', 'python-config'],
       ].sort(),
     )
+    expect(editSections?.lineNumber).toBe(2)
+    expect(activity?.lineNumber).toBe(3)
     expect(flags.some((f) => f.name === 'BUILD_DATE')).toBe(false)
     expect(flags.some((f) => f.name === 'VERSION')).toBe(false)
   })
 
-  it('detects Ruby DEFAULT_FLAGS symbol keys with medium confidence and ignores unrelated hashes', () => {
+  it('detects Ruby DEFAULT_FLAGS symbol keys with medium confidence and preserves declaration line numbers', () => {
     const d = new RubyDetector()
     const src = [
       `DEFAULT_FLAGS = {`,
@@ -286,11 +291,16 @@ describe('config-style feature-flag detection', () => {
     ].join('\n')
 
     const flags = d.detectFlags('feature_flag.rb', src)
+    const user = flags.find((f) => f.name === 'user_org_creation')
+    const privateDomain = flags.find((f) => f.name === 'private_domain_creation')
+
     expect(flags.map((f) => [f.name, f.confidence, f.provider]).sort()).toEqual(
       [
         ['private_domain_creation', 'medium', 'ruby-config'],
         ['user_org_creation', 'medium', 'ruby-config'],
       ].sort(),
     )
+    expect(user?.lineNumber).toBe(1)
+    expect(privateDomain?.lineNumber).toBe(1)
   })
 })

@@ -203,17 +203,17 @@ export function detectConfigFlags(
     })
   }
   if (language === 'python') {
-    const constAssign = /^\s*((?:FEATURE_FLAGS_|FEATURE_FLAG_)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm
+    const constAssign = /^[ \t]*((?:FEATURE_FLAGS_|FEATURE_FLAG_)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm
     for (const match of content.matchAll(constAssign)) {
       push(match[1], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
     }
 
-    const mappingAssign = /^\s*features\s*\[\s*(['"])([^'"]+)\1\s*\]\s*=\s*api\.portal\.get_registry_record\s*\(/gm
+    const mappingAssign = /^[ \t]*features\s*\[\s*(['"])([^'"]+)\1\s*\]\s*=\s*api\.portal\.get_registry_record\s*\(/gm
     for (const match of content.matchAll(mappingAssign)) {
       push(match[2], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
     }
   } else if (language === 'ruby') {
-    const hashAssign = /^\s*([A-Z][A-Z0-9_]*)\s*=\s*\{([\s\S]*?)\}(?:\.freeze)?/gm
+    const hashAssign = /^[ \t]*([A-Z][A-Z0-9_]*)\s*=\s*\{([\s\S]*?)\}(?:\.freeze)?/gm
     for (const match of content.matchAll(hashAssign)) {
       const constName = match[1]
       if (!/(?:^|_)(FLAGS?)(?:$|_)/.test(constName)) continue

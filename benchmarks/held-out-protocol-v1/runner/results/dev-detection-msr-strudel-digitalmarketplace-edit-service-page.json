@@ -27,7 +27,7 @@
     {
       "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
       "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-      "lineNumber": 66,
+      "lineNumber": 67,
       "language": "python",
       "provider": "python-config",
       "confidence": "medium"

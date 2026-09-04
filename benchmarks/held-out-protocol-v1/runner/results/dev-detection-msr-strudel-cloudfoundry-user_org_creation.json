@@ -27,7 +27,7 @@
     {
       "name": "private_domain_creation",
       "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-      "lineNumber": 6,
+      "lineNumber": 7,
       "language": "ruby",
       "provider": "ruby-config",
       "confidence": "medium"
@@ -35,7 +35,7 @@
     {
       "name": "user_org_creation",
       "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-      "lineNumber": 6,
+      "lineNumber": 7,
       "language": "ruby",
       "provider": "ruby-config",
       "confidence": "medium"
