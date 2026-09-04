@@ -6,7 +6,9 @@
 - Public provider truth is limited.
 - Internal FlagShark fixtures are development/regression only and are not held-out truth.
 - Post-hoc synthetic cases created after the scanner exists are regression-only and cannot count as held-out evidence.
-- The current bundle is `positive-detection-smoke-only`.
+- The current bundle is `failed-positive-detection-smoke`.
+- FlagShark CLI 2.8.0 executed on the three pinned MSR tasks but detected 0 flags on each externally annotated positive task, so this is a failed known-positive compatibility smoke, not a valid positive-detection bundle.
+- Supported detection semantics have not been demonstrated for these annotations.
 - Held-out tasks here are positive-detection compatibility/reference tasks only; provider-config tasks are reference-only and transformation is excluded.
 - A valid detection comparison still requires an independent exhaustive candidate/negative set and more projects, or external blinded labeling before seeing FlagShark outputs.
 - If a source cannot be independently downloaded or pinned, it is excluded and must be listed as excluded rather than inferred.

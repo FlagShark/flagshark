@@ -1,7 +1,7 @@
 {
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.5.0",
-  "status": "positive-detection-smoke-only",
+  "version": "1.5.1",
+  "status": "failed-positive-detection-smoke",
   "matrix": [
     {
       "task_id": "dev-detection-internal-fixture-ts-001",
@@ -18,8 +18,8 @@
       "truth_type": "positive-detection-reference",
       "flagshark_support": true,
       "ai_baseline_support": true,
-      "comparable": true,
-      "reason": "positive MSR/Strudel detection compatibility task with pinned file set and external labels; known-positive hit-rate smoke only"
+      "comparable": false,
+      "reason": "FlagShark CLI 2.8.0 executed but detected 0 flags on this externally annotated positive task; failed known-positive compatibility smoke"
     },
     {
       "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
@@ -27,8 +27,8 @@
       "truth_type": "positive-detection-reference",
       "flagshark_support": true,
       "ai_baseline_support": true,
-      "comparable": true,
-      "reason": "positive MSR/Strudel detection compatibility task with pinned file set and external labels; known-positive hit-rate smoke only"
+      "comparable": false,
+      "reason": "FlagShark CLI 2.8.0 executed but detected 0 flags on this externally annotated positive task; failed known-positive compatibility smoke"
     },
     {
       "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
@@ -36,8 +36,8 @@
       "truth_type": "positive-detection-reference",
       "flagshark_support": true,
       "ai_baseline_support": true,
-      "comparable": true,
-      "reason": "positive MSR/Strudel detection compatibility task with pinned file set and external labels; known-positive hit-rate smoke only"
+      "comparable": false,
+      "reason": "FlagShark CLI 2.8.0 executed but detected 0 flags on this externally annotated positive task; failed known-positive compatibility smoke"
     },
     {
       "task_id": "held-out-provider-openfeature-flagd-001",

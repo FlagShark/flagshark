@@ -1,19 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "benchmark": "flagshark-held-out-technical-comparison",
-  "version": "1.5.1",
-  "status": "positive-detection-smoke-only",
+  "version": "1.5.2",
+  "status": "failed-positive-detection-smoke",
   "generatedAt": "2026-09-04",
   "artifactDir": "benchmarks/held-out-protocol-v1",
   "artifactChecksums": {
     "source-revisions.json": "8a2778bb145626af5a39525837e677f10d46c122d958ad8fe608d8f5342425ef",
     "exclusions.json": "5dffb1da04259e9d22597b23cf8e216ede8e01b113da7e45c57931b1030bfb55",
-    "capability-matrix.json": "0d4b858d2428ddb82ba74a90b9a2761a4fb5a8768c25d5c722984e1df7189919",
-    "source-truth-index.md": "ffd7dd4bb9efc653af2d560a3cbb8ccad85ea856a02a137c220e363c7dbc6481",
+    "capability-matrix.json": "1a7cfa3ad6d04f1f17c379e4f5286f67a504dabf7a1091ab1af9174791b42c1e",
+    "source-truth-index.md": "c818a71341530fb8b269dff5c6f79835348841afe8857908c5ace35b524df44e",
     "tasks/dev/detection/internal-fixture-ts-001.json": "8f37cbd1b6ac1c833fbefa58bc34d5800922ac5c48baa814f7c47acbedca976a",
     "tasks/held-out/detection/held-out-detection-msr-strudel-cloudfoundry-user_org_creation.json": "40d64b57f7b014ba7d978b59fafb0a6308c0a016ca8e538114d4edc92c9c71a1",
     "tasks/held-out/detection/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page.json": "f7ffb1eb8e269debd3e21166beb1742fa414adce1a5077b922ff08be0431f099",
-    "tasks/held-out/detection/held-out-detection-msr-strudel-opengever-activity.json": "35c022b39b7c61ce04b05462a159661829936ec8a1fb18e6142979b8da3c627f",
+    "tasks/held-out/detection/held-out-detection-msr-strudel-opengever-activity.json": "75f43f4bdef1e23a55034c7c01e6bfb87a8e70a6f093fe15a1ce35fec1a81951",
     "tasks/held-out/detection/sources/held-out-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json": "00bee36796a77f9b8995e94f19347962016b965270257ffc55ed04767cd9e92a",
     "tasks/held-out/detection/sources/held-out-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json": "c454f71585e26451947d6f4a796231035a2f1b508ac14b914370ce1d85ce5671",
     "tasks/held-out/detection/sources/held-out-detection-msr-strudel-opengever-activity/source-manifest.json": "6d67ee85b27b0e982e76bdc14f3e683b46557a0aceaa34e613273e5caa0fe191",
@@ -31,7 +31,7 @@
         "scoring thresholds"
       ],
       "heldOutUse": [
-        "positive detection compatibility/reference only; provider-config reference-only; transformation excluded"
+        "failed positive-detection compatibility/reference smoke only; provider-config reference-only; transformation excluded"
       ],
       "rescorePolicy": "only when runner code or evaluation schema changes; version increments and prior scores remain archived"
     },
@@ -77,7 +77,7 @@
       "pin": {
         "datasetVersion": "Zenodo record 3712228"
       },
-      "status": "positive-detection-smoke-only",
+      "status": "failed-positive-detection-smoke",
       "checksumPolicy": "record archive checksum and task-row refs in the workspace"
     },
     {
@@ -157,7 +157,7 @@
         "read",
         "jq"
       ],
-      "notes": "Positive-detection compatibility task derived from the MSR/Strudel corpus. Known-positive hit rate only; no precision, no complete recall, no safe-retirement claim."
+      "notes": "FlagShark CLI 2.8.0 executed successfully but detected 0 flags on this externally annotated positive task. Failed known-positive compatibility smoke; supported detection semantics have not been demonstrated for these annotations."
     },
     {
       "task_id": "held-out-detection-msr-strudel-digitalmarketplace-edit-service-page",
@@ -181,7 +181,7 @@
         "read",
         "jq"
       ],
-      "notes": "Positive-detection compatibility task derived from the MSR/Strudel corpus. Known-positive hit rate only; no precision, no complete recall, no safe-retirement claim."
+      "notes": "FlagShark CLI 2.8.0 executed successfully but detected 0 flags on this externally annotated positive task. Failed known-positive compatibility smoke; supported detection semantics have not been demonstrated for these annotations."
     },
     {
       "task_id": "held-out-detection-msr-strudel-cloudfoundry-user_org_creation",
@@ -205,7 +205,7 @@
         "read",
         "jq"
       ],
-      "notes": "Positive-detection compatibility task derived from the MSR/Strudel corpus. Known-positive hit rate only; no precision, no complete recall, no safe-retirement claim."
+      "notes": "FlagShark CLI 2.8.0 executed successfully but detected 0 flags on this externally annotated positive task. Failed known-positive compatibility smoke; supported detection semantics have not been demonstrated for these annotations."
     },
     {
       "task_id": "held-out-provider-openfeature-flagd-001",
