@@ -25,9 +25,9 @@
 
 ## Customer evidence gate: prove FlagShark beats AI-assisted DIY on safe feature-flag transformation
 
-**Owner:** Joseph Daniel McGrath (founder)
+**Owner:** Founder — Joseph Daniel McGrath
 
-**Decision date:** 2026-09-24
+**Reassessment deadline:** 2026-09-24
 
 **Decision:** Go / no-go on substantial hosted-product expansion
 
@@ -52,7 +52,8 @@ Before any substantial SaaS rebuild, product expansion, or “AI can do this now
 ### Decision rules
 
 - This gate must end in a **commercial commitment** before FlagShark expands the hosted product materially.
-- The decision date is hard: unless customer-approved evidence exists by 2026-09-24, the gate remains **no-go** for substantial hosted-product expansion.
+- The reassessment deadline is hard: unless customer-approved evidence exists by 2026-09-24, the gate remains **no-go** for substantial hosted-product expansion.
+- At the reassessment deadline, the decision must be one of: **Continue**, **Extend once with a documented reason**, or **Stop**.
 - If FlagShark does **not** beat the AI-assisted DIY baseline on safe transformation, customer trust, or operational burden, do **not** proceed as if the platform has a durable advantage.
 - If the result is only “good scanner” parity, that is not enough.
 
@@ -71,6 +72,40 @@ Before any substantial SaaS rebuild, product expansion, or “AI can do this now
 ### Scope note
 
 This gate is the pre-rebuild decision gate. It must be passed before the plan proceeds to larger platform investments.
+
+### Pre-customer technical validation track
+
+This track is for **non-customer evidence only**. It is adjacent to, but does not replace, the customer evidence gate.
+
+**Permitted evidence sources**
+
+- FlagShark internal labeled fixtures and corpora.
+- The CMU Strudel / MSR 2020 feature-flag dataset for feature-flag presence and lifetimes only, not provider state.
+- Uber Piranha public regression corpus.
+- OpenFeature playground checked-in provider config.
+- Optionally, an authorized test LaunchDarkly project if credentials are available.
+
+**Required experimental design**
+
+- Use a fixed, specified **AI-agent baseline** for every run.
+- Use the same repo snapshots / fixture revisions for every compared workflow.
+- Require blinded human adjudication of proposed removals, rewrites, and extracted provider state.
+- Compare **safe transformation outcomes** only: detection correctness, provider-adapter correctness, transform correctness, and reproducibility.
+- The hand-written enumerator and any synthetic smoke checks may be used to validate implementation behavior, but they are **not** AI-comparison evidence and are **not** safety proof.
+
+**Exact limits**
+
+- This track can validate implementation behavior, detection correctness, provider-adapter correctness, transformation correctness, and reproducibility.
+- This track cannot validate customer safety in production, ROI, willingness to pay, adoption, market fit, or commercial demand.
+- This track cannot substitute for customer consent or for the eventual market/safety gate.
+
+**Source-backed inputs**
+
+- FlagShark internal labeled fixtures: `flagshark/packages/core/test/fixtures/**`
+- CMU Strudel/MSR 2020 dataset: https://doi.org/10.5281/zenodo.3712227
+- Uber Piranha public regression corpus: https://github.com/uber/piranha
+- OpenFeature playground: https://github.com/open-feature/playground
+- Authorized test LaunchDarkly project: only if credentials exist; otherwise omit.
 
 ---
 
@@ -595,6 +630,9 @@ Keep the dashboard assistant read-only by default and workspace-scoped. Expand t
 After the funnel is healthy, add Marketplace reviews, provider-specific landing pages, OpenFeature/LaunchDarkly community posts, an `awesome-github-actions` entry, and a technically accurate third-party launch article. Do not add more generic blog posts until existing pages produce measurable qualified conversions.
 
 ---
+### Note on Gates B/C
+
+Gate B and Gate C are future measurement targets for the eventual customer validation track. They are not evidence of current adoption, and they are not an alternate authorization path around the customer evidence gate or the pre-rebuild blocker.
 
 ## Human validation scorecard
 
@@ -656,5 +694,5 @@ If Gate B passes but Gate C fails, revise packaging/pricing. If Gate B fails bec
 12. Task 12 — recurring health workflows, only after activation evidence.
 13. Deferred additions D1–D5, selected by observed customer demand.
 
-The first implementation batch is Tasks 1–6. The first human validation batch begins immediately after Task 6; it should run in parallel with Tasks 7–8, not after months of additional engineering.
+The first implementation batch is Tasks 1–6. These are the P0 minimum reliability/trust work; first human validation can run in parallel with the minimum Tasks 7–8; no hosted P1/P2/P3 work is authorized until the customer evidence gate passes.
 
