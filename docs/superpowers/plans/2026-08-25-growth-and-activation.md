@@ -108,7 +108,9 @@ This track is for **non-customer evidence only**. It is adjacent to, but does no
 **AI baseline run manifest v1**
 
 - Model identifier: `openai-codex/gpt-5.6-luna`
-- Prompt: `Using only the provided repo snapshot and the given corpus, evaluate FlagShark on the specified benchmark. Do not use FlagShark internals beyond the allowed files. Do not use network access or provider credentials for the public track. Return only the required output schema.`
+- Prompt: `Using only the frozen repo snapshot and the allowed provider/config files, independently perform the same feature-flag transformation task without using FlagShark internals or any FlagShark-specific outputs. Identify candidate flag locations and names, classify each candidate as stale, safe, unsafe, or unknown, cite the evidence for each classification, propose a patch/diff for safe candidates, report the validation commands and results you would run or ran, and explicitly abstain where the evidence is insufficient. Use the same output schema and evaluation criteria as FlagShark, and do not use network access or provider credentials on the public track.`
+- Inputs: frozen repo snapshot plus the allowed provider/config files for the benchmark corpus.
+- Outputs: structured candidate flag locations/names; stale/safe/unsafe/unknown classification; evidence citations; proposed patch/diff for safe candidates; validation commands/results; explicit abstentions.
 - Tooling: read/write/test only in a temporary checkout; no FlagShark internals; no network; no provider credentials for the public track.
 - Runs: one fresh run, no retries.
 - Budget: 30 minutes and 100,000 tokens maximum; record actual time/token usage.
