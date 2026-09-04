@@ -1,0 +1,319 @@
+[
+  {
+    "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+    "runner": "benchmark-local-ai/default",
+    "runtime_seconds": 0,
+    "token_usage": {},
+    "validation_commands": ["completion(prompt, 'default', ...)"],
+    "validation_results": [],
+    "predicted_flags": [
+      {
+        "name": "user_org_creation",
+        "location": "app/models/runtime/feature_flag.rb:7-10,17-25,27-31",
+        "classification": "safe",
+        "evidence_citations": [
+          "Listed in DEFAULT_FLAGS with a fixed boolean default: user_org_creation: false",
+          "validate() only allows names present in DEFAULT_FLAGS.keys, so this is an intentionally supported flag",
+          "enabled?(feature_flag_name) returns persisted value if present, otherwise falls back to DEFAULT_FLAGS.fetch(feature_flag_name.to_sym), so the flag has a defined runtime behavior"
+        ],
+        "proposed_patch": {
+          "status": "safe_candidate_patch",
+          "diff": "--- a/app/models/runtime/feature_flag.rb\n+++ b/app/models/runtime/feature_flag.rb\n@@ -1,31 +1,31 @@\n module VCAP::CloudController\n   class FeatureFlag < Sequel::Model\n@@\n     DEFAULT_FLAGS = {\n       user_org_creation: false,\n       private_domain_creation: true\n     }.freeze\n@@\n     def self.enabled?(feature_flag_name)\n       feature_flag = FeatureFlag.find(name: feature_flag_name)\n       return feature_flag.enabled if feature_flag\n       DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\n \n     rescue KeyError\n       raise UndefinedFeatureFlagError.new \"invalid key: #{feature_flag_name}\"\n     end\n@@\n   end\n end\n"
+        }
+      },
+      {
+        "name": "private_domain_creation",
+        "location": "app/models/runtime/feature_flag.rb:8-10,17-25",
+        "classification": "safe",
+        "evidence_citations": [
+          "Listed in DEFAULT_FLAGS with default true: private_domain_creation: true",
+          "validate() restricts names to DEFAULT_FLAGS.keys, indicating this is a supported runtime feature flag",
+          "enabled?(feature_flag_name) uses DEFAULT_FLAGS.fetch(feature_flag_name.to_sym) when no persisted record exists, so the flag is not dead/unknown within this file"
+        ],
+        "proposed_patch": {
+          "status": "safe_candidate_patch",
+          "diff": "--- a/app/models/runtime/feature_flag.rb\n+++ b/app/models/runtime/feature_flag.rb\n@@ -1,31 +1,31 @@\n module VCAP::CloudController\n   class FeatureFlag < Sequel::Model\n@@\n     DEFAULT_FLAGS = {\n       user_org_creation: false,\n       private_domain_creation: true\n     }.freeze\n@@\n     def self.enabled?(feature_flag_name)\n       feature_flag = FeatureFlag.find(name: feature_flag_name)\n       return feature_flag.enabled if feature_flag\n       DEFAULT_FLAGS.fetch(feature_flag_name.to_sym)\n \n     rescue KeyError\n       raise UndefinedFeatureFlagError.new \"invalid key: #{feature_flag_name}\"\n     end\n@@\n   end\n end\n"
+        }
+      }
+    ],
+    "predicted_provider_state": {
+      "provider": "openai-codex",
+      "model": "default",
+      "model_version": "default",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "task_source": "msr-strudel-2020",
+      "task_source_revision": "8c9b41eac985c27467fe71ce493090d4537990b0",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation"
+    },
+    "predicted_transform": null,
+    "evidence_citations": [
+      "DEFAULT_FLAGS hash constant enumerates user_org_creation as a feature-flag key",
+      "DEFAULT_FLAGS hash constant enumerates private_domain_creation as a feature-flag key"
+    ],
+    "abstentions": []
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+    "runner": "benchmark-local-ai/default",
+    "runtime_seconds": 0,
+    "token_usage": {},
+    "validation_commands": ["completion(prompt, 'default', ...)"],
+    "validation_results": [],
+    "predicted_flags": [
+      {
+        "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
+        "location": "config.py:67",
+        "classification": "unsafe",
+        "evidence_citations": [
+          "Defined as enabled_since('2016-02-02') in the frozen config snapshot.",
+          "The name indicates an edit-service-page feature flag, which is still present in config and therefore not obviously stale.",
+          "No repository-wide usage scan or runtime evidence is available in the provided snapshot to confirm that all code paths have fully migrated off this flag."
+        ]
+      },
+      {
+        "name": "FEATURE_FLAGS_EDIT_SECTIONS",
+        "location": "config.py:68",
+        "classification": "unsafe",
+        "evidence_citations": [
+          "Defined as False in the frozen config snapshot.",
+          "The name indicates a feature flag controlling edit sections behavior, which may still be consulted by application code.",
+          "No usage evidence is present in the provided snapshot to determine whether the flag is dead/stale or actively gating behavior."
+        ]
+      }
+    ],
+    "predicted_provider_state": {
+      "provider": "openai-codex",
+      "model": "default",
+      "model_version": "default",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "task_source": "msr-strudel-2020",
+      "task_source_revision": "03f05626295ce114624edd9c1ac86da46ddeebe6",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page"
+    },
+    "predicted_transform": null,
+    "evidence_citations": [
+      "enabled_since('2016-02-02') gated feature-flag constant",
+      "explicitly named feature flag constant in config"
+    ],
+    "abstentions": ["BUILD_DATE and VERSION are not feature flags and were excluded"]
+  },
+  {
+    "task_id": "dev-detection-msr-strudel-opengever-activity",
+    "runner": "benchmark-local-ai/default",
+    "runtime_seconds": 0,
+    "token_usage": {},
+    "validation_commands": ["completion(prompt, 'default', ...)"],
+    "validation_results": [],
+    "predicted_flags": [
+      {
+        "name": "activity",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Feature value is read directly from registry key 'is_feature_enabled' on interface IActivitySettings.",
+          "The result is exposed in the API config under features['activity']; no in-file usage suggests this is a pure configuration flag.",
+          "No contradictory logic, fallback, or branching indicates stale/unsafe behavior."
+        ]
+      },
+      {
+        "name": "contacts",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads registry key 'is_feature_enabled' from IContactSettings.",
+          "The flag is surfaced without transformation, indicating a straightforward feature toggle.",
+          "No local evidence of deprecation or rename."
+        ]
+      },
+      {
+        "name": "doc_properties",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'create_doc_properties' from ITemplateFolderProperties.",
+          "The name is a stable config-style boolean and is directly exported in the feature map.",
+          "No evidence in-file that this is stale or unsafe."
+        ]
+      },
+      {
+        "name": "dossier_templates",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_feature_enabled' from IDossierTemplateSettings.",
+          "The code path is a direct registry lookup and export, with no dead branch indicators in this file.",
+          "No local evidence of removal or rename."
+        ]
+      },
+      {
+        "name": "ech0147_export",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'ech0147_export_enabled' from IECH0147Settings.",
+          "The flag is part of the returned feature dictionary and has a clear single source of truth.",
+          "No evidence in-file that this is stale or unsafe."
+        ]
+      },
+      {
+        "name": "ech0147_import",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'ech0147_import_enabled' from IECH0147Settings.",
+          "The flag is directly mapped into the configuration response.",
+          "No local signal of obsolete logic."
+        ]
+      },
+      {
+        "name": "favorites",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_feature_enabled' from IFavoritesSettings.",
+          "This is a simple boolean feature exposure with no surrounding conditional complexity.",
+          "No evidence of deprecation or stale naming in this file."
+        ]
+      },
+      {
+        "name": "meetings",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_feature_enabled' from IMeetingSettings.",
+          "The code only exports the registry value and does not implement business logic here.",
+          "No evidence of removal or rename in the snapshot."
+        ]
+      },
+      {
+        "name": "officeatwork",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_feature_enabled' from IOfficeatworkSettings.",
+          "The feature is exposed as-is in the API config, with no evidence of deprecation in-file.",
+          "No conflicting references appear in the provided source."
+        ]
+      },
+      {
+        "name": "officeconnector_attach",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'attach_to_outlook_enabled' from IOfficeConnectorSettings.",
+          "The registry key is specific and directly consumed as a boolean flag.",
+          "No evidence in the frozen file that it should be removed or renamed."
+        ]
+      },
+      {
+        "name": "officeconnector_checkout",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'direct_checkout_and_edit_enabled' from IOfficeConnectorSettings.",
+          "The flag is clearly a configuration passthrough with no local branching or compatibility workaround.",
+          "No stale-marker evidence is present."
+        ]
+      },
+      {
+        "name": "preview_auto_refresh",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_auto_refresh_enabled' from IGeverBumblebeeSettings.",
+          "The flag is exported without reinterpretation, suggesting a live settings-backed feature.",
+          "No evidence of stale or unsafe behavior in this snapshot."
+        ]
+      },
+      {
+        "name": "preview_open_pdf_in_new_window",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'open_pdf_in_a_new_window' from IGeverBumblebeeSettings.",
+          "The name and access pattern are consistent with a feature flag exposed to clients.",
+          "No local evidence suggests stale or unsafe behavior."
+        ]
+      },
+      {
+        "name": "preview",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_feature_enabled' from IGeverBumblebeeSettings.",
+          "This appears to be the primary preview feature toggle and is used only as exported configuration here.",
+          "No indication that the feature is stale or blocked by a missing code path in the provided snapshot."
+        ]
+      },
+      {
+        "name": "repositoryfolder_documents_tab",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'show_documents_tab' from IRepositoryFolderRecords.",
+          "The flag is a direct mapping from registry to config response.",
+          "No conflicting evidence for staleness or unsafe usage."
+        ]
+      },
+      {
+        "name": "repositoryfolder_tasks_tab",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'show_tasks_tab' from IRepositoryFolderRecords.",
+          "The implementation is a straightforward settings exposure, not a derived or dead flag.",
+          "No evidence of stale or unsafe behavior."
+        ]
+      },
+      {
+        "name": "solr",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'use_solr' from ISearchSettings.",
+          "The flag is a direct config lookup and likely controls search backend behavior externally.",
+          "No evidence in this file that it is stale or miswired."
+        ]
+      },
+      {
+        "name": "word_meetings",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_word_implementation_enabled' from IMeetingSettings.",
+          "The feature is directly exposed, with no evidence of a dead or removed code path in the snapshot.",
+          "No local contradiction with surrounding configuration conventions."
+        ]
+      },
+      {
+        "name": "workspace",
+        "location": "opengever/base/configuration.py:get_features",
+        "classification": "safe",
+        "evidence_citations": [
+          "Reads 'is_feature_enabled' from IWorkspaceSettings.",
+          "The feature flag is a plain registry-backed boolean returned to API consumers.",
+          "No evidence of stale logic in the provided file."
+        ]
+      }
+    ],
+    "predicted_provider_state": {
+      "provider": "openai-codex",
+      "model": "default",
+      "model_version": "default",
+      "prompt_hash": "b4c7c0db323c936d45aa8442952487804d3c66d1e618a9124051893c460f4644",
+      "task_source": "msr-strudel-2020",
+      "task_source_revision": "e035573bc9dc8756a31d4860cbb2307c58840897",
+      "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+      "source_root": "benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity"
+    },
+    "predicted_transform": null,
+    "evidence_citations": [
+      "Feature value is read directly from registry key 'is_feature_enabled' on interface IActivitySettings.",
+      "The result is exposed in the API config under features['activity']; no in-file usage suggests this is a pure configuration flag.",
+      "No contradictory logic, fallback, or branching indicates stale/unsafe behavior."
+    ],
+    "abstentions": ["No stale/unknown candidate identified from the provided snapshot alone; the task is entirely feature-gate config reads."]
+  }
+]
