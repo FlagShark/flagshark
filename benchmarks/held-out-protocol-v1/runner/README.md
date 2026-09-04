@@ -6,6 +6,11 @@ Run the benchmark-local dev detection runner from the repository root:
 bun benchmarks/held-out-protocol-v1/runner/run.ts
 ```
 
+Scope:
+
+- enumerates only `partition=dev`, `task_type=detection`, `source=msr-strudel-2020` tasks from `benchmarks/held-out-protocol-v1/manifest.json`
+- intentionally excludes the internal fixture task, because it is not backed by a source-manifest / checksum-shaped source tree
+
 Prerequisites:
 
 - `bun install` has been run at the repository root
@@ -14,7 +19,6 @@ Prerequisites:
 
 What it does:
 
-- enumerates only `partition=dev` and `task_type=detection` entries from `benchmarks/held-out-protocol-v1/manifest.json`
 - resolves each task's checked-in source tree from its `source-manifest.json`
 - fails if any declared source file is missing or has the wrong checksum
 - invokes the offline CLI command exactly as shipped:
