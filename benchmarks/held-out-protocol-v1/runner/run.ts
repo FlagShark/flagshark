@@ -36,20 +36,21 @@ interface CliSummary {
   flags: Array<{ name: string; filePath: string; lineNumber: number; language: string; provider?: string; confidence?: string }>
   healthScore: number
   detectedProviders: string[]
-  scanDuration: number
-  filesScanned: number
-  excludedCount?: number
+  languages: Record<string, number>
+  errorCount?: number
   parseErrorCount?: number
+  excludedPermanent?: string[]
+  permanentByPlatform?: Record<string, string[]>
 }
 
 interface RunnerResult {
   task_id: string
+  benchmark_version: string
+  cli_version: string
   source_root: string
   source_manifest: string
   command: string
-  version: string
   exit_code: number
-  runtime_ms: number
   cost_usd: number
   cli_summary: CliSummary
   detections: Array<{
@@ -69,12 +70,16 @@ const cliBin = resolve(repoRoot, 'packages/cli/bin/flagshark.mjs')
 const resultsDir = resolve(benchmarkRoot, 'runner/results')
 const command = `bun ${cliBin} scan --json --no-config --no-ignore-file`
 
+function readJson<T>(path: string): T {
+  return JSON.parse(readFileSync(path, 'utf8')) as T
+}
+
 function sha256Hex(content: string): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
-function readJson<T>(path: string): T {
-  return JSON.parse(readFileSync(path, 'utf8')) as T
+function relativeToBenchmark(path: string): string {
+  return path.startsWith(`${benchmarkRoot}/`) ? path.slice(benchmarkRoot.length + 1) : path
 }
 
 function resolveTaskPath(taskPath: string): string {
@@ -108,7 +113,6 @@ function validateSourceManifest(sourceRoot: string, manifest: SourceManifest, ta
     readFileSync(candidate, 'utf8')
   }
 }
-
 async function detectFlags(sourceRoot: string): Promise<RunnerResult['detections']> {
   const excluder = buildExcluder({
     config: buildDefaultConfig(),
@@ -124,7 +128,7 @@ async function detectFlags(sourceRoot: string): Promise<RunnerResult['detections
     for (const flag of occurrences) {
       detections.push({
         name,
-        filePath: flag.filePath,
+        filePath: relativeToBenchmark(flag.filePath),
         lineNumber: flag.lineNumber,
         language: flag.language,
         provider: flag.provider,
@@ -149,12 +153,10 @@ async function runTask(task: ManifestTask): Promise<RunnerResult> {
   const sourceManifest = readJson<SourceManifest>(sourceManifestPath)
   validateSourceManifest(sourceRoot, sourceManifest, task.files)
 
-  const started = performance.now()
   const cli = spawnSync('bun', [cliBin, 'scan', '--json', '--no-config', '--no-ignore-file'], {
     cwd: sourceRoot,
     encoding: 'utf8',
   })
-  const runtimeMs = performance.now() - started
   if (cli.error) {
     throw cli.error
   }
@@ -162,19 +164,31 @@ async function runTask(task: ManifestTask): Promise<RunnerResult> {
     throw new Error(`CLI failed for ${task.task_id}: ${cli.status}\n${cli.stderr}`)
   }
 
-  const cliSummary = cli.stdout ? (JSON.parse(cli.stdout) as CliSummary) : ({} as CliSummary)
+  const cliSummary = JSON.parse(cli.stdout) as CliSummary
   const detections = await detectFlags(sourceRoot)
+  const benchmarkVersion = readJson<{ version: string }>(manifestPath).version
 
   return {
     task_id: task.task_id,
-    source_root: sourceRoot,
-    source_manifest: sourceManifestPath,
+    benchmark_version: benchmarkVersion,
+    cli_version: cliSummary.version,
+    source_root: relativeToBenchmark(sourceRoot),
+    source_manifest: relativeToBenchmark(sourceManifestPath),
     command,
-    version: readJson<{ version: string }>(manifestPath).version,
     exit_code: cli.status,
-    runtime_ms: runtimeMs,
     cost_usd: 0,
-    cli_summary: cliSummary,
+    cli_summary: {
+      totalFlags: cliSummary.totalFlags,
+      staleFlags: cliSummary.staleFlags,
+      flags: cliSummary.flags,
+      healthScore: cliSummary.healthScore,
+      detectedProviders: cliSummary.detectedProviders,
+      languages: cliSummary.languages,
+      errorCount: cliSummary.errorCount,
+      parseErrorCount: cliSummary.parseErrorCount,
+      excludedPermanent: cliSummary.excludedPermanent,
+      permanentByPlatform: cliSummary.permanentByPlatform,
+    },
     detections,
   }
 }

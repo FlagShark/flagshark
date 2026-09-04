@@ -1,20 +1,16 @@
 {
   "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-  "source_root": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
-  "source_manifest": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
+  "benchmark_version": "1.5.3",
+  "cli_version": "2.8.0",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation",
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json",
   "command": "bun /Users/joe/projects/flagshark/flagshark/packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file",
-  "version": "1.5.3",
   "exit_code": 0,
-  "runtime_ms": 85.76500000000004,
   "cost_usd": 0,
   "cli_summary": {
-    "version": "2.8.0",
     "totalFlags": 2,
     "staleFlags": 0,
-    "errorCount": 0,
-    "parseErrorCount": 0,
-    "excludedPermanent": [],
-    "permanentByPlatform": {},
+    "flags": [],
     "healthScore": 100,
     "detectedProviders": [
       "ruby-config"
@@ -22,18 +18,15 @@
     "languages": {
       "ruby": 1
     },
-    "flags": [],
-    "scanDuration": 45,
-    "links": {
-      "dashboard": "https://flagshark.com",
-      "cli": "https://github.com/FlagShark/flagshark",
-      "npm": "https://www.npmjs.com/package/flagshark"
-    }
+    "errorCount": 0,
+    "parseErrorCount": 0,
+    "excludedPermanent": [],
+    "permanentByPlatform": {}
   },
   "detections": [
     {
       "name": "private_domain_creation",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
       "lineNumber": 6,
       "language": "ruby",
       "provider": "ruby-config",
@@ -41,7 +34,7 @@
     },
     {
       "name": "user_org_creation",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
       "lineNumber": 6,
       "language": "ruby",
       "provider": "ruby-config",

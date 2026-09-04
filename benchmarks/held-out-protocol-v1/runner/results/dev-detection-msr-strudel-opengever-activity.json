@@ -1,20 +1,16 @@
 {
   "task_id": "dev-detection-msr-strudel-opengever-activity",
-  "source_root": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
-  "source_manifest": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
+  "benchmark_version": "1.5.3",
+  "cli_version": "2.8.0",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity",
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/source-manifest.json",
   "command": "bun /Users/joe/projects/flagshark/flagshark/packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file",
-  "version": "1.5.3",
   "exit_code": 0,
-  "runtime_ms": 108.78008299999999,
   "cost_usd": 0,
   "cli_summary": {
-    "version": "2.8.0",
     "totalFlags": 19,
     "staleFlags": 0,
-    "errorCount": 0,
-    "parseErrorCount": 0,
-    "excludedPermanent": [],
-    "permanentByPlatform": {},
+    "flags": [],
     "healthScore": 100,
     "detectedProviders": [
       "python-config"
@@ -22,18 +18,15 @@
     "languages": {
       "python": 2
     },
-    "flags": [],
-    "scanDuration": 67,
-    "links": {
-      "dashboard": "https://flagshark.com",
-      "cli": "https://github.com/FlagShark/flagshark",
-      "npm": "https://www.npmjs.com/package/flagshark"
-    }
+    "errorCount": 0,
+    "parseErrorCount": 0,
+    "excludedPermanent": [],
+    "permanentByPlatform": {}
   },
   "detections": [
     {
       "name": "activity",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 50,
       "language": "python",
       "provider": "python-config",
@@ -41,7 +34,7 @@
     },
     {
       "name": "contacts",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 51,
       "language": "python",
       "provider": "python-config",
@@ -49,7 +42,7 @@
     },
     {
       "name": "doc_properties",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 52,
       "language": "python",
       "provider": "python-config",
@@ -57,7 +50,7 @@
     },
     {
       "name": "dossier_templates",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 53,
       "language": "python",
       "provider": "python-config",
@@ -65,7 +58,7 @@
     },
     {
       "name": "ech0147_export",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 54,
       "language": "python",
       "provider": "python-config",
@@ -73,7 +66,7 @@
     },
     {
       "name": "ech0147_import",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 55,
       "language": "python",
       "provider": "python-config",
@@ -81,7 +74,7 @@
     },
     {
       "name": "favorites",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 56,
       "language": "python",
       "provider": "python-config",
@@ -89,7 +82,7 @@
     },
     {
       "name": "meetings",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 57,
       "language": "python",
       "provider": "python-config",
@@ -97,7 +90,7 @@
     },
     {
       "name": "officeatwork",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 58,
       "language": "python",
       "provider": "python-config",
@@ -105,7 +98,7 @@
     },
     {
       "name": "officeconnector_attach",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 59,
       "language": "python",
       "provider": "python-config",
@@ -113,7 +106,7 @@
     },
     {
       "name": "officeconnector_checkout",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 60,
       "language": "python",
       "provider": "python-config",
@@ -121,7 +114,7 @@
     },
     {
       "name": "preview_auto_refresh",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 61,
       "language": "python",
       "provider": "python-config",
@@ -129,7 +122,7 @@
     },
     {
       "name": "preview_open_pdf_in_new_window",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 62,
       "language": "python",
       "provider": "python-config",
@@ -137,7 +130,7 @@
     },
     {
       "name": "preview",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 63,
       "language": "python",
       "provider": "python-config",
@@ -145,7 +138,7 @@
     },
     {
       "name": "repositoryfolder_documents_tab",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 64,
       "language": "python",
       "provider": "python-config",
@@ -153,7 +146,7 @@
     },
     {
       "name": "repositoryfolder_tasks_tab",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 65,
       "language": "python",
       "provider": "python-config",
@@ -161,7 +154,7 @@
     },
     {
       "name": "solr",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 66,
       "language": "python",
       "provider": "python-config",
@@ -169,7 +162,7 @@
     },
     {
       "name": "word_meetings",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 67,
       "language": "python",
       "provider": "python-config",
@@ -177,7 +170,7 @@
     },
     {
       "name": "workspace",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
       "lineNumber": 68,
       "language": "python",
       "provider": "python-config",

@@ -10,18 +10,24 @@ const task = {
   files: ['app/models/runtime/feature_flag.rb'],
 }
 
-test('runner validates the fixture and preserves detection details separately from CLI stale flags', async () => {
+test('runner validates the fixture and preserves detector details separately from CLI summary data', async () => {
   const result = await runTask(task)
 
   expect(result.task_id).toBe(task.task_id)
+  expect(result.benchmark_version).toBeTruthy()
+  expect(result.cli_version).toBeTruthy()
+  expect(result.source_root).toBe('tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation')
+  expect(result.source_manifest).toBe('tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/source-manifest.json')
   expect(result.exit_code).toBe(0)
   expect(result.cost_usd).toBe(0)
-  expect(result.cli_summary.totalFlags).toBeGreaterThanOrEqual(0)
-  expect(Array.isArray(result.cli_summary.flags)).toBe(true)
+  expect(result.cli_summary.totalFlags).toBeGreaterThan(0)
+  expect(result.cli_summary.staleFlags).toBe(0)
+  expect(result.cli_summary.flags.length).toBe(0)
+  expect(result.cli_summary.detectedProviders.length).toBeGreaterThan(0)
   expect(result.detections.length).toBeGreaterThan(0)
   for (const detection of result.detections) {
     expect(detection.name.length).toBeGreaterThan(0)
-    expect(detection.filePath.length).toBeGreaterThan(0)
+    expect(detection.filePath.startsWith('/')).toBe(false)
     expect(detection.lineNumber).toBeGreaterThan(0)
   }
 })

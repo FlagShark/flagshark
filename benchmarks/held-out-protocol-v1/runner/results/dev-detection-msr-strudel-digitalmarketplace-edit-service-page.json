@@ -1,20 +1,16 @@
 {
   "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
-  "source_root": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
-  "source_manifest": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
+  "benchmark_version": "1.5.3",
+  "cli_version": "2.8.0",
+  "source_root": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
+  "source_manifest": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/source-manifest.json",
   "command": "bun /Users/joe/projects/flagshark/flagshark/packages/cli/bin/flagshark.mjs scan --json --no-config --no-ignore-file",
-  "version": "1.5.3",
   "exit_code": 0,
-  "runtime_ms": 110.649167,
   "cost_usd": 0,
   "cli_summary": {
-    "version": "2.8.0",
     "totalFlags": 1,
     "staleFlags": 0,
-    "errorCount": 0,
-    "parseErrorCount": 0,
-    "excludedPermanent": [],
-    "permanentByPlatform": {},
+    "flags": [],
     "healthScore": 100,
     "detectedProviders": [
       "python-config"
@@ -22,18 +18,15 @@
     "languages": {
       "python": 1
     },
-    "flags": [],
-    "scanDuration": 69,
-    "links": {
-      "dashboard": "https://flagshark.com",
-      "cli": "https://github.com/FlagShark/flagshark",
-      "npm": "https://www.npmjs.com/package/flagshark"
-    }
+    "errorCount": 0,
+    "parseErrorCount": 0,
+    "excludedPermanent": [],
+    "permanentByPlatform": {}
   },
   "detections": [
     {
       "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
-      "filePath": "/Users/joe/projects/flagshark/flagshark/benchmarks/held-out-protocol-v1/tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
+      "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
       "lineNumber": 66,
       "language": "python",
       "provider": "python-config",
