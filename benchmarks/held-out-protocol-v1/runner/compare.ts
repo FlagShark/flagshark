@@ -52,6 +52,13 @@ interface NormalizedAiTaskResult {
   abstentions?: string[]
   cost_usd?: number
 }
+interface ParsedAiLocation {
+  filePath: string
+  lineKnown: boolean
+  lineStart?: number
+  lineEnd?: number
+  ranges: Array<{ start: number; end: number }>
+}
 
 interface ComparisonMatch {
   name: string
@@ -69,6 +76,15 @@ interface LocationUncertainMatch {
   aiLineNumber?: number
 }
 
+interface LocationMismatchMatch {
+  name: string
+  filePath: string
+  scannerLineNumber: number
+  aiLineNumber?: number
+  aiLineStart?: number
+  aiLineEnd?: number
+}
+
 interface ComparisonTask {
   task_id: string
   scanner: {
@@ -77,13 +93,14 @@ interface ComparisonTask {
     cost_usd: number
   }
   ai: {
-    predicted_flags: Array<{ name: string; filePath: string; lineNumber?: number; lineKnown: boolean; classification: string }>
+    predicted_flags: Array<{ name: string; filePath: string; lineKnown: boolean; lineStart?: number; lineEnd?: number; ranges: Array<{ start: number; end: number }>; classification: string }>
     candidate_count: number
     abstentions: string[]
     cost_usd: number
   }
   overlap: ComparisonMatch[]
   location_uncertain: LocationUncertainMatch[]
+  location_mismatches: LocationMismatchMatch[]
   scanner_only: ComparisonMatch[]
   ai_only: ComparisonMatch[]
   name_mismatches: Array<{ scanner: ComparisonMatch; ai: ComparisonMatch }>
@@ -102,7 +119,6 @@ const repoRoot = resolve(dirname(new URL(import.meta.url).pathname), '../../..')
 const benchmarkRoot = resolve(repoRoot, 'benchmarks/held-out-protocol-v1')
 const scannerIndexPath = resolve(benchmarkRoot, 'runner/results/index.json')
 const aiIndexPath = resolve(benchmarkRoot, 'runner/ai-results/normalized.json')
-
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T
 }
@@ -118,17 +134,36 @@ function prefixSourceRoot(sourceRoot: string, filePath: string): string {
   return `${normalizedRoot}/${normalizedPath}`
 }
 
-function parseAiLocation(sourceRoot: string, location: string): { filePath: string; lineKnown: boolean; lineNumber?: number } {
-  const [filePath, lineRange] = location.split(':')
-  if (!lineRange) {
-    return { filePath: prefixSourceRoot(sourceRoot, filePath), lineKnown: false }
+
+function parseRangeText(rangeText: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+  for (const segment of rangeText.split(',')) {
+    const trimmed = segment.trim()
+    if (trimmed.length === 0) continue
+    const [startText, endText] = trimmed.split('-')
+    const start = Number.parseInt(startText ?? '', 10)
+    const end = Number.parseInt(endText ?? startText ?? '', 10)
+    if (Number.isFinite(start) && Number.isFinite(end)) ranges.push({ start, end })
   }
-  const parsed = Number.parseInt(lineRange.split('-')[0] ?? '', 10)
+  return ranges
+}
+
+function parseAiLocation(sourceRoot: string, location: string): ParsedAiLocation {
+  const [filePath, ...rest] = location.split(':')
+  const filePathWithRoot = prefixSourceRoot(sourceRoot, filePath)
+  if (rest.length === 0) return { filePath: filePathWithRoot, lineKnown: false, ranges: [] }
+  const ranges = parseRangeText(rest.join(':'))
   return {
-    filePath: prefixSourceRoot(sourceRoot, filePath),
-    lineNumber: Number.isFinite(parsed) ? parsed : undefined,
-    lineKnown: Number.isFinite(parsed),
+    filePath: filePathWithRoot,
+    lineKnown: ranges.length > 0,
+    lineStart: ranges[0]?.start,
+    lineEnd: ranges[0]?.end,
+    ranges,
   }
+}
+
+function aiLocationContainsScannerLine(ai: ParsedAiLocation, scannerLineNumber: number): boolean {
+  return ai.ranges.some((range) => scannerLineNumber >= range.start && scannerLineNumber <= range.end)
 }
 
 function keyOf(match: ComparisonMatch): string {
@@ -156,30 +191,36 @@ export function compareResults(scannerResults: ScannerTaskResult[], aiResults: N
       return {
         name: flag.name,
         filePath: loc.filePath,
-        lineNumber: loc.lineNumber,
         lineKnown: loc.lineKnown,
+        lineStart: loc.lineStart,
+        lineEnd: loc.lineEnd,
+        ranges: loc.ranges,
         classification: flag.classification,
       }
     })
-
     const scannerMatches: ComparisonMatch[] = scannerTask.detections.map((detection) => ({
       name: detection.name,
       filePath: detection.filePath,
       lineNumber: detection.lineNumber,
       lineKnown: true,
     }))
-    const aiMatches: ComparisonMatch[] = aiPredictedFlags.map((flag) => ({
+
+    const aiMatches: Array<ComparisonMatch & { lineStart?: number; lineEnd?: number; ranges: Array<{ start: number; end: number }> }> = aiPredictedFlags.map((flag) => ({
       name: flag.name,
       filePath: flag.filePath,
-      lineNumber: flag.lineNumber,
+      lineNumber: flag.lineStart,
       lineKnown: flag.lineKnown,
+      lineStart: flag.lineStart,
+      lineEnd: flag.lineEnd,
+      ranges: flag.ranges,
     }))
 
-    const aiByExact = new Map(aiMatches.filter((match) => match.lineKnown).map((item) => [keyOf(item), item]))
+    const aiByExact = new Map(aiMatches.filter((match) => match.lineKnown && match.lineNumber !== undefined).map((item) => [keyOf(item), item]))
     const aiByNameAndFile = new Map(aiMatches.map((item) => [`${item.name}\u0000${item.filePath}`, item]))
 
     const overlap: ComparisonMatch[] = []
     const locationUncertain: LocationUncertainMatch[] = []
+    const locationMismatches: LocationMismatchMatch[] = []
     const scannerOnly: ComparisonMatch[] = []
     const aiOnly: ComparisonMatch[] = []
 
@@ -191,15 +232,42 @@ export function compareResults(scannerResults: ScannerTaskResult[], aiResults: N
       }
 
       const sameNameFile = aiByNameAndFile.get(`${scannerMatch.name}\u0000${scannerMatch.filePath}`)
-      if (sameNameFile && (!sameNameFile.lineKnown || !scannerMatch.lineKnown)) {
-        locationUncertain.push({
-          name: scannerMatch.name,
-          filePath: scannerMatch.filePath,
-          scannerLineKnown: scannerMatch.lineKnown,
-          aiLineKnown: sameNameFile.lineKnown,
-          scannerLineNumber: scannerMatch.lineNumber,
-          aiLineNumber: sameNameFile.lineNumber,
-        })
+      if (sameNameFile) {
+        const scannerInsideAiRange = sameNameFile.lineKnown && sameNameFile.lineStart !== undefined && sameNameFile.lineEnd !== undefined
+          ? aiLocationContainsScannerLine(sameNameFile, scannerMatch.lineNumber ?? 0)
+          : false
+        if (scannerInsideAiRange) {
+          overlap.push(scannerMatch)
+          continue
+        }
+        if (!sameNameFile.lineKnown) {
+          locationUncertain.push({
+            name: scannerMatch.name,
+            filePath: scannerMatch.filePath,
+            scannerLineKnown: scannerMatch.lineKnown,
+            aiLineKnown: sameNameFile.lineKnown,
+            scannerLineNumber: scannerMatch.lineNumber,
+          })
+        } else if (!scannerMatch.lineKnown) {
+          locationUncertain.push({
+            name: scannerMatch.name,
+            filePath: scannerMatch.filePath,
+            scannerLineKnown: scannerMatch.lineKnown,
+            aiLineKnown: sameNameFile.lineKnown,
+            aiLineNumber: sameNameFile.lineNumber,
+            aiLineStart: sameNameFile.lineStart,
+            aiLineEnd: sameNameFile.lineEnd,
+          })
+        } else {
+          locationMismatches.push({
+            name: scannerMatch.name,
+            filePath: scannerMatch.filePath,
+            scannerLineNumber: scannerMatch.lineNumber ?? 0,
+            aiLineNumber: sameNameFile.lineNumber,
+            aiLineStart: sameNameFile.lineStart,
+            aiLineEnd: sameNameFile.lineEnd,
+          })
+        }
         continue
       }
 
@@ -208,18 +276,11 @@ export function compareResults(scannerResults: ScannerTaskResult[], aiResults: N
 
     const scannerSet = new Set(scannerMatches.map(keyOf))
     for (const match of aiMatches) {
-      if (match.lineKnown && scannerSet.has(keyOf(match))) continue
+      if (match.lineKnown && match.lineNumber !== undefined && scannerSet.has(keyOf(match))) continue
       if (locationUncertain.some((item) => item.name === match.name && item.filePath === match.filePath)) continue
+      if (locationMismatches.some((item) => item.name === match.name && item.filePath === match.filePath)) continue
+      if (scannerMatches.some((scannerMatch) => scannerMatch.name === match.name && scannerMatch.filePath === match.filePath && aiLocationContainsScannerLine(match, scannerMatch.lineNumber))) continue
       aiOnly.push(match)
-    }
-
-    const nameMismatches: Array<{ scanner: ComparisonMatch; ai: ComparisonMatch }> = []
-    const aiNames = new Map(aiMatches.map((match) => [match.name, match]))
-    for (const scannerMatch of scannerMatches) {
-      const aiMatch = aiNames.get(scannerMatch.name)
-      if (aiMatch && scannerMatch.filePath === aiMatch.filePath && keyOf(scannerMatch) !== keyOf(aiMatch)) {
-        nameMismatches.push({ scanner: scannerMatch, ai: aiMatch })
-      }
     }
 
     tasks.push({
@@ -237,9 +298,10 @@ export function compareResults(scannerResults: ScannerTaskResult[], aiResults: N
       },
       overlap,
       location_uncertain: locationUncertain,
+      location_mismatches: locationMismatches,
       scanner_only: scannerOnly,
       ai_only: aiOnly,
-      name_mismatches: nameMismatches,
+      name_mismatches: [],
     })
   }
 

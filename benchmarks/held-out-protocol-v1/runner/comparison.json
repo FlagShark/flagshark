@@ -171,114 +171,133 @@
             "name": "activity",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "contacts",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "doc_properties",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "dossier_templates",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "ech0147_export",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "ech0147_import",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "favorites",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "meetings",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "officeatwork",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "officeconnector_attach",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "officeconnector_checkout",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "preview_auto_refresh",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "preview_open_pdf_in_new_window",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "preview",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "repositoryfolder_documents_tab",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "repositoryfolder_tasks_tab",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "solr",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "word_meetings",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           },
           {
             "name": "workspace",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
             "lineKnown": false,
+            "ranges": [],
             "classification": "safe"
           }
         ],
@@ -424,257 +443,10 @@
           "scannerLineNumber": 68
         }
       ],
+      "location_mismatches": [],
       "scanner_only": [],
       "ai_only": [],
-      "name_mismatches": [
-        {
-          "scanner": {
-            "name": "activity",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 50,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "activity",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "contacts",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 51,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "contacts",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "doc_properties",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 52,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "doc_properties",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "dossier_templates",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 53,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "dossier_templates",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "ech0147_export",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 54,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "ech0147_export",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "ech0147_import",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 55,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "ech0147_import",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "favorites",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 56,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "favorites",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "meetings",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 57,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "meetings",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "officeatwork",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 58,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "officeatwork",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "officeconnector_attach",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 59,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "officeconnector_attach",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "officeconnector_checkout",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 60,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "officeconnector_checkout",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "preview_auto_refresh",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 61,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "preview_auto_refresh",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "preview_open_pdf_in_new_window",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 62,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "preview_open_pdf_in_new_window",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "preview",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 63,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "preview",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "repositoryfolder_documents_tab",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 64,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "repositoryfolder_documents_tab",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "repositoryfolder_tasks_tab",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 65,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "repositoryfolder_tasks_tab",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "solr",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 66,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "solr",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "word_meetings",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 67,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "word_meetings",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        },
-        {
-          "scanner": {
-            "name": "workspace",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineNumber": 68,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "workspace",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-opengever-activity/opengever/base/configuration.py",
-            "lineKnown": false
-          }
-        }
-      ]
+      "name_mismatches": []
     },
     {
       "task_id": "dev-detection-msr-strudel-digitalmarketplace-edit-service-page",
@@ -697,15 +469,29 @@
           {
             "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-            "lineNumber": 67,
             "lineKnown": true,
+            "lineStart": 67,
+            "lineEnd": 67,
+            "ranges": [
+              {
+                "start": 67,
+                "end": 67
+              }
+            ],
             "classification": "unsafe"
           },
           {
             "name": "FEATURE_FLAGS_EDIT_SECTIONS",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-            "lineNumber": 68,
             "lineKnown": true,
+            "lineStart": 68,
+            "lineEnd": 68,
+            "ranges": [
+              {
+                "start": 68,
+                "end": 68
+              }
+            ],
             "classification": "unsafe"
           }
         ],
@@ -717,44 +503,34 @@
       },
       "overlap": [],
       "location_uncertain": [],
-      "scanner_only": [
+      "location_mismatches": [
         {
           "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
           "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-          "lineNumber": 66,
-          "lineKnown": true
+          "scannerLineNumber": 66,
+          "aiLineNumber": 67,
+          "aiLineStart": 67,
+          "aiLineEnd": 67
         }
       ],
+      "scanner_only": [],
       "ai_only": [
-        {
-          "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
-          "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-          "lineNumber": 67,
-          "lineKnown": true
-        },
         {
           "name": "FEATURE_FLAGS_EDIT_SECTIONS",
           "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
           "lineNumber": 68,
-          "lineKnown": true
+          "lineKnown": true,
+          "lineStart": 68,
+          "lineEnd": 68,
+          "ranges": [
+            {
+              "start": 68,
+              "end": 68
+            }
+          ]
         }
       ],
-      "name_mismatches": [
-        {
-          "scanner": {
-            "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-            "lineNumber": 66,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "FEATURE_FLAGS_EDIT_SERVICE_PAGE",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-digitalmarketplace-edit-service-page/config.py",
-            "lineNumber": 67,
-            "lineKnown": true
-          }
-        }
-      ]
+      "name_mismatches": []
     },
     {
       "task_id": "dev-detection-msr-strudel-cloudfoundry-user_org_creation",
@@ -785,15 +561,41 @@
           {
             "name": "user_org_creation",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 7,
             "lineKnown": true,
+            "lineStart": 7,
+            "lineEnd": 10,
+            "ranges": [
+              {
+                "start": 7,
+                "end": 10
+              },
+              {
+                "start": 17,
+                "end": 25
+              },
+              {
+                "start": 27,
+                "end": 31
+              }
+            ],
             "classification": "safe"
           },
           {
             "name": "private_domain_creation",
             "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 8,
             "lineKnown": true,
+            "lineStart": 8,
+            "lineEnd": 10,
+            "ranges": [
+              {
+                "start": 8,
+                "end": 10
+              },
+              {
+                "start": 17,
+                "end": 25
+              }
+            ],
             "classification": "safe"
           }
         ],
@@ -803,64 +605,27 @@
       },
       "overlap": [],
       "location_uncertain": [],
-      "scanner_only": [
+      "location_mismatches": [
         {
           "name": "private_domain_creation",
           "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-          "lineNumber": 6,
-          "lineKnown": true
+          "scannerLineNumber": 6,
+          "aiLineNumber": 8,
+          "aiLineStart": 8,
+          "aiLineEnd": 10
         },
         {
           "name": "user_org_creation",
           "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-          "lineNumber": 6,
-          "lineKnown": true
+          "scannerLineNumber": 6,
+          "aiLineNumber": 7,
+          "aiLineStart": 7,
+          "aiLineEnd": 10
         }
       ],
-      "ai_only": [
-        {
-          "name": "user_org_creation",
-          "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-          "lineNumber": 7,
-          "lineKnown": true
-        },
-        {
-          "name": "private_domain_creation",
-          "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-          "lineNumber": 8,
-          "lineKnown": true
-        }
-      ],
-      "name_mismatches": [
-        {
-          "scanner": {
-            "name": "private_domain_creation",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 6,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "private_domain_creation",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 8,
-            "lineKnown": true
-          }
-        },
-        {
-          "scanner": {
-            "name": "user_org_creation",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 6,
-            "lineKnown": true
-          },
-          "ai": {
-            "name": "user_org_creation",
-            "filePath": "tasks/dev/detection/sources/dev-detection-msr-strudel-cloudfoundry-user_org_creation/app/models/runtime/feature_flag.rb",
-            "lineNumber": 7,
-            "lineKnown": true
-          }
-        }
-      ]
+      "scanner_only": [],
+      "ai_only": [],
+      "name_mismatches": []
     }
   ]
 }
