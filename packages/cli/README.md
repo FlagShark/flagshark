@@ -212,10 +212,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: FlagShark/flagshark@v1
+      - uses: FlagShark/flagshark@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+The free Action detects stale flags and comments on the pull request. Cleanup PR generation and hosted lifecycle management belong to the SaaS product.
 
 See the [main repo README](https://github.com/FlagShark/flagshark) for action inputs and full docs.
 
