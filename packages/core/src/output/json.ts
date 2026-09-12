@@ -110,6 +110,10 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
     flags,
     excludedPaths: result.excludedPaths,
     scanDuration: result.scanDuration,
+    // Lock-in summary (call sites per provider SDK classified against the
+    // hosted migration-support snapshot). Additive; null when the result was
+    // built without one.
+    lockIn: result.lockIn ?? null,
     links: {
       dashboard: 'https://flagshark.com',
       cli: 'https://github.com/FlagShark/flagshark',

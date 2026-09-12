@@ -12,7 +12,10 @@
 import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag } from '../staleness.js'
 
-import { uniqueStaleCount, healthEmoji } from './shared.js'
+import { LOCK_IN_CLASSIFICATIONS, LOCK_IN_LABELS } from '../migration/lock-in.js'
+import { uniqueStaleCount, healthEmoji, languageLabel } from './shared.js'
+
+import type { LockInSummary } from '../migration/lock-in.js'
 
 export interface MarkdownFormatOptions {
   /** 'full' or 'changed' — drives the "scan mode" label in the stats table. */
@@ -26,6 +29,33 @@ export interface MarkdownFormatOptions {
 }
 
 const DEFAULT_MAX_STALE = 20
+const MAX_LOCK_IN_ROWS = 5
+
+/**
+ * Compact lock-in section for the PR comment: one summary line and a short
+ * provider table. Same classification wording as the text output. Empty
+ * when there are no call sites.
+ */
+function buildLockInSection(lockIn: LockInSummary): string {
+  if (lockIn.callSites === 0) return ''
+
+  const sdkCount = lockIn.providers.filter((p) => p.classification !== 'already-openfeature').length
+  const breakdown = LOCK_IN_CLASSIFICATIONS.filter((c) => lockIn.totals[c] > 0)
+    .map((c) => `${lockIn.totals[c]} ${LOCK_IN_LABELS[c]}`)
+    .join('; ')
+
+  let body = `**Lock-in:** ${lockIn.callSites} flag call site${lockIn.callSites === 1 ? '' : 's'} across ${sdkCount} provider SDK${sdkCount === 1 ? '' : 's'} — ${breakdown}.\n\n`
+  body += '| Provider SDK | Call sites | Hosted migration path |\n'
+  body += '|--------------|-----------:|-----------------------|\n'
+  for (const p of lockIn.providers.slice(0, MAX_LOCK_IN_ROWS)) {
+    body += `| ${p.provider} | ${p.callSites} (${p.languages.map(languageLabel).join(', ')}) | ${LOCK_IN_LABELS[p.classification]} |\n`
+  }
+  if (lockIn.providers.length > MAX_LOCK_IN_ROWS) {
+    body += `\n*... and ${lockIn.providers.length - MAX_LOCK_IN_ROWS} more provider SDKs.*\n`
+  }
+  body += '\n_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n'
+  return body
+}
 
 export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOptions): string {
   const staleCount = uniqueStaleCount(result.staleFlags)
@@ -55,6 +85,11 @@ export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOp
 
   // Health badge
   body += `${emoji} **Health Score: ${result.healthScore}/100**\n\n`
+
+  // Lock-in summary — the migration-assessment wedge, right under the header.
+  if (result.lockIn) {
+    body += buildLockInSection(result.lockIn)
+  }
 
   // Parse-error surfacing — mirrors text output. When a non-trivial slice of
   // files failed to parse, the totals at the top of this comment are

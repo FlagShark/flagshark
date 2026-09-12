@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest'
 
-import { healthEmoji, uniqueStaleCount, sarifLevel } from '../../src/output/shared.js'
+import { healthEmoji, uniqueStaleCount, sarifLevel, languageLabel } from '../../src/output/shared.js'
 import type { StaleFlag } from '../../src/staleness.js'
 
 describe('healthEmoji', () => {
@@ -64,5 +64,17 @@ describe('sarifLevel', () => {
 
   it('returns "note" for 0 signals', () => {
     expect(sarifLevel(0)).toBe('note')
+  })
+})
+
+describe('languageLabel', () => {
+  it('maps known language ids to display labels', () => {
+    expect(languageLabel('typescript')).toBe('TypeScript')
+    expect(languageLabel('csharp')).toBe('C#')
+    expect(languageLabel('objc')).toBe('Objective-C')
+  })
+
+  it('falls back to the raw id for an unknown language', () => {
+    expect(languageLabel('cobol')).toBe('cobol')
   })
 })

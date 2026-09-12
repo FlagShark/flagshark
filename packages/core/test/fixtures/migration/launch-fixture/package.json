@@ -1,0 +1,8 @@
+{
+  "name": "flagshark-launch-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@launchdarkly/node-server-sdk": "9.11.0"
+  }
+}

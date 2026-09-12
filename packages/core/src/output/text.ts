@@ -2,6 +2,10 @@
  * Human-readable text output for FlagShark scan results.
  */
 
+import { LOCK_IN_LABELS } from '../migration/lock-in.js'
+import { languageLabel } from './shared.js'
+
+import type { LockInSummary } from '../migration/lock-in.js'
 import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag, StalenessSignal } from '../staleness.js'
 
@@ -125,6 +129,42 @@ function buildDetailCard(sf: StaleFlag, index: number): string[] {
   return lines
 }
 
+/**
+ * The lock-in block: call sites per provider SDK and what the hosted product
+ * can do with each, classified strictly from the copied registry snapshot.
+ * Wording says what is provable (draft PR, preview, assessment), never how
+ * fast it is. Empty when there are no call sites.
+ */
+function buildLockInBlock(lockIn: LockInSummary): string[] {
+  if (lockIn.callSites === 0) return []
+
+  const sdkRows = lockIn.providers.filter((p) => p.classification !== 'already-openfeature')
+  const onOpenFeature = lockIn.totals['already-openfeature']
+  const header =
+    `Lock-in: ${plural(lockIn.callSites, 'flag call site')} · ${plural(sdkRows.length, 'provider SDK')}` +
+    (onOpenFeature > 0 ? ` · ${onOpenFeature} already on OpenFeature` : '')
+
+  const nameWidth = Math.max(...lockIn.providers.map((p) => p.provider.length))
+  const countWidth = Math.max(...lockIn.providers.map((p) => String(p.callSites).length))
+
+  const lines = [header]
+  for (const p of lockIn.providers) {
+    const count = `${String(p.callSites).padStart(countWidth)} call site${p.callSites === 1 ? ' ' : 's'}`
+    const langs = `(${p.languages.map(languageLabel).join(', ')})`
+    let label = LOCK_IN_LABELS[p.classification]
+    if (p.needsReview > 0 && p.classification !== 'needs-review') {
+      label += ` · ${p.needsReview} need review (weaker detection)`
+    }
+    lines.push(`  ${p.provider.padEnd(nameWidth)}   ${count} ${langs}   ${label}`)
+  }
+  lines.push('  Next: npx flagshark assess   (private assessment; invite-only today)')
+  return lines
+}
+
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`
+}
+
 export function formatText(result: ScanRepoResult, options: TextFormatOptions): string {
   const lines: string[] = []
 
@@ -195,6 +235,15 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
 
   if (result.detectedProviders.length > 0) {
     lines.push(`Detected providers: ${result.detectedProviders.join(', ')}`)
+  }
+
+  if (result.lockIn) {
+    const block = buildLockInBlock(result.lockIn)
+    if (block.length > 0) {
+      lines.push('')
+      lines.push(...block)
+      lines.push('')
+    }
   }
 
   const uniqueStaleNames = new Set(result.staleFlags.map((f) => f.name))

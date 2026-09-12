@@ -31711,8 +31711,48 @@ function splitArguments(argsStr) {
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+function detectConfigFlags(filename, content, language) {
+  const flags2 = [];
+  const lines = content.split("\n");
+  const push = (name2, lineNumber, provider) => {
+    if (!isValidFlagKey(name2))
+      return;
+    flags2.push({
+      name: name2,
+      filePath: filename,
+      lineNumber,
+      language,
+      provider,
+      confidence: "medium"
+    });
+  };
+  if (language === "python") {
+    const constAssign = /^[ \t]*((?:FEATURE_FLAGS_|FEATURE_FLAG_)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm;
+    for (const match of content.matchAll(constAssign)) {
+      push(match[1], content.slice(0, match.index ?? 0).split("\n").length, "python-config");
+    }
+    const mappingAssign = /^[ \t]*features\s*\[\s*(['"])([^'"]+)\1\s*\]\s*=\s*api\.portal\.get_registry_record\s*\(/gm;
+    for (const match of content.matchAll(mappingAssign)) {
+      push(match[2], content.slice(0, match.index ?? 0).split("\n").length, "python-config");
+    }
+  } else if (language === "ruby") {
+    const hashAssign = /^[ \t]*([A-Z][A-Z0-9_]*)\s*=\s*\{([\s\S]*?)\}(?:\.freeze)?/gm;
+    for (const match of content.matchAll(hashAssign)) {
+      const constName = match[1];
+      if (!/(?:^|_)(FLAGS?)(?:$|_)/.test(constName))
+        continue;
+      const body2 = match[2];
+      const lineNumber = content.slice(0, match.index ?? 0).split("\n").length;
+      for (const keyMatch of body2.matchAll(/\b([a-z][a-z0-9_]*)\s*:/g)) {
+        push(keyMatch[1], lineNumber, "ruby-config");
+      }
+    }
+  }
+  return flags2;
+}
 function detectFlagsWithRegex(filename, content, language, providers) {
   const flags2 = [];
+  flags2.push(...detectConfigFlags(filename, content, language));
   const lines = content.split("\n");
   for (const provider of providers) {
     if (!provider.enabled) {
@@ -36290,8 +36330,9 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
       activeProviders.push({ provider: p, confidence: "medium" });
     }
   }
+  const configFlags = detectConfigFlags(filename, content, language);
   if (activeProviders.length === 0)
-    return [];
+    return deduplicateFlags(configFlags);
   const methodLookup = /* @__PURE__ */ new Map();
   for (const { provider, confidence } of activeProviders) {
     for (const method of provider.methods) {
@@ -36304,8 +36345,8 @@ async function detectFlagsWithTreeSitter(filename, content, language, providers)
   }
   const hookOnlyProviders = activeProviders.filter(({ provider }) => provider.useFlagsHook && methodLookup.size === 0);
   if (methodLookup.size === 0 && hookOnlyProviders.length === 0)
-    return [];
-  const flags2 = [];
+    return deduplicateFlags(configFlags);
+  const flags2 = [...configFlags];
   if (methodLookup.size === 0) {
     for (const { provider, confidence } of hookOnlyProviders) {
       const hookFlags = detectDestructuredHookFlags(filename, content, language, getImportPattern(provider) || provider.name, provider.useFlagsHook, confidence);
@@ -45619,6 +45660,796 @@ async function orchestratePlatforms(opts) {
   return { signals: out2, permanentByPlatform, metadataByFlag, environmentsByFlag };
 }
 
+// ../core/dist/migration/support-snapshot.data.js
+var SUPPORT_SNAPSHOT_DATA = {
+  "schemaVersion": 1,
+  "generatedFrom": "BUILT_IN_CAPABILITY_REGISTRY",
+  "generatedAt": "2026-09-09",
+  "sourceRevision": "90600d7cf9c93f491f57ea19875402a08943ae78",
+  "sourceKind": "Source registry snapshot; deployed availability and repository eligibility require confirmation.",
+  "cells": [
+    {
+      "id": "adopt-openfeature/launchdarkly-node-server/ecmascript/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-node-server",
+          "packages": [
+            {
+              "name": "@launchdarkly/node-server-sdk",
+              "versionRange": ">=9.0.0 <10.0.0"
+            },
+            {
+              "name": "launchdarkly-node-server-sdk",
+              "versionRange": ">=1.0.0 <8.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "ecmascript-typescript-compiler",
+          "dialects": [
+            "javascript",
+            "typescript"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "@openfeature/server-sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment only: preview, draft-PR publication, and post-merge verification are unavailable.",
+        "Only JavaScript and TypeScript parsed by the TypeScript compiler frontend are admitted.",
+        "Only LaunchDarkly Node server SDK versions in the declared package ranges are assessed.",
+        "Browser, mobile, edge, wrappers without traceable client provenance, and non-ECMAScript SDKs are outside this cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-node-server/ecmascript/server",
+      "version": 2,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-node-server",
+          "packages": [
+            {
+              "name": "@launchdarkly/node-server-sdk",
+              "versionRange": ">=9.0.0 <10.0.0"
+            },
+            {
+              "name": "launchdarkly-node-server-sdk",
+              "versionRange": ">=1.0.0 <8.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "ecmascript-typescript-compiler",
+          "dialects": [
+            "javascript",
+            "typescript"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "@openfeature/server-sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment",
+        "preview",
+        "draft-pr",
+        "verification"
+      ],
+      "highestStage": "verification",
+      "limitations": [
+        "Only exact LaunchDarkly Node server JavaScript/TypeScript evidence is admitted.",
+        "Browser, mobile, edge, opaque wrappers, and unsupported SDK versions remain out of scope.",
+        "Publication is draft-only and requires a current immutable preview plus passed credential-free validation.",
+        "Post-merge static scans and customer CI do not prove runtime semantic correctness."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-go-server/go/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-go-server",
+          "packages": [
+            {
+              "name": "github.com/launchdarkly/go-server-sdk/v7",
+              "versionRange": ">=7.0.0 <8.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "go-source-frontend",
+          "dialects": [
+            "go"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "github.com/open-feature/go-sdk/openfeature",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment",
+        "preview"
+      ],
+      "highestStage": "preview",
+      "limitations": [
+        "Only BoolVariation direct calls with literal keys and proven LaunchDarkly client provenance are transformable.",
+        "LaunchDarkly contexts are automatic only for ldcontext.New targeting-key construction.",
+        "Runtime-provider setup uses the pinned OpenFeature Go contrib LaunchDarkly provider as a separate recipe.",
+        "Draft publication and post-merge verification remain unavailable for this preview-stage cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-python-server/python/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-python-server",
+          "packages": [
+            {
+              "name": "launchdarkly-server-sdk",
+              "versionRange": ">=9.12.0 <10.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "python-source-frontend",
+          "dialects": [
+            "python"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "openfeature-sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment",
+        "preview"
+      ],
+      "highestStage": "preview",
+      "limitations": [
+        "Only variation direct calls with literal keys, boolean literal defaults, ldclient.get provenance, and Context.create targeting keys are transformable.",
+        "Only requirements.txt dependency edits are generated in this first Python cell.",
+        "The LaunchDarkly Python OpenFeature provider is beta and pinned to the 0.5 release line.",
+        "Draft publication, post-merge verification, and GA remain unavailable for this preview-stage cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-ruby-server/ruby/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-ruby-server",
+          "packages": [
+            {
+              "name": "launchdarkly-server-sdk",
+              "versionRange": ">=8.14.0 <9.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "ruby-source-frontend",
+          "dialects": [
+            "ruby"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "openfeature-sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment",
+        "preview"
+      ],
+      "highestStage": "preview",
+      "limitations": [
+        "Only variation direct calls with literal keys, boolean literal defaults, LDClient constructor provenance, and LDContext.create targeting keys are transformable.",
+        "Only Gemfile dependency edits are generated in this first Ruby cell.",
+        "The LaunchDarkly Ruby OpenFeature provider is beta, pinned to 0.2, and requires Ruby 3.4.",
+        "Draft publication, post-merge verification, and GA remain unavailable for this preview-stage cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-java-server/java/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-java-server",
+          "packages": [
+            {
+              "name": "com.launchdarkly:launchdarkly-java-server-sdk",
+              "versionRange": ">=7.0.0 <8.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "java-source-frontend",
+          "dialects": [
+            "java"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "dev.openfeature:sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment",
+        "preview"
+      ],
+      "highestStage": "preview",
+      "limitations": [
+        "Only Java boolVariation direct calls with literal keys and proven LDClient construction are transformable.",
+        "LaunchDarkly contexts are automatic only for LDContext.create targeting-key construction.",
+        "Root Gradle Kotlin/Groovy and Maven dependency manifests are supported by the preview editor.",
+        "Draft publication, post-merge verification, and GA remain unavailable for this preview-stage cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-kotlin-server/kotlin/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-kotlin-server",
+          "packages": [
+            {
+              "name": "com.launchdarkly:launchdarkly-java-server-sdk",
+              "versionRange": ">=7.0.0 <8.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "kotlin-source-frontend",
+          "dialects": [
+            "kotlin"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "dev.openfeature:sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment",
+        "preview"
+      ],
+      "highestStage": "preview",
+      "limitations": [
+        "Only Kotlin boolVariation direct calls with literal keys and proven LDClient construction are transformable.",
+        "LaunchDarkly contexts are automatic only for LDContext.create targeting-key construction.",
+        "Root Gradle Kotlin/Groovy and Maven dependency manifests are supported by the preview editor.",
+        "Draft publication, post-merge verification, and GA remain unavailable for this preview-stage cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-swift-ios/swift/mobile",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-swift-ios",
+          "packages": [
+            {
+              "name": "https://github.com/launchdarkly/ios-client-sdk",
+              "versionRange": ">=11.0.0 <12.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "swift-compiler-frontend",
+          "dialects": [
+            "swift"
+          ]
+        },
+        "runtimeFlavour": "mobile"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "https://github.com/open-feature/swift-sdk",
+        "runtimeFlavour": "mobile"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment facts require exact source hashes and Swift 6.3.3 compiler syntax-tree evidence.",
+        "There is no official LaunchDarkly OpenFeature provider for Swift/iOS, so dependency edits, source rewrites, and target-call residual scans are unavailable.",
+        "SwiftPM proves the LaunchDarkly iOS 11.3 and OpenFeature Swift 0.5 APIs compile independently; it does not prove equivalent provider or application lifecycle behavior.",
+        "OpenFeature Swift 0.5 does not implement provider shutdown, while LaunchDarkly client start and close are application lifecycle concerns."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-csharp-server/csharp/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-csharp-server",
+          "packages": [
+            {
+              "name": "LaunchDarkly.ServerSdk",
+              "versionRange": ">=8.14.0 <9.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "csharp-compiler-frontend-unavailable",
+          "dialects": [
+            "csharp"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "OpenFeature",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment is limited to the exact LaunchDarkly .NET server SDK 8.x direct BoolVariation shape.",
+        "No compiler-backed C# frontend, dependency editor, residual scan, or expected-target scan is registered yet.",
+        "The official LaunchDarkly provider 2.x and OpenFeature .NET SDK 2.x are identified but no preview is emitted.",
+        "Desktop, mobile, client-side .NET, wrappers, dynamic keys, and non-boolean evaluations remain outside this cell.",
+        "Target evidence is pinned to OpenFeature .NET SDK >=2.2.0 <3.0.0 and the official LaunchDarkly server provider >=2.1.0 <3.0.0.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-php-server/php/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-php-server",
+          "packages": [
+            {
+              "name": "launchdarkly/server-sdk",
+              "versionRange": ">=6.8.0 <7.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "php-compiler-frontend-unavailable",
+          "dialects": [
+            "php"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "open-feature/sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment is limited to the exact LaunchDarkly PHP server SDK 6.x variation shape with a boolean default.",
+        "No compiler-backed PHP frontend, Composer editor, residual scan, or expected-target scan is registered yet.",
+        "The official LaunchDarkly provider 1.x and OpenFeature PHP SDK 2.x are identified but no preview is emitted.",
+        "Relay Proxy configuration, wrappers, dynamic keys, non-boolean defaults, and framework lifecycle remain outside this cell.",
+        "Target evidence is pinned to OpenFeature PHP SDK >=2.2.0 <3.0.0 and the official LaunchDarkly server provider >=1.0.0 <2.0.0.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-rust-server/rust/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-rust-server",
+          "packages": [
+            {
+              "name": "launchdarkly-server-sdk",
+              "versionRange": ">=3.1.0 <4.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "rust-compiler-frontend-unavailable",
+          "dialects": [
+            "rust"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "open-feature",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment is limited to the exact LaunchDarkly Rust server SDK 3.x bool_variation shape and its context-first argument order.",
+        "No compiler-backed Rust frontend, Cargo editor, residual scan, or expected-target scan is registered yet.",
+        "OpenFeature Rust 0.3 is pre-1.0 and no LaunchDarkly OpenFeature provider is available, so preview is impossible for this cell.",
+        "Async lifecycle, wrappers, dynamic keys, detail evaluations, and non-boolean calls remain outside this cell.",
+        "Target evidence is limited to the pre-1.0 OpenFeature Rust SDK >=0.3.0 <0.4.0; no LaunchDarkly provider exists for this target.",
+        "A runtime-compatible LaunchDarkly provider is required before a Rust preview cell can be considered.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-cpp-server/cpp/server",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-cpp-server",
+          "packages": [
+            {
+              "name": "https://github.com/launchdarkly/cpp-sdks#launchdarkly-cpp-server",
+              "versionRange": ">=3.12.0 <4.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "cpp-clang-ast-assessment-evidence",
+          "dialects": [
+            "cpp"
+          ]
+        },
+        "runtimeFlavour": "server"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "https://github.com/open-feature/cpp-sdk",
+        "runtimeFlavour": "server"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment is limited to the LaunchDarkly C++ server SDK 3.12 direct BoolVariation context-first shape.",
+        "The official OpenFeature C++ SDK is pre-1.0 and no proven LaunchDarkly provider exists for it.",
+        "Macros, conditional compilation, generated sources, overload resolution, templates, aliases, and C bindings require manual review.",
+        "Clang AST evidence proves bounded syntax/call facts only; it does not prove build-system, ABI, lifecycle, or provider equivalence.",
+        "Target evidence identifies the official pre-1.0 OpenFeature C++ SDK 0.1.x only; no LaunchDarkly provider is registered or implied.",
+        "Clang 21 AST evidence is source-hash bound and bounded; preprocessor, macro expansion, generated headers, and mixed-language evidence fail closed to manual review.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-objective-c-ios/objc/mobile",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-objective-c-ios",
+          "packages": [
+            {
+              "name": "LaunchDarkly",
+              "versionRange": ">=11.3.0 <12.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "objc-clang-ast-assessment-evidence",
+          "dialects": [
+            "objc"
+          ]
+        },
+        "runtimeFlavour": "mobile"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "unavailable:no-proven-objective-c-openfeature-sdk",
+        "runtimeFlavour": "mobile"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "Assessment is limited to the LaunchDarkly iOS 11.3 Objective-C bridge selector boolVariationForKey:defaultValue:.",
+        "The source SDK is Swift with generated Objective-C bridging; no direct Objective-C OpenFeature SDK/provider path is proven.",
+        "Objective-C++ files, categories, swizzling, dynamic dispatch, macros, generated Swift headers, and selector aliases require manual review.",
+        "Linux clang syntax evidence cannot prove Apple SDK availability, Swift/Objective-C ABI interoperability, mobile lifecycle, or credential safety.",
+        "No direct Objective-C OpenFeature SDK/provider path is proven; the unavailable target identity is a blocker, not a package claim.",
+        "Clang 21 AST evidence is source-hash bound and bounded; preprocessor, macro expansion, generated headers, and mixed-language evidence fail closed to manual review.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-browser-javascript/javascript/browser",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-browser-javascript",
+          "packages": [
+            {
+              "name": "@launchdarkly/js-client-sdk",
+              "versionRange": ">=4.9.0 <5.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "ecmascript-typescript-ast",
+          "dialects": [
+            "javascript"
+          ]
+        },
+        "runtimeFlavour": "browser"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "@openfeature/web-sdk",
+        "runtimeFlavour": "browser"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "This cell admits only the LaunchDarkly JavaScript client SDK 4.x browser runtime; Node server, edge, mobile, and embedded runtimes are separate cells.",
+        "Assessment covers only direct variation calls with literal keys and boolean literal defaults on a proven createClient result.",
+        "The browser uses a public client-side ID and must never receive a LaunchDarkly server SDK key.",
+        "The available LaunchDarkly browser provider is community-maintained, unofficial, and peers on the legacy launchdarkly-js-client-sdk 3.x package rather than the current 4.x package.",
+        "Initialization readiness, context changes, event subscriptions, analytics hooks, streaming, and shutdown semantics are not automatically rewritten.",
+        "Target evidence is pinned to OpenFeature Web SDK >=1.9.0 <2.0.0 and community provider 0.3.3; the provider is unofficial and peers on the legacy LaunchDarkly JavaScript 3.x package.",
+        "Only a public LaunchDarkly client-side ID may enter a future browser plan; server SDK keys and server SDK packages are rejected by the generic planner.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only browser cell."
+      ]
+    },
+    {
+      "id": "adopt-openfeature/launchdarkly-react-web/typescript/browser",
+      "version": 1,
+      "source": {
+        "provider": "launchdarkly",
+        "sdk": {
+          "id": "launchdarkly-react-web",
+          "packages": [
+            {
+              "name": "@launchdarkly/react-sdk",
+              "versionRange": ">=4.1.0 <5.0.0"
+            }
+          ]
+        },
+        "language": {
+          "id": "react-web-hook-frontend-unavailable",
+          "dialects": [
+            "typescript"
+          ]
+        },
+        "runtimeFlavour": "browser"
+      },
+      "openFeatureTarget": {
+        "standard": "openfeature",
+        "sdkPackage": "@openfeature/react-sdk",
+        "runtimeFlavour": "browser"
+      },
+      "capabilities": [
+        "inventory",
+        "assessment"
+      ],
+      "highestStage": "assessment",
+      "limitations": [
+        "This cell is React Web browser-only; React Native and React Server Components using the Node server SDK are separate runtime/security cells.",
+        "React Web uses a public client-side ID and must never receive or bundle a LaunchDarkly server SDK key.",
+        "The LaunchDarkly hooks own subscription and rerender behavior; a target must prove equivalent OpenFeature React hook lifecycle semantics before preview.",
+        "The community LaunchDarkly browser provider is unofficial and peers on the legacy JavaScript client package, not the React Web SDK 4.x dependency line.",
+        "Detail hooks, multiple environments/contexts, custom React contexts, initialization status, suspense, SSR, and server-component imports remain out of scope.",
+        "Target evidence is pinned to OpenFeature React SDK >=1.4.0 <2.0.0 and Web SDK >=1.9.0 <2.0.0; no compatible official LaunchDarkly React Web provider is registered.",
+        "Only a public LaunchDarkly client-side ID may enter a future browser plan; server SDK keys and server SDK packages are rejected by the generic planner.",
+        "Preview, draft publication, post-merge verification, and GA are unavailable for this assessment-only browser cell."
+      ]
+    }
+  ]
+};
+
+// ../core/dist/migration/support-snapshot.js
+function deepFreeze(value) {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) {
+      deepFreeze(child);
+    }
+  }
+  return value;
+}
+function loadSupportSnapshot(raw) {
+  const candidate = raw;
+  if (candidate === null || typeof candidate !== "object") {
+    throw new Error("support snapshot must be an object");
+  }
+  if (candidate.schemaVersion !== 1) {
+    throw new Error(`support snapshot schemaVersion must be 1, got ${JSON.stringify(candidate.schemaVersion)}`);
+  }
+  if (typeof candidate.sourceRevision !== "string" || candidate.sourceRevision.length === 0) {
+    throw new Error("support snapshot is missing sourceRevision");
+  }
+  if (!Array.isArray(candidate.cells)) {
+    throw new Error("support snapshot cells must be an array");
+  }
+  return deepFreeze(candidate);
+}
+var SUPPORT_SNAPSHOT = loadSupportSnapshot(SUPPORT_SNAPSHOT_DATA);
+
+// ../core/dist/migration/lock-in.js
+var LOCK_IN_CLASSIFICATIONS = [
+  "draft-pr",
+  "preview",
+  "assessment",
+  "needs-review",
+  "detection-only",
+  "already-openfeature"
+];
+var LOCK_IN_LABELS = {
+  "draft-pr": "hosted draft PR available \u2014 review and merge stay with you",
+  preview: "preview only",
+  assessment: "assessment only",
+  "needs-review": "needs review (weaker detection)",
+  "detection-only": "detection only (no migration cell)",
+  "already-openfeature": "already on OpenFeature (not lock-in)"
+};
+var STAGE_CLASSIFICATION = {
+  inventory: "assessment",
+  assessment: "assessment",
+  preview: "preview",
+  "draft-pr": "draft-pr",
+  verification: "draft-pr"
+};
+function isOpenFeaturePackage(pkg) {
+  return pkg === "openfeature" || pkg.startsWith("@openfeature/") || pkg.startsWith("dev.openfeature");
+}
+function buildProviderIndex(providers) {
+  const index = /* @__PURE__ */ new Map();
+  for (const provider of providers) {
+    const importPattern = getImportPattern(provider);
+    const packages = [importPattern, ...provider.importAliases ?? []].filter((p) => p.length > 0);
+    const definition = { name: provider.name, packages };
+    for (const key of [...packages, provider.name]) {
+      if (!index.has(key))
+        index.set(key, definition);
+    }
+  }
+  return index;
+}
+function matchCell(packages, language, snapshot) {
+  let best = null;
+  for (const cell of snapshot.cells) {
+    const packageMatches = cell.source.sdk.packages.some((pkg) => packages.includes(pkg.name));
+    if (!packageMatches || !cell.source.language.dialects.includes(language))
+      continue;
+    if (best === null || cell.version > best.version)
+      best = cell;
+  }
+  return best;
+}
+function emptyTotals() {
+  return {
+    "already-openfeature": 0,
+    "needs-review": 0,
+    "draft-pr": 0,
+    preview: 0,
+    assessment: 0,
+    "detection-only": 0
+  };
+}
+function classifyOccurrence(openFeature, weak, cell) {
+  if (openFeature)
+    return "already-openfeature";
+  if (cell === null)
+    return "detection-only";
+  if (weak)
+    return "needs-review";
+  return STAGE_CLASSIFICATION[cell.highestStage];
+}
+function summarizeLockIn(flags2, providers, snapshot = SUPPORT_SNAPSHOT) {
+  const index = buildProviderIndex(providers);
+  const totals = emptyTotals();
+  const rows = /* @__PURE__ */ new Map();
+  const allNames = /* @__PURE__ */ new Set();
+  for (const flag of flags2) {
+    const key = flag.provider || "unknown";
+    const definition = index.get(key);
+    const packages = definition?.packages ?? [];
+    const openFeature = packages.some(isOpenFeaturePackage);
+    const weak = flag.confidence === "medium" || flag.confidence === "low";
+    const cell = openFeature ? null : matchCell(packages, flag.language, snapshot);
+    totals[classifyOccurrence(openFeature, weak, cell)] += 1;
+    allNames.add(flag.name);
+    let row = rows.get(key);
+    if (!row) {
+      row = {
+        key,
+        definition,
+        openFeature,
+        languages: /* @__PURE__ */ new Set(),
+        names: /* @__PURE__ */ new Set(),
+        callSites: 0,
+        needsReview: 0,
+        cell: null
+      };
+      rows.set(key, row);
+    }
+    row.languages.add(flag.language);
+    row.names.add(flag.name);
+    row.callSites += 1;
+    if (weak)
+      row.needsReview += 1;
+    if (cell !== null && (row.cell === null || cell.version > row.cell.version))
+      row.cell = cell;
+  }
+  const providerSummaries = [...rows.values()].map((row) => ({
+    provider: row.definition?.name ?? row.key,
+    packages: row.definition?.packages ?? [],
+    languages: [...row.languages].sort(),
+    callSites: row.callSites,
+    uniqueFlags: row.names.size,
+    cell: row.cell === null ? null : { id: row.cell.id, version: row.cell.version, highestStage: row.cell.highestStage },
+    classification: classifyOccurrence(row.openFeature, row.needsReview === row.callSites, row.cell),
+    needsReview: row.needsReview
+  }));
+  providerSummaries.sort((a, b) => b.callSites - a.callSites || a.provider.localeCompare(b.provider));
+  return {
+    schemaVersion: 1,
+    registry: { sourceRevision: snapshot.sourceRevision, generatedAt: snapshot.generatedAt },
+    callSites: flags2.length,
+    uniqueFlags: allNames.size,
+    totals,
+    providers: providerSummaries
+  };
+}
+
 // ../core/dist/scan-repo.js
 var NOOP = () => {
 };
@@ -45688,6 +46519,7 @@ async function scanRepo(opts) {
   const detectedProviders = [
     ...new Set(allFlags.map((f) => f.provider).filter((p) => p != null && p !== ""))
   ];
+  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry));
   const scanDuration = Math.round(performance.now() - start2);
   logger.info("flagshark_scan_complete", {
     event: "flagshark_scan_complete",
@@ -45721,8 +46553,16 @@ async function scanRepo(opts) {
     parseErrorCount: analysisResult.parseErrorCount,
     excludedPermanent,
     permanentByPlatform,
-    effectiveExcludes: excluder.effectiveRules
+    effectiveExcludes: excluder.effectiveRules,
+    lockIn
   };
+}
+function collectProviderDefinitions(registry) {
+  const providers = [];
+  for (const lang of registry.getSupportedLanguages()) {
+    providers.push(...registry.getDetector(lang).getProviders());
+  }
+  return providers;
 }
 function collectSdkPatterns(registry) {
   const patterns = /* @__PURE__ */ new Set();
@@ -45866,9 +46706,50 @@ function healthEmoji(score) {
     return "\u{1F7E0}";
   return "\u{1F534}";
 }
+var LANGUAGE_LABELS = {
+  go: "Go",
+  typescript: "TypeScript",
+  javascript: "JavaScript",
+  python: "Python",
+  java: "Java",
+  kotlin: "Kotlin",
+  swift: "Swift",
+  ruby: "Ruby",
+  csharp: "C#",
+  php: "PHP",
+  rust: "Rust",
+  cpp: "C/C++",
+  objc: "Objective-C"
+};
+function languageLabel(language) {
+  return LANGUAGE_LABELS[language] ?? language;
+}
 
 // ../core/dist/output/markdown.js
 var DEFAULT_MAX_STALE = 20;
+var MAX_LOCK_IN_ROWS = 5;
+function buildLockInSection(lockIn) {
+  if (lockIn.callSites === 0)
+    return "";
+  const sdkCount = lockIn.providers.filter((p) => p.classification !== "already-openfeature").length;
+  const breakdown = LOCK_IN_CLASSIFICATIONS.filter((c) => lockIn.totals[c] > 0).map((c) => `${lockIn.totals[c]} ${LOCK_IN_LABELS[c]}`).join("; ");
+  let body2 = `**Lock-in:** ${lockIn.callSites} flag call site${lockIn.callSites === 1 ? "" : "s"} across ${sdkCount} provider SDK${sdkCount === 1 ? "" : "s"} \u2014 ${breakdown}.
+
+`;
+  body2 += "| Provider SDK | Call sites | Hosted migration path |\n";
+  body2 += "|--------------|-----------:|-----------------------|\n";
+  for (const p of lockIn.providers.slice(0, MAX_LOCK_IN_ROWS)) {
+    body2 += `| ${p.provider} | ${p.callSites} (${p.languages.map(languageLabel).join(", ")}) | ${LOCK_IN_LABELS[p.classification]} |
+`;
+  }
+  if (lockIn.providers.length > MAX_LOCK_IN_ROWS) {
+    body2 += `
+*... and ${lockIn.providers.length - MAX_LOCK_IN_ROWS} more provider SDKs.*
+`;
+  }
+  body2 += "\n_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n";
+  return body2;
+}
 function formatMarkdown(result, options) {
   const staleCount = uniqueStaleCount(result.staleFlags);
   const emoji = healthEmoji(result.healthScore);
@@ -45893,6 +46774,9 @@ function formatMarkdown(result, options) {
   body2 += `${emoji} **Health Score: ${result.healthScore}/100**
 
 `;
+  if (result.lockIn) {
+    body2 += buildLockInSection(result.lockIn);
+  }
   const parseErrorCount = result.parseErrorCount ?? 0;
   if (parseErrorCount > 0 && result.filesScanned > 0) {
     const pct = parseErrorCount / result.filesScanned * 100;
