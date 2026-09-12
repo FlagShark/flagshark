@@ -183,6 +183,15 @@ export function escapeRegExp(str: string): string {
  * import matching, but the patterns are still named feature-flag config
  * shapes rather than arbitrary config values.
  */
+/**
+ * 1-based line number of a `matchAll` hit. `index` is always defined for
+ * `matchAll` results; the parameter is typed optional only because
+ * `RegExpMatchArray.index` is, so no fallback branch is needed.
+ */
+function lineNumberAt(content: string, index: number | undefined): number {
+  return content.slice(0, index).split('\n').length
+}
+
 export function detectConfigFlags(
   filename: string,
   content: string,
@@ -205,12 +214,12 @@ export function detectConfigFlags(
   if (language === 'python') {
     const constAssign = /^[ \t]*((?:FEATURE_FLAGS_|FEATURE_FLAG_)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm
     for (const match of content.matchAll(constAssign)) {
-      push(match[1], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
+      push(match[1], lineNumberAt(content, match.index), 'python-config')
     }
 
     const mappingAssign = /^[ \t]*features\s*\[\s*(['"])([^'"]+)\1\s*\]\s*=\s*api\.portal\.get_registry_record\s*\(/gm
     for (const match of content.matchAll(mappingAssign)) {
-      push(match[2], content.slice(0, match.index ?? 0).split('\n').length, 'python-config')
+      push(match[2], lineNumberAt(content, match.index), 'python-config')
     }
   } else if (language === 'ruby') {
     const hashAssign = /^[ \t]*([A-Z][A-Z0-9_]*)\s*=\s*\{([\s\S]*?)\}(?:\.freeze)?/gm
@@ -218,7 +227,7 @@ export function detectConfigFlags(
       const constName = match[1]
       if (!/(?:^|_)(FLAGS?)(?:$|_)/.test(constName)) continue
       const body = match[2]
-      const lineNumber = content.slice(0, match.index ?? 0).split('\n').length
+      const lineNumber = lineNumberAt(content, match.index)
       for (const keyMatch of body.matchAll(/\b([a-z][a-z0-9_]*)\s*:/g)) {
         push(keyMatch[1], lineNumber, 'ruby-config')
       }
