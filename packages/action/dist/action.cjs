@@ -31711,6 +31711,9 @@ function splitArguments(argsStr) {
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+function lineNumberAt(content, index) {
+  return content.slice(0, index).split("\n").length;
+}
 function detectConfigFlags(filename, content, language) {
   const flags2 = [];
   const lines = content.split("\n");
@@ -31729,11 +31732,11 @@ function detectConfigFlags(filename, content, language) {
   if (language === "python") {
     const constAssign = /^[ \t]*((?:FEATURE_FLAGS_|FEATURE_FLAG_)[A-Z0-9_]*)\s*=\s*enabled_since\s*\(/gm;
     for (const match of content.matchAll(constAssign)) {
-      push(match[1], content.slice(0, match.index ?? 0).split("\n").length, "python-config");
+      push(match[1], lineNumberAt(content, match.index), "python-config");
     }
     const mappingAssign = /^[ \t]*features\s*\[\s*(['"])([^'"]+)\1\s*\]\s*=\s*api\.portal\.get_registry_record\s*\(/gm;
     for (const match of content.matchAll(mappingAssign)) {
-      push(match[2], content.slice(0, match.index ?? 0).split("\n").length, "python-config");
+      push(match[2], lineNumberAt(content, match.index), "python-config");
     }
   } else if (language === "ruby") {
     const hashAssign = /^[ \t]*([A-Z][A-Z0-9_]*)\s*=\s*\{([\s\S]*?)\}(?:\.freeze)?/gm;
@@ -31742,7 +31745,7 @@ function detectConfigFlags(filename, content, language) {
       if (!/(?:^|_)(FLAGS?)(?:$|_)/.test(constName))
         continue;
       const body2 = match[2];
-      const lineNumber = content.slice(0, match.index ?? 0).split("\n").length;
+      const lineNumber = lineNumberAt(content, match.index);
       for (const keyMatch of body2.matchAll(/\b([a-z][a-z0-9_]*)\s*:/g)) {
         push(keyMatch[1], lineNumber, "ruby-config");
       }
