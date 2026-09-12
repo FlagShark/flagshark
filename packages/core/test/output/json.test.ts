@@ -277,3 +277,40 @@ describe('formatJson — codeReferences', () => {
     expect(json.flags[0]).not.toHaveProperty('codeReferences')
   })
 })
+
+describe('formatJson — lockIn', () => {
+  it('emits lockIn as a top-level key and leaves existing keys untouched', () => {
+    const result = baseResult([])
+    result.lockIn = {
+      schemaVersion: 1,
+      registry: { sourceRevision: 'abc', generatedAt: '2026-09-09' },
+      callSites: 2,
+      uniqueFlags: 2,
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 2, preview: 0, assessment: 0, 'detection-only': 0 },
+      providers: [{
+        provider: 'LaunchDarkly Node Server SDK',
+        packages: ['@launchdarkly/node-server-sdk'],
+        languages: ['typescript'],
+        callSites: 2,
+        uniqueFlags: 2,
+        cell: { id: 'adopt-openfeature/launchdarkly-node-server/ecmascript/server', version: 2, highestStage: 'verification' },
+        classification: 'draft-pr',
+        needsReview: 0,
+      }],
+    }
+    const json = JSON.parse(formatJson(result, { version: 'test' }))
+    expect(json.lockIn.callSites).toBe(2)
+    expect(json.lockIn.providers[0].classification).toBe('draft-pr')
+    expect(json.lockIn.registry.sourceRevision).toBe('abc')
+    expect(Object.keys(json)).toEqual([
+      'version', 'totalFlags', 'staleFlags', 'errorCount', 'parseErrorCount', 'excludedPermanent',
+      'permanentByPlatform', 'healthScore', 'detectedProviders', 'languages', 'flags', 'excludedPaths',
+      'scanDuration', 'lockIn', 'links',
+    ])
+  })
+
+  it('emits lockIn: null when the result carries no summary', () => {
+    const json = JSON.parse(formatJson(baseResult([]), { version: 'test' }))
+    expect(json.lockIn).toBeNull()
+  })
+})

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import { formatMarkdown } from '../../src/output/markdown.js'
 import type { ScanRepoResult } from '../../src/scan-repo.js'
+import type { LockInSummary } from '../../src/migration/lock-in.js'
 
 function makeResult(overrides: Partial<ScanRepoResult> = {}): ScanRepoResult {
   return {
@@ -376,5 +377,67 @@ describe('formatMarkdown — platform-side metadata in rows', () => {
       { scanMode: 'full' },
     )
     expect(out).not.toContain('status: active')
+  })
+})
+
+describe('formatMarkdown — lock-in section', () => {
+  function summary(providers: LockInSummary['providers'], totals: Partial<LockInSummary['totals']> = {}): LockInSummary {
+    const callSites = providers.reduce((n, p) => n + p.callSites, 0)
+    return {
+      schemaVersion: 1,
+      registry: { sourceRevision: 'abc', generatedAt: '2026-09-09' },
+      callSites,
+      uniqueFlags: callSites,
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 0, preview: 0, assessment: 0, 'detection-only': 0, ...totals },
+      providers,
+    }
+  }
+  function row(provider: string, callSites: number, classification: LockInSummary['providers'][number]['classification']): LockInSummary['providers'][number] {
+    return { provider, packages: [], languages: ['typescript'], callSites, uniqueFlags: callSites, cell: null, classification, needsReview: 0 }
+  }
+
+  it('renders a summary line and provider table right after the health badge', () => {
+    const md = formatMarkdown(
+      makeResult({
+        totalFlags: 21,
+        lockIn: summary(
+          [row('LaunchDarkly Node Server SDK', 14, 'draft-pr'), row('Unleash JavaScript SDK', 4, 'preview'), row('PostHog', 3, 'detection-only')],
+          { 'draft-pr': 14, preview: 4, 'detection-only': 3 },
+        ),
+      }),
+      { scanMode: 'full' },
+    )
+    expect(md).toContain(
+      '**Lock-in:** 21 flag call sites across 3 provider SDKs — 14 hosted draft PR available — review and merge stay with you; 4 preview only; 3 detection only (no migration cell).',
+    )
+    expect(md).toContain('| LaunchDarkly Node Server SDK | 14 (TypeScript) | hosted draft PR available — review and merge stay with you |')
+    expect(md).toContain('_Next: `npx flagshark assess` (private assessment; invite-only today)._')
+    expect(md.indexOf('**Health Score')).toBeLessThan(md.indexOf('**Lock-in:**'))
+    expect(md.indexOf('**Lock-in:**')).toBeLessThan(md.indexOf('| Metric | Value |'))
+    expect(md).not.toMatch(/automatic|automated|minutes/i)
+  })
+
+  it('singularises one call site on one SDK and caps the table at five providers', () => {
+    const one = formatMarkdown(makeResult({ lockIn: summary([row('PostHog', 1, 'detection-only')], { 'detection-only': 1 }) }), { scanMode: 'full' })
+    expect(one).toContain('**Lock-in:** 1 flag call site across 1 provider SDK — 1 detection only (no migration cell).')
+
+    const rows = Array.from({ length: 7 }, (_, i) => row(`SDK ${i}`, 7 - i, 'detection-only'))
+    const many = formatMarkdown(makeResult({ lockIn: summary(rows, { 'detection-only': 28 }) }), { scanMode: 'full' })
+    expect(many).toContain('| SDK 4 |')
+    expect(many).not.toContain('| SDK 5 |')
+    expect(many).toContain('*... and 2 more provider SDKs.*')
+  })
+
+  it('does not count OpenFeature rows as provider SDKs', () => {
+    const md = formatMarkdown(
+      makeResult({ lockIn: summary([row('OpenFeature JavaScript SDK', 2, 'already-openfeature'), row('PostHog', 1, 'detection-only')], { 'already-openfeature': 2, 'detection-only': 1 }) }),
+      { scanMode: 'full' },
+    )
+    expect(md).toContain('3 flag call sites across 1 provider SDK — 1 detection only (no migration cell); 2 already on OpenFeature (not lock-in).')
+  })
+
+  it('omits the section when there are no call sites or no summary', () => {
+    expect(formatMarkdown(makeResult({ lockIn: summary([]) }), { scanMode: 'full' })).not.toContain('Lock-in')
+    expect(formatMarkdown(makeResult(), { scanMode: 'full' })).not.toContain('Lock-in')
   })
 })

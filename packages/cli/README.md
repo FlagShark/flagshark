@@ -1,6 +1,6 @@
 # 🦈 flagshark
 
-**Find stale feature flags in your codebase.** Polyglot CLI + GitHub Action. 13 languages, 13 providers, zero config.
+**How locked in are you, and how much can be migrated through the hosted product?** Polyglot CLI + GitHub Action. One scan counts flag call sites per provider SDK, classifies them against the hosted migration registry, and then finds stale flags. Detection covers 13 languages and 13 providers. Zero config, no account.
 
 📚 **CLI documentation: [flagshark.com/docs/getting-started/cli](https://flagshark.com/docs/getting-started/cli/)**
 
@@ -13,6 +13,13 @@ npx flagshark scan
                        (47 excluded via .flagsharkignore + test-files preset)
 
 Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
+
+Lock-in: 21 flag call sites · 3 provider SDKs
+  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR available — review and merge stay with you
+  Unleash JavaScript SDK          4 call sites (TypeScript)   detection only (no migration cell)
+  PostHog                         3 call sites (TypeScript)   detection only (no migration cell)
+  Next: npx flagshark assess   (private assessment; invite-only today)
+
 Found 23 feature flags · 7 stale · health 70/100 ⚠️
 
 ┌──────────────────┬────────────────────────┬───────────────┬──────────────────────────────┐
@@ -26,9 +33,18 @@ Found 23 feature flags · 7 stale · health 70/100 ⚠️
 Exit code: 1 (stale flags found)
 ```
 
+The `Lock-in:` block classifies each provider SDK strictly from a copied
+snapshot of the hosted support registry, so the scanner never claims a path the
+hosted product does not admit: `hosted draft PR available` (review and merge
+stay with you), `preview only`, `assessment only`, `needs review (weaker
+detection)` or `detection only (no migration cell)`. OpenFeature SDK usage is
+listed separately because it is not lock-in. The same summary is in `--json`
+output under `lockIn`. Stale-flag detection follows, unchanged.
+
 ## Why FlagShark
 
 - **Zero install, zero config.** `npx flagshark scan` works on any repo today.
+- **Lock-in summary.** Flag call sites per provider SDK, classified against the hosted migration registry snapshot shipped with the CLI. Provable, not promised.
 - **Polyglot.** TypeScript, JavaScript, Go, Python, Java, Kotlin, Swift, Ruby, C#, PHP, Rust, C/C++, Objective-C.
 - **Provider-aware.** Auto-detects 13 flag SDKs — no custom rules to maintain.
 - **AST-based detection** for TS/JS/Go/Python via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, and unrelated calls aren't false positives.

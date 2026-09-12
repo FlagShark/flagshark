@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **New: lock-in summary in `flagshark scan`.** The scan now reports how many flag call sites sit behind each provider SDK and how much of that falls inside a migration cell the hosted product admits, classified strictly from a copied snapshot of the hosted support registry (`packages/core/src/migration/support-snapshot.json`, synced with `bun scripts/sync-support-snapshot.ts`; never hand-edited). Classifications: `draft-pr` (hosted draft PR available — review and merge stay with you), `preview`, `assessment`, `needs-review` (medium/low-confidence detections inside a cell), `detection-only` (no migration cell), and `already-openfeature` (OpenFeature SDK usage is not lock-in). Text output gains a `Lock-in:` block between the providers line and the stale-flag table; the JSON output gains an additive top-level `lockIn` key; the Markdown PR comment gains a compact lock-in table. CSV and SARIF are unchanged.
+- The scanner stays free, account-less and MIT. It never claims a migration path the hosted registry does not admit, and the wording describes what is provable, not how fast it is.
+
 ## v2.8.0 — LaunchDarkly to OpenFeature migration assessments
 
 - **New: `flagshark assess` generates a private LaunchDarkly to OpenFeature migration assessment.** The open-source CLI pins inferred local checkouts to their commit SHA, accepts supplied refs for explicit GitHub repositories, optionally includes a connected LaunchDarkly project, waits for the bounded asynchronous assessment, and writes the server-rendered Markdown or JSON report atomically. The proprietary analyzer, classifiers, effort model, and report builder remain in FlagShark's private service.

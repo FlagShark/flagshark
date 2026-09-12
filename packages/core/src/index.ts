@@ -13,6 +13,17 @@ export type { ScanOptions } from './scanner.js'
 export { scanRepo } from './scan-repo.js'
 export type { ScanRepoOptions, ScanRepoResult, ScanLogger } from './scan-repo.js'
 
+// Migration lock-in summary
+export { summarizeLockIn, LOCK_IN_LABELS, LOCK_IN_CLASSIFICATIONS } from './migration/lock-in.js'
+export type {
+  LockInSummary,
+  LockInProviderSummary,
+  LockInClassification,
+  LockInCellRef,
+} from './migration/lock-in.js'
+export { SUPPORT_SNAPSHOT, loadSupportSnapshot } from './migration/support-snapshot.js'
+export type { SupportSnapshot, SupportCell, SupportStage } from './migration/support-snapshot.js'
+
 // Config module
 export * from './config/index.js'
 

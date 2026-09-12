@@ -24,3 +24,24 @@ export function sarifLevel(signalCount: number): 'note' | 'warning' | 'error' {
   if (signalCount === 2) return 'warning'
   return 'note'
 }
+
+/** Display labels for the language identifiers detectors record. */
+export const LANGUAGE_LABELS: Record<string, string> = {
+  go: 'Go',
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
+  python: 'Python',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+  ruby: 'Ruby',
+  csharp: 'C#',
+  php: 'PHP',
+  rust: 'Rust',
+  cpp: 'C/C++',
+  objc: 'Objective-C',
+}
+
+export function languageLabel(language: string): string {
+  return LANGUAGE_LABELS[language] ?? language
+}

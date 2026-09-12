@@ -1,6 +1,6 @@
 # 🦈 FlagShark
 
-**Find stale feature flags in your codebase.** Free CLI + GitHub Action. Works with 13 languages and 13 flag providers. Zero config.
+**How locked in are you, and how much can be migrated through the hosted product?** Free CLI + GitHub Action. One scan counts every flag call site per provider SDK, classifies it against the hosted migration registry, and then finds the stale flags. Detection covers 13 languages and 13 flag providers. Zero config, no account.
 
 📚 **Full documentation: [flagshark.com/docs/getting-started/introduction](https://flagshark.com/docs/getting-started/introduction/)**
 
@@ -13,6 +13,13 @@ npx flagshark scan
                        (47 excluded via .flagsharkignore + test-files preset)
 
 Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
+
+Lock-in: 21 flag call sites · 3 provider SDKs
+  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR available — review and merge stay with you
+  Unleash JavaScript SDK          4 call sites (TypeScript)   detection only (no migration cell)
+  PostHog                         3 call sites (TypeScript)   detection only (no migration cell)
+  Next: npx flagshark assess   (private assessment; invite-only today)
+
 Found 23 feature flags · 7 stale · health 70/100 ⚠️
 
 ┌──────────────────┬────────────────────────┬───────────────┬──────────────────────────────┐
@@ -26,8 +33,17 @@ Found 23 feature flags · 7 stale · health 70/100 ⚠️
 Exit code: 1 (stale flags found)
 ```
 
-Request a private LaunchDarkly to OpenFeature migration assessment from a GitHub
-checkout without shipping the proprietary analysis engine in the public CLI:
+The `Lock-in:` block is the migration-assessment wedge. Each provider SDK is
+classified strictly from a copied snapshot of the hosted support registry, so
+the scanner never claims a path the hosted product does not admit: `hosted
+draft PR available` (review and merge stay with you), `preview only`,
+`assessment only`, `needs review (weaker detection)`, or `detection only (no
+migration cell)`. OpenFeature SDK usage is reported separately because it is
+not lock-in. The same summary is in the JSON output under `lockIn`.
+
+Then request a private LaunchDarkly to OpenFeature migration assessment from a
+GitHub checkout without shipping the proprietary analysis engine in the public
+CLI:
 
 ```bash
 export FLAGSHARK_API_TOKEN='your-workspace-token'
@@ -50,9 +66,12 @@ do not need a FlagShark token.
 
 ## Why FlagShark
 
+**Vendor lock-in is measurable.** Every flag evaluation is a call into one provider's SDK. FlagShark counts those call sites per SDK and tells you which of them fall inside a migration cell the hosted product can take to a reviewable draft PR, a preview, or an assessment — and which it can only detect.
+
 **Feature flags accumulate.** Most teams have dozens of flags that shipped a release ago and never got cleaned up. Cleanup is manual, easy to skip, and nobody owns it. Flag-management platforms make it easy to *add* flags; they don't make it easy to *find* the ones you forgot.
 
 - **Zero install, zero config.** `npx flagshark scan` runs on any repo today. No `.flagshark.yml` required.
+- **Lock-in summary.** Flag call sites per provider SDK, classified against the hosted migration registry snapshot shipped with the CLI. Provable, not promised.
 - **Polyglot.** 13 languages out of the box — including the awkward monorepo where half is TS and half is Go.
 - **Provider-aware.** Auto-detects 13 flag SDKs (LaunchDarkly, Unleash, Statsig, PostHog, Flagsmith, GrowthBook, ConfigCat, Split.io, Flipt, DevCycle, Eppo, Optimizely, plus generic patterns). No custom rules to maintain.
 - **AST-based detection** for TypeScript, JavaScript, Go, Python, Java, C#, PHP, and Rust via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, error messages, and unrelated calls aren't false positives.
@@ -306,6 +325,10 @@ Platform:
 | `staleFlagsCount` | Number of flags that matched one or more stale signals and appear in `staleFlags` |
 
 The CLI prints both so downstream tooling can distinguish detection volume from cleanup candidates.
+
+### JSON output — `lockIn`
+
+`lockIn` is an additive top-level object: `{ schemaVersion: 1, registry: { sourceRevision, generatedAt }, callSites, uniqueFlags, totals, providers[] }`. `totals` counts call sites per classification (`draft-pr`, `preview`, `assessment`, `needs-review`, `detection-only`, `already-openfeature`); each `providers[]` entry carries the SDK's packages, languages, call-site and unique-flag counts, the matched registry `cell` (`id`, `version`, `highestStage`) or `null`, its classification and how many of its occurrences need review. The classification comes from `packages/core/src/migration/support-snapshot.json`, a copy of the hosted support registry that is synced with `bun scripts/sync-support-snapshot.ts` and never hand-edited.
 
 ## Detection precision
 

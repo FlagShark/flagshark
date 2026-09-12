@@ -14,12 +14,15 @@ import { buildExcluder } from './config/excluder.js'
 import { loadConfigFile } from './config/loader.js'
 import { loadIgnoreFile } from './config/ignore-file.js'
 import { orchestratePlatforms } from './providers/orchestrate.js'
+import { summarizeLockIn } from './migration/lock-in.js'
 
 import type { FeatureFlag } from './detection/feature-flag.js'
 import type { LanguageRegistry } from './detection/registry.js'
+import type { FeatureFlagProvider } from './detection/interface.js'
 import type { StaleFlag } from './staleness.js'
 import type { FlagsharkConfig } from './config/schema.js'
 import type { EffectiveRules } from './config/excluder.js'
+import type { LockInSummary } from './migration/lock-in.js'
 
 export interface ScanLogger {
   debug: (...args: unknown[]) => void
@@ -159,6 +162,16 @@ export interface ScanRepoResult {
 
   /** Diagnostic — populated only when logger.debug level is active or callers explicitly opt in. */
   effectiveExcludes?: EffectiveRules
+
+  /**
+   * Lock-in summary: flag call sites per provider SDK, classified
+   * against the copied hosted migration-support snapshot (see
+   * `src/migration/README.md`). Always populated by `scanRepo`; optional on
+   * the type for the same reason as `parseErrorCount` — callers and test
+   * fixtures that build a `ScanRepoResult` by hand keep compiling. Formatters
+   * omit the block when it is absent.
+   */
+  lockIn?: LockInSummary
 }
 
 const NOOP: (...args: unknown[]) => void = () => {}
@@ -291,6 +304,8 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     ),
   ]
 
+  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry))
+
   const scanDuration = Math.round(performance.now() - start)
 
   // Structured metric line — one per scan, info-level. Same shape as the
@@ -332,7 +347,23 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     excludedPermanent,
     permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
+    lockIn,
   }
+}
+
+/**
+ * Every provider definition registered on every language detector, so the
+ * lock-in summary can resolve the provider string a detector recorded
+ * (`importPattern || name`) back to its display name and package aliases.
+ * Config-file custom detectors are not in the registry; their occurrences
+ * resolve to no definition and therefore to no migration cell.
+ */
+function collectProviderDefinitions(registry: LanguageRegistry): FeatureFlagProvider[] {
+  const providers: FeatureFlagProvider[] = []
+  for (const lang of registry.getSupportedLanguages()) {
+    providers.push(...registry.getDetector(lang)!.getProviders())
+  }
+  return providers
 }
 
 // -- Wrapper-aware detection helpers ------------------------------------------
