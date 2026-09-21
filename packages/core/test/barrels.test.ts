@@ -39,6 +39,13 @@ describe('root barrel (src/index.ts)', () => {
   it('exports createDefaultRegistry', () => {
     expect(typeof rootBarrel.createDefaultRegistry).toBe('function')
   })
+  it('exports the hosted-admission preflight and tree collector', () => {
+    expect(typeof rootBarrel.preflightNodeServerAdmission).toBe('function')
+    expect(typeof rootBarrel.collectAdmissionTree).toBe('function')
+    expect(rootBarrel.HOSTED_ADMISSION_PREFLIGHTS[rootBarrel.NODE_SERVER_CELL_ID]).toBe(rootBarrel.preflightNodeServerAdmission)
+    expect(rootBarrel.HOSTED_ADMISSION_LIMITS.maxTreeEntries).toBe(20_000)
+    expect(rootBarrel.HOSTED_SANDBOX_RUNTIME.npm).toBe('10.9.8')
+  })
 })
 
 describe('config barrel (src/config/index.ts)', () => {

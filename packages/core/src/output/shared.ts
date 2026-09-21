@@ -1,4 +1,24 @@
+import type { AdmissionGate, HostedAdmissionPreflight } from '../migration/hosted-admission.js'
 import type { StaleFlag } from '../staleness.js'
+
+/** Heading shared by the text and Markdown renderings of the local preflight. Names the invariant, never promises. */
+export const ADMISSION_PREFLIGHT_HEADING =
+  'Hosted draft PR preflight (local; no account, no network; the hosted planner decides)'
+
+export interface AdmissionGateTally {
+  refusing: AdmissionGate[]
+  unknownIds: string[]
+  passCount: number
+}
+
+/** Split a preflight into what the renderers print: refusing gates in order, unknown gate ids, and the pass count. */
+export function tallyAdmissionGates(preflight: HostedAdmissionPreflight): AdmissionGateTally {
+  return {
+    refusing: preflight.gates.filter((g) => g.status === 'refuse'),
+    unknownIds: preflight.gates.filter((g) => g.status === 'unknown').map((g) => g.id),
+    passCount: preflight.gates.filter((g) => g.status === 'pass').length,
+  }
+}
 
 /** Returns the count of unique stale flag names (de-duped across occurrences). */
 export function uniqueStaleCount(stale: StaleFlag[]): number {

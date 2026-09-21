@@ -35,6 +35,11 @@ Commands:
 
 Run "flagshark assess --help" for migration-assessment options.
 
+The scan's Lock-in block classifies call sites against the hosted migration
+registry and runs a local hosted-admission preflight (no account, no network)
+before saying a repository may qualify for a hosted draft PR; refusing gates
+are named with what would change the answer. Only the hosted planner decides.
+
 Scan options:
 
 Options:

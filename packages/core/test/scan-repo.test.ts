@@ -35,6 +35,65 @@ describe('scanRepo', () => {
     expect(result.staleFlags).toEqual([])
   })
 
+  it('runs the local hosted-admission preflight over the committed tree and reports refusals honestly', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    // Modern SDK, literal key — the registry cell is draft-pr — but the
+    // manifest has no scripts and there is no lockfile, so the hosted planner
+    // would refuse it. The scan must say so instead of promising a draft PR.
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'svc', dependencies: { '@launchdarkly/node-server-sdk': '^9.11.0' } }))
+    const body =
+      `import { init } from '@launchdarkly/node-server-sdk'\n` +
+      `const client = init('sdk-key')\n` +
+      `export const on = () => client.boolVariation('checkout-v2', ctx, false)\n`
+    writeFileSync(join(dir, 'src', 'a.ts'), body)
+    writeFileSync(join(dir, 'src', 'b.ts'), body)
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+    const debug: unknown[][] = []
+
+    const result = await scanRepo({ cwd: dir, noConfig: true, noIgnoreFile: true, logger: { debug: (...a) => { debug.push(a) }, info: () => {}, warn: () => {}, error: () => {} } })
+
+    const lockIn = result.lockIn!
+    expect(lockIn.providers[0].classification).toBe('draft-pr-refused')
+    expect(lockIn.totals['draft-pr-refused']).toBe(2)
+    expect(lockIn.hostedAdmission).toHaveLength(1)
+    const refusing = lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse').map((g) => g.id)
+    expect(refusing).toEqual(['npm-pin', 'typecheck', 'test-script'])
+    // The scanned sources reach the preflight, so the SDK surface gate is decided, not unknown.
+    expect(lockIn.hostedAdmission[0].preflight.gates.find((g) => g.id === 'sdk-api-surface')).toMatchObject({ status: 'pass' })
+    expect(debug.find((a) => a[0] === 'Hosted-admission tree collected')?.[1]).toMatchObject({ source: 'git-index', entries: 3, scope: '', incomplete: null })
+  })
+
+  it('reads the whole repository for the preflight when a workspace package is scanned from its own directory', async () => {
+    // A yarn monorepo: scanned from packages/svc, the package alone looks
+    // admissible, but the hosted planner reads the root manifest and refuses.
+    const dir = makeTempRepo()
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'root', private: true, workspaces: ['packages/*'], packageManager: 'yarn@4.18.0' }))
+    writeFileSync(join(dir, 'yarn.lock'), '')
+    const pkg = join(dir, 'packages', 'svc')
+    mkdirSync(join(pkg, 'src'), { recursive: true })
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: 'svc', packageManager: 'npm@10.9.8', scripts: { test: 'node --test', typecheck: 'tsc --noEmit' }, dependencies: { '@launchdarkly/node-server-sdk': '^9.11.0' }, devDependencies: { typescript: '5.9.3' } }))
+    writeFileSync(join(pkg, 'package-lock.json'), '{"lockfileVersion":3}')
+    writeFileSync(join(pkg, 'tsconfig.json'), '{}')
+    const body =
+      `import { init } from '@launchdarkly/node-server-sdk'\n` +
+      `const client = init('k')\n` +
+      `export const f = () => client.boolVariation('checkout-v2', ctx, false)\n`
+    writeFileSync(join(pkg, 'src', 'a.ts'), body)
+    writeFileSync(join(pkg, 'src', 'b.ts'), body)
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+
+    const result = await scanRepo({ cwd: pkg, noConfig: true, noIgnoreFile: true })
+
+    const lockIn = result.lockIn!
+    expect(lockIn.providers[0].classification).toBe('draft-pr-refused')
+    const refusing = lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse').map((g) => g.id)
+    expect(refusing).toEqual(['single-manifest', 'package-manager-markers'])
+    expect(lockIn.hostedAdmission[0].preflight.gates.find((g) => g.id === 'sdk-api-surface')).toMatchObject({ status: 'pass' })
+  })
+
   it('marks an old flag as stale', async () => {
     const dir = makeTempRepo()
     mkdirSync(join(dir, 'src'))

@@ -13,9 +13,9 @@ import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag } from '../staleness.js'
 
 import { LOCK_IN_CLASSIFICATIONS, LOCK_IN_LABELS } from '../migration/lock-in.js'
-import { uniqueStaleCount, healthEmoji, languageLabel } from './shared.js'
+import { uniqueStaleCount, healthEmoji, languageLabel, tallyAdmissionGates, ADMISSION_PREFLIGHT_HEADING } from './shared.js'
 
-import type { LockInSummary } from '../migration/lock-in.js'
+import type { LockInHostedAdmission, LockInSummary } from '../migration/lock-in.js'
 
 export interface MarkdownFormatOptions {
   /** 'full' or 'changed' — drives the "scan mode" label in the stats table. */
@@ -30,6 +30,25 @@ export interface MarkdownFormatOptions {
 
 const DEFAULT_MAX_STALE = 20
 const MAX_LOCK_IN_ROWS = 5
+
+/**
+ * Local hosted-admission preflight for the PR comment: refusing gates by name
+ * with one line each, then what only the hosted planner can decide. Same
+ * wording rules as the text output — never "available".
+ */
+function buildAdmissionSection(entry: LockInHostedAdmission): string {
+  const { refusing, unknownIds, passCount } = tallyAdmissionGates(entry.preflight)
+  const unknownText = `${unknownIds.length} not checkable locally${unknownIds.length > 0 ? `: ${unknownIds.map((id) => `\`${id}\``).join(', ')}` : ''}`
+  if (refusing.length === 0) {
+    return `**${ADMISSION_PREFLIGHT_HEADING}:** no gate refuses (${passCount} pass; ${unknownText}).\n\n`
+  }
+  const refuseText = refusing.length === 1 ? '1 gate refuses' : `${refusing.length} gates refuse`
+  let body = `**${ADMISSION_PREFLIGHT_HEADING}:** ${refuseText} (${passCount} pass; ${unknownText}).\n\n`
+  for (const g of refusing) {
+    body += `- \`${g.id}\` — ${g.detail}\n`
+  }
+  return body + '\n'
+}
 
 /**
  * Compact lock-in section for the PR comment: one summary line and a short
@@ -53,7 +72,11 @@ function buildLockInSection(lockIn: LockInSummary): string {
   if (lockIn.providers.length > MAX_LOCK_IN_ROWS) {
     body += `\n*... and ${lockIn.providers.length - MAX_LOCK_IN_ROWS} more provider SDKs.*\n`
   }
-  body += '\n_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n'
+  body += '\n'
+  for (const entry of lockIn.hostedAdmission) {
+    body += buildAdmissionSection(entry)
+  }
+  body += '_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n'
   return body
 }
 

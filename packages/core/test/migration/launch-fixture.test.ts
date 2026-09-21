@@ -1,11 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { cpSync, rmSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { scanRepo } from '../../src/scan-repo.js'
+import { makeTempRepo, commitAll } from '../fixtures/repo-builder.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const fixtureDir = resolve(here, '../fixtures/migration/launch-fixture')
+const fixtureSource = resolve(here, '../fixtures/migration/launch-fixture')
+
+// The hosted-admission preflight reads the whole repository from the git
+// toplevel, so the fixture is scanned as its own committed repository rather
+// than as a subdirectory of this monorepo.
+let fixtureDir: string
+beforeAll(() => {
+  fixtureDir = makeTempRepo()
+  cpSync(fixtureSource, fixtureDir, { recursive: true })
+  // Backdated so the age signal marks the flags stale, as the committed fixture in this repository did.
+  commitAll(fixtureDir, 'launch fixture', '2025-01-01T00:00:00Z')
+})
+afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }))
 
 const NODE_SERVER_CELL = {
   id: 'adopt-openfeature/launchdarkly-node-server/ecmascript/server',
@@ -43,6 +57,7 @@ describe('lock-in summary on the launch fixture', () => {
       'already-openfeature': 0,
       'needs-review': 0,
       'draft-pr': 3,
+      'draft-pr-refused': 0,
       preview: 0,
       assessment: 0,
       'detection-only': 0,
@@ -60,6 +75,17 @@ describe('lock-in summary on the launch fixture', () => {
       },
     ])
     expect(lockIn.registry.sourceRevision).toMatch(/^[0-9a-f]{40}$/)
+
+    // The public fixture mirrors the admissible shape (exact npm pin, both
+    // scripts, lockfileVersion 3 lockfile): the local preflight refuses
+    // nothing, and what remains is decided only by the hosted planner.
+    expect(lockIn.hostedAdmission).toHaveLength(1)
+    expect(lockIn.hostedAdmission[0].cell).toEqual(NODE_SERVER_CELL)
+    expect(lockIn.hostedAdmission[0].preflight.admissible).toBe(true)
+    expect(lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse')).toEqual([])
+    expect(lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'unknown').map((g) => g.id)).toEqual([
+      'analyzer-budget', 'transformation-blockers', 'dependency-closure', 'sandbox-validation',
+    ])
   })
 
   it('regex engine: exactly the two literal-key call sites, both draft-pr', async () => {

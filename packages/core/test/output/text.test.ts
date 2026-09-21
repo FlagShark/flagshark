@@ -878,14 +878,21 @@ describe('formatText — lock-in block', () => {
       registry: { sourceRevision: 'abc', generatedAt: '2026-09-09' },
       callSites: 21,
       uniqueFlags: 15,
-      totals: { 'already-openfeature': 2, 'needs-review': 0, 'draft-pr': 14, preview: 4, assessment: 0, 'detection-only': 1 },
+      totals: { 'already-openfeature': 2, 'needs-review': 0, 'draft-pr-refused': 0, 'draft-pr':14, preview: 4, assessment: 0, 'detection-only': 1 },
       providers: [
         row('LaunchDarkly Node Server SDK', 14, 'draft-pr', { id: 'ld/node', version: 2, highestStage: 'verification' }),
         row('Unleash JavaScript SDK', 4, 'preview', { id: 'unleash/js', version: 1, highestStage: 'preview' }),
         row('OpenFeature JavaScript SDK', 2, 'already-openfeature', null),
         row('PostHog', 1, 'detection-only', null, ['typescript', 'python']),
       ],
+      hostedAdmission: [],
       ...overrides,
+    }
+  }
+  function admission(gates: LockInSummary['hostedAdmission'][number]['preflight']['gates']): LockInSummary['hostedAdmission'][number] {
+    return {
+      cell: { id: 'adopt-openfeature/launchdarkly-node-server/ecmascript/server', version: 2, highestStage: 'verification' },
+      preflight: { admissible: !gates.some((g) => g.status === 'refuse'), gates },
     }
   }
   function row(
@@ -910,7 +917,7 @@ describe('formatText — lock-in block', () => {
     expect(foundIdx).toBeGreaterThan(lockInIdx)
     expect(lines[lockInIdx]).toBe('Lock-in: 21 flag call sites · 3 provider SDKs · 2 already on OpenFeature')
     expect(lines[lockInIdx + 1]).toBe(
-      '  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR available — review and merge stay with you',
+      '  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   may qualify for a hosted draft PR — the hosted planner decides',
     )
     expect(lines[lockInIdx + 2]).toBe('  Unleash JavaScript SDK          4 call sites (TypeScript)   preview only')
     expect(lines[lockInIdx + 3]).toBe('  OpenFeature JavaScript SDK      2 call sites (TypeScript)   already on OpenFeature (not lock-in)')
@@ -922,7 +929,7 @@ describe('formatText — lock-in block', () => {
   it('renders assessment-only, needs-review and partial-review wording', () => {
     const summary = lockIn({
       callSites: 6,
-      totals: { 'already-openfeature': 0, 'needs-review': 3, 'draft-pr': 1, preview: 0, assessment: 2, 'detection-only': 0 },
+      totals: { 'already-openfeature': 0, 'needs-review': 3, 'draft-pr-refused': 0, 'draft-pr':1, preview: 0, assessment: 2, 'detection-only': 0 },
       providers: [
         row('LaunchDarkly React SDK', 2, 'assessment', { id: 'ld/react', version: 1, highestStage: 'assessment' }),
         row('PostHog', 2, 'needs-review', { id: 'ph', version: 1, highestStage: 'preview' }, ['typescript'], 2),
@@ -933,13 +940,80 @@ describe('formatText — lock-in block', () => {
     expect(output).toContain('Lock-in: 6 flag call sites · 3 provider SDKs\n')
     expect(output).toContain('assessment only')
     expect(output).toContain('   needs review (weaker detection)')
-    expect(output).toContain('hosted draft PR available — review and merge stay with you · 1 need review (weaker detection)')
+    expect(output).toContain('may qualify for a hosted draft PR — the hosted planner decides · 1 need review (weaker detection)')
+    expect(output).not.toContain('available')
+  })
+
+  it('prints the refusing preflight gates by name with one line each, then what is not checkable locally', () => {
+    const summary = lockIn({
+      callSites: 1,
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 0, 'draft-pr-refused': 1, preview: 0, assessment: 0, 'detection-only': 0 },
+      providers: [row('LaunchDarkly Node Server SDK', 1, 'draft-pr-refused', { id: 'ld/node', version: 2, highestStage: 'verification' })],
+      hostedAdmission: [
+        admission([
+          { id: 'tree-size', status: 'pass', detail: '10 tree entries' },
+          { id: 'npm-pin', status: 'refuse', detail: 'package.json declares packageManager "yarn@4.18.0". Set "packageManager": "npm@10.9.8".' },
+          { id: 'test-script', status: 'refuse', detail: 'package.json has no `test` script. Add one.' },
+          { id: 'analyzer-budget', status: 'unknown', detail: 'hosted only' },
+          { id: 'sandbox-validation', status: 'unknown', detail: 'hosted only' },
+        ]),
+      ],
+    })
+    const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
+    const lines = output.split('\n')
+    const rowIdx = lines.findIndex((l) => l.startsWith('  LaunchDarkly Node Server SDK'))
+    expect(lines[rowIdx]).toContain('hosted draft PR refused by the local preflight — see gates')
+    expect(lines[rowIdx + 1]).toBe(
+      '  Hosted draft PR preflight (local; no account, no network; the hosted planner decides): 2 gates refuse · 1 pass · 2 not checkable locally (analyzer-budget, sandbox-validation)',
+    )
+    expect(lines[rowIdx + 2]).toBe('    ✗ npm-pin      package.json declares packageManager "yarn@4.18.0". Set "packageManager": "npm@10.9.8".')
+    expect(lines[rowIdx + 3]).toBe('    ✗ test-script  package.json has no `test` script. Add one.')
+    expect(lines[rowIdx + 4]).toBe('  Next: npx flagshark assess   (private assessment; invite-only today)')
+    expect(output).not.toMatch(/available|automatic|automated|minutes/i)
+  })
+
+  it('caps the refusing gate lines at five and points at the JSON output for the rest', () => {
+    const gates = (['tree-size', 'tree-paths', 'content-budget', 'single-manifest', 'npmrc', 'workspaces', 'lockfile'] as const).map((id) => ({
+      id,
+      status: 'refuse' as const,
+      detail: `${id} refused`,
+    }))
+    const summary = lockIn({ hostedAdmission: [admission(gates)] })
+    const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('7 gates refuse · 0 pass · 0 not checkable locally\n')
+    expect(output).toContain('    ✗ npmrc            npmrc refused')
+    expect(output).not.toContain('workspaces refused')
+    expect(output).toContain('    … and 2 more refusing gates (see --format json)')
+  })
+
+  it('an admissible preflight says only that no gate refuses — never that a draft PR is available', () => {
+    const summary = lockIn({
+      hostedAdmission: [
+        admission([
+          { id: 'tree-size', status: 'pass', detail: 'ok' },
+          { id: 'test-script', status: 'pass', detail: 'ok' },
+          { id: 'dependency-closure', status: 'unknown', detail: 'hosted only' },
+        ]),
+      ],
+    })
+    const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
+    expect(output).toContain(
+      '  Hosted draft PR preflight (local; no account, no network; the hosted planner decides): no gate refuses · 2 pass · 1 not checkable locally (dependency-closure)',
+    )
+    expect(output).not.toContain('✗')
+    expect(output).not.toMatch(/available/i)
+  })
+
+  it('uses singular grammar for one refusing gate', () => {
+    const summary = lockIn({ hostedAdmission: [admission([{ id: 'npm-pin', status: 'refuse', detail: 'd' }, { id: 'tree-size', status: 'pass', detail: 'ok' }])] })
+    const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('1 gate refuses · 1 pass · 0 not checkable locally\n')
   })
 
   it('uses singular wording for one call site and one provider SDK', () => {
     const summary = lockIn({
       callSites: 1,
-      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 0, preview: 0, assessment: 0, 'detection-only': 1 },
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr-refused': 0, 'draft-pr':0, preview: 0, assessment: 0, 'detection-only': 1 },
       providers: [row('PostHog', 1, 'detection-only', null)],
     })
     const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
@@ -950,7 +1024,7 @@ describe('formatText — lock-in block', () => {
     const summary = lockIn({
       callSites: 0,
       uniqueFlags: 0,
-      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 0, preview: 0, assessment: 0, 'detection-only': 0 },
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr-refused': 0, 'draft-pr':0, preview: 0, assessment: 0, 'detection-only': 0 },
       providers: [],
     })
     const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })

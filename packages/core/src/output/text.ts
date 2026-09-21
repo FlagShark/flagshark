@@ -3,9 +3,9 @@
  */
 
 import { LOCK_IN_LABELS } from '../migration/lock-in.js'
-import { languageLabel } from './shared.js'
+import { languageLabel, tallyAdmissionGates, ADMISSION_PREFLIGHT_HEADING } from './shared.js'
 
-import type { LockInSummary } from '../migration/lock-in.js'
+import type { LockInHostedAdmission, LockInSummary } from '../migration/lock-in.js'
 import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag, StalenessSignal } from '../staleness.js'
 
@@ -129,6 +129,33 @@ function buildDetailCard(sf: StaleFlag, index: number): string[] {
   return lines
 }
 
+const MAX_REFUSING_GATE_LINES = 5
+
+/**
+ * The local hosted-admission preflight for one draft-PR-stage cell: the
+ * refusing gates by name with one line each on what would change the answer,
+ * then the gates that can only be decided by the hosted planner. Never a
+ * promise — even a clean preflight only says "no gate refuses".
+ */
+function buildAdmissionLines(entry: LockInHostedAdmission): string[] {
+  const { refusing, unknownIds, passCount } = tallyAdmissionGates(entry.preflight)
+  const unknownText = `${unknownIds.length} not checkable locally${unknownIds.length > 0 ? ` (${unknownIds.join(', ')})` : ''}`
+  if (refusing.length === 0) {
+    return [`  ${ADMISSION_PREFLIGHT_HEADING}: no gate refuses · ${passCount} pass · ${unknownText}`]
+  }
+  const refuseText = refusing.length === 1 ? '1 gate refuses' : `${refusing.length} gates refuse`
+  const lines = [`  ${ADMISSION_PREFLIGHT_HEADING}: ${refuseText} · ${passCount} pass · ${unknownText}`]
+  const idWidth = Math.max(...refusing.map((g) => g.id.length))
+  for (const g of refusing.slice(0, MAX_REFUSING_GATE_LINES)) {
+    lines.push(`    ✗ ${g.id.padEnd(idWidth)}  ${g.detail}`)
+  }
+  const remaining = refusing.length - MAX_REFUSING_GATE_LINES
+  if (remaining > 0) {
+    lines.push(`    … and ${plural(remaining, 'more refusing gate')} (see --format json)`)
+  }
+  return lines
+}
+
 /**
  * The lock-in block: call sites per provider SDK and what the hosted product
  * can do with each, classified strictly from the copied registry snapshot.
@@ -156,6 +183,9 @@ function buildLockInBlock(lockIn: LockInSummary): string[] {
       label += ` · ${p.needsReview} need review (weaker detection)`
     }
     lines.push(`  ${p.provider.padEnd(nameWidth)}   ${count} ${langs}   ${label}`)
+  }
+  for (const entry of lockIn.hostedAdmission) {
+    lines.push(...buildAdmissionLines(entry))
   }
   lines.push('  Next: npx flagshark assess   (private assessment; invite-only today)')
   return lines

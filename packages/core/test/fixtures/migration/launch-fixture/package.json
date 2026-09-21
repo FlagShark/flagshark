@@ -2,6 +2,11 @@
   "name": "flagshark-launch-fixture",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10.9.8",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
   "dependencies": {
     "@launchdarkly/node-server-sdk": "9.11.0"
   }

@@ -286,7 +286,7 @@ describe('formatJson — lockIn', () => {
       registry: { sourceRevision: 'abc', generatedAt: '2026-09-09' },
       callSites: 2,
       uniqueFlags: 2,
-      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 2, preview: 0, assessment: 0, 'detection-only': 0 },
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 2, 'draft-pr-refused': 0, preview: 0, assessment: 0, 'detection-only': 0 },
       providers: [{
         provider: 'LaunchDarkly Node Server SDK',
         packages: ['@launchdarkly/node-server-sdk'],
@@ -297,11 +297,20 @@ describe('formatJson — lockIn', () => {
         classification: 'draft-pr',
         needsReview: 0,
       }],
+      hostedAdmission: [{
+        cell: { id: 'adopt-openfeature/launchdarkly-node-server/ecmascript/server', version: 2, highestStage: 'verification' },
+        preflight: { admissible: true, gates: [{ id: 'test-script', status: 'pass', detail: '`npm test` (jest)' }, { id: 'sandbox-validation', status: 'unknown', detail: 'hosted only' }] },
+      }],
     }
     const json = JSON.parse(formatJson(result, { version: 'test' }))
     expect(json.lockIn.callSites).toBe(2)
     expect(json.lockIn.providers[0].classification).toBe('draft-pr')
     expect(json.lockIn.registry.sourceRevision).toBe('abc')
+    // The local preflight travels with the summary so machine consumers see every gate, unknowns included.
+    expect(json.lockIn.hostedAdmission[0].preflight).toEqual({
+      admissible: true,
+      gates: [{ id: 'test-script', status: 'pass', detail: '`npm test` (jest)' }, { id: 'sandbox-validation', status: 'unknown', detail: 'hosted only' }],
+    })
     expect(Object.keys(json)).toEqual([
       'version', 'totalFlags', 'staleFlags', 'errorCount', 'parseErrorCount', 'excludedPermanent',
       'permanentByPlatform', 'healthScore', 'detectedProviders', 'languages', 'flags', 'excludedPaths',

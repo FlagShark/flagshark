@@ -14,6 +14,7 @@ import { buildExcluder } from './config/excluder.js'
 import { loadConfigFile } from './config/loader.js'
 import { loadIgnoreFile } from './config/ignore-file.js'
 import { orchestratePlatforms } from './providers/orchestrate.js'
+import { collectAdmissionTree } from './migration/admission-tree.js'
 import { summarizeLockIn } from './migration/lock-in.js'
 
 import type { FeatureFlag } from './detection/feature-flag.js'
@@ -22,6 +23,7 @@ import type { FeatureFlagProvider } from './detection/interface.js'
 import type { StaleFlag } from './staleness.js'
 import type { FlagsharkConfig } from './config/schema.js'
 import type { EffectiveRules } from './config/excluder.js'
+import type { AdmissionTreeView } from './migration/hosted-admission.js'
 import type { LockInSummary } from './migration/lock-in.js'
 
 export interface ScanLogger {
@@ -304,7 +306,29 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     ),
   ]
 
-  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry))
+  // The hosted-admission preflight reads the committed tree (git index, or a
+  // filesystem walk outside git) plus the scanned sources. Local only: no
+  // account, no token, no network — see src/migration/hosted-admission.ts.
+  // A preflight failure can never fail the scan: an empty, incomplete view
+  // makes every locally checkable gate report unknown instead.
+  let admissionTree: AdmissionTreeView
+  try {
+    const collected = collectAdmissionTree({ root: opts.cwd, sourceFiles: files })
+    logger.debug('Hosted-admission tree collected', {
+      source: collected.source,
+      entries: collected.entries.length,
+      enumeratedRoot: collected.enumeratedRoot,
+      scope: collected.scope,
+      incomplete: collected.incomplete ?? null,
+    })
+    admissionTree = collected
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.warn('Hosted-admission preflight could not read the tree; every local gate is reported as unknown', { error: message })
+    admissionTree = { entries: [], files: new Map(), incomplete: `tree could not be read: ${message}` }
+  }
+
+  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry), undefined, admissionTree)
 
   const scanDuration = Math.round(performance.now() - start)
 
