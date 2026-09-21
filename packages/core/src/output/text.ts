@@ -139,11 +139,12 @@ const MAX_REFUSING_GATE_LINES = 5
  */
 function buildAdmissionLines(entry: LockInHostedAdmission): string[] {
   const { refusing, unknownIds, passCount } = tallyAdmissionGates(entry.preflight)
-  const unknownText = `${unknownIds.length} not checkable locally (${unknownIds.join(', ')})`
+  const unknownText = `${unknownIds.length} not checkable locally${unknownIds.length > 0 ? ` (${unknownIds.join(', ')})` : ''}`
   if (refusing.length === 0) {
     return [`  ${ADMISSION_PREFLIGHT_HEADING}: no gate refuses · ${passCount} pass · ${unknownText}`]
   }
-  const lines = [`  ${ADMISSION_PREFLIGHT_HEADING}: ${plural(refusing.length, 'gate')} refuse · ${passCount} pass · ${unknownText}`]
+  const refuseText = refusing.length === 1 ? '1 gate refuses' : `${refusing.length} gates refuse`
+  const lines = [`  ${ADMISSION_PREFLIGHT_HEADING}: ${refuseText} · ${passCount} pass · ${unknownText}`]
   const idWidth = Math.max(...refusing.map((g) => g.id.length))
   for (const g of refusing.slice(0, MAX_REFUSING_GATE_LINES)) {
     lines.push(`    ✗ ${g.id.padEnd(idWidth)}  ${g.detail}`)

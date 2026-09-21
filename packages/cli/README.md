@@ -18,6 +18,9 @@ Lock-in: 21 flag call sites · 3 provider SDKs
   LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR refused by the local preflight — see gates
   Unleash JavaScript SDK          4 call sites (TypeScript)   detection only (no migration cell)
   PostHog                         3 call sites (TypeScript)   detection only (no migration cell)
+  Hosted draft PR preflight (local; no account, no network; the hosted planner decides): 2 gates refuse · 14 pass · 4 not checkable locally (analyzer-budget, transformation-blockers, dependency-closure, sandbox-validation)
+    ✗ npm-pin      package.json declares packageManager "yarn@4.18.0"; the hosted planner admits only an exact npm pin and its sandbox runs npm 10.9.8. Set "packageManager": "npm@10.9.8", or remove it and commit a lockfileVersion 3 package-lock.json.
+    ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
   Next: npx flagshark assess   (private assessment; invite-only today)
 
 Found 23 feature flags · 7 stale · health 70/100 ⚠️

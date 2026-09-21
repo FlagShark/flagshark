@@ -70,6 +70,12 @@ export interface AdmissionTreeView {
    * A file missing from this map is reported as `unknown`, never assumed.
    */
   files: ReadonlyMap<string, string>
+  /**
+   * Set when enumeration was cut short (for example an unreadable directory):
+   * every gate that depends on seeing the whole tree is then `unknown`. The
+   * value is a short reason for the gate details.
+   */
+  incomplete?: string
 }
 
 export interface HostedAdmissionPreflight {
@@ -137,8 +143,28 @@ const NPM_LOCKFILE = /(?:^|\/)(?:package-lock\.json|npm-shrinkwrap\.json)$/u
 const EXACT_NPM_PIN = /^npm@(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u
 const EXACT_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u
 
-/** Methods the hosted analyzer maps for the LaunchDarkly Node client. Anything else on the client is `unmapped-api`. */
-const UNMAPPED_CLIENT_METHODS = ['on', 'off', 'once', 'track', 'identify', 'isOffline', 'secureModeHash', 'basicLogger']
+/**
+ * The LaunchDarkly Node client surface the hosted analyzer catalogues:
+ * evaluations and lifecycle. Any other method on the client is an
+ * `unmapped-api` blocker (`initialized`, `allFlagsState`, `migrationVariation`,
+ * `trackMigration`, `on`, `track`, `identify`, `addListener`, …).
+ */
+const CATALOGUED_CLIENT_METHODS = new Set([
+  'variation',
+  'variationDetail',
+  'boolVariation',
+  'stringVariation',
+  'numberVariation',
+  'jsonVariation',
+  'boolVariationDetail',
+  'stringVariationDetail',
+  'numberVariationDetail',
+  'jsonVariationDetail',
+  'init',
+  'waitForInitialization',
+  'flush',
+  'close',
+])
 
 type Manifest = Record<string, unknown>
 
@@ -199,36 +225,62 @@ function treeSizeGate(entries: readonly AdmissionTreeEntry[]): AdmissionGate {
   return gate('tree-size', 'pass', `${total} tree entries, within the collector's ${HOSTED_ADMISSION_LIMITS.maxTreeEntries}`)
 }
 
+/** Segments the hosted collector refuses outright, compared case-insensitively. */
+const RESERVED_SEGMENTS = new Set(['.git', 'node_modules'])
+
+/**
+ * Mirrors the hosted collector's path rules: printable ASCII, no `\` or `:`,
+ * no empty, `.`, `..`, `.git` or `node_modules` segments, no segment ending in
+ * `.` or a space, no two paths that differ only by case, and no file that is
+ * another path's ancestor.
+ */
 function treePathsGate(entries: readonly AdmissionTreeEntry[]): AdmissionGate {
   const symlinks: string[] = []
   const submodules: string[] = []
   const unsafe: string[] = []
+  const aliased: string[] = []
+  const seenLower = new Set<string>()
+  const filePaths = new Set(entries.filter((e) => e.kind === 'file').map((e) => e.path))
   for (const entry of entries) {
     if (entry.kind === 'symlink') symlinks.push(entry.path)
     else if (entry.kind === 'submodule') submodules.push(entry.path)
     const path = entry.path
+    const segments = path.split('/')
     if (
       path.length === 0 ||
       path.length > 1024 ||
       /[^\x20-\x7e]/u.test(path) ||
       /[\\:]/u.test(path) ||
-      path.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+      segments.some(
+        (segment) =>
+          segment === '' ||
+          segment === '.' ||
+          segment === '..' ||
+          RESERVED_SEGMENTS.has(segment.toLowerCase()) ||
+          segment.endsWith('.') ||
+          segment.endsWith(' '),
+      ) ||
+      segments.slice(0, -1).some((_, i) => filePaths.has(segments.slice(0, i + 1).join('/')))
     ) {
       unsafe.push(path)
     }
+    const lower = path.toLowerCase()
+    if (seenLower.has(lower)) aliased.push(path)
+    seenLower.add(lower)
   }
   const problems: string[] = []
   if (symlinks.length > 0) problems.push(`${plural(symlinks.length, 'symlink')} (${sample(symlinks)})`)
   if (submodules.length > 0) problems.push(`${plural(submodules.length, 'submodule')} (${sample(submodules)})`)
   if (unsafe.length > 0) problems.push(`${plural(unsafe.length, 'non-ASCII or unsafe path')} (${sample(unsafe)})`)
+  if (aliased.length > 0) problems.push(`${plural(aliased.length, 'path')} differing only by case (${sample(aliased)})`)
   if (problems.length > 0) {
     return gate(
       'tree-paths',
       'refuse',
-      `${problems.join('; ')}; the hosted collector admits only regular files and directories with printable-ASCII paths. Replace symlinks with files, drop submodules, rename the paths.`,
+      `${problems.join('; ')}; the hosted collector admits only regular files and directories with printable-ASCII, case-unambiguous paths and no committed .git or node_modules. Replace symlinks with files, drop submodules, rename or remove the paths.`,
     )
   }
-  return gate('tree-paths', 'pass', 'no symlinks, submodules or non-ASCII paths')
+  return gate('tree-paths', 'pass', 'no symlinks, submodules, non-ASCII, reserved or case-ambiguous paths')
 }
 
 function contentBudgetGate(entries: readonly AdmissionTreeEntry[]): AdmissionGate {
@@ -342,7 +394,11 @@ function lockfileGate(paths: readonly string[], selected: SelectedManifest): Adm
     return gate('lockfile', 'refuse', `competing npm lockfiles (${sample(lockfiles)}); the hosted planner admits exactly one next to package.json. Keep the one beside \`${selected.path}\`.`)
   }
   if (lockfiles.length === 0) {
-    return gate('lockfile', 'refuse', 'no package-lock.json next to package.json; the hosted sandbox installs with `npm ci`, which needs one. Run `npm install` and commit the lockfile.')
+    return gate(
+      'lockfile',
+      'unknown',
+      'no npm lockfile beside package.json; with a declared npm packageManager the hosted planner can supply a certified generated lock, and the dependency closure is verified only in the hosted sandbox (without a packageManager npm cannot be inferred either — see npm-pin)',
+    )
   }
   const [lockfile] = lockfiles
   if (lockfile !== selected.prefix + basename(lockfile)) {
@@ -526,7 +582,7 @@ function dependenciesGate(manifest: Manifest): AdmissionGate {
         typeof value !== 'string' ||
         !value.trim() ||
         value !== value.trim() ||
-        /[ -]/u.test(value) ||
+        /[\x00-\x1f\x7f]/u.test(value) ||
         /^(?!https?:|git\+|github:|gitlab:|bitbucket:).*\.(?:tgz|tar\.gz)$/iu.test(value) ||
         /^(?:workspace:|(?:git\+)?file:|link:|portal:|patch:|\.|\/|~[^/]*\/|[a-z]:)|\\/iu.test(value)
       ) {
@@ -578,10 +634,12 @@ function launchDarklySdkGate(manifest: Manifest): AdmissionGate {
   const modern = declaredVersion(manifest, MODERN_SDK)
   const legacy = declaredVersion(manifest, LEGACY_SDK)
   if (legacy !== undefined) {
+    // The cell does list the legacy package (>=1 <8) and the hosted preview
+    // rewrites the dependency; only this local preflight does not model it.
     return gate(
       'launchdarkly-sdk',
-      'refuse',
-      `package.json declares the legacy \`${LEGACY_SDK}\` ${legacy}; the draft-PR cell rewrites only \`${MODERN_SDK}\` 9.x. Upgrade to \`${MODERN_SDK}\` 9.x and remove the legacy package.`,
+      'unknown',
+      `package.json declares the legacy \`${LEGACY_SDK}\` ${legacy}; the local preflight does not model the legacy SDK surface, so whether these call sites are admitted is decided by the hosted analyzer`,
     )
   }
   if (modern === undefined) {
@@ -629,7 +687,11 @@ function typecheckGate(tree: AdmissionTreeView, regularPaths: ReadonlySet<string
   }
   const lockPath = `${prefix}package-lock.json`
   if (!regularPaths.has(lockPath)) {
-    return gate('typecheck', 'refuse', `no typecheck script and no \`${lockPath}\` to pin the typescript the tsc fallback would run. ${remedy}`)
+    return gate(
+      'typecheck',
+      'unknown',
+      `no typecheck script and no \`${lockPath}\` locally to pin the typescript the tsc fallback would run; the hosted planner may supply a certified generated lock, so this is decided there. ${remedy.replace(/\.$/u, '')} to make it provable locally.`,
+    )
   }
   const lockContent = tree.files.get(lockPath)
   if (lockContent === undefined) {
@@ -703,7 +765,7 @@ function resolveRelative(from: string, target: string): string | undefined {
 /** tsconfig.json is JSON with comments and trailing commas; strip both outside strings. */
 export function parseJsonc(text: string): unknown {
   let output = ''
-  let index = text.startsWith('﻿') ? 1 : 0
+  let index = text.startsWith('\uFEFF') ? 1 : 0
   while (index < text.length) {
     const char = text[index]
     if (char === '"') {
@@ -782,24 +844,43 @@ function sdkApiSurfaceGate(tree: AdmissionTreeView): AdmissionGate {
       `allFlagsState() is called in ${sample(allFlagsState)}; the hosted planner has no OpenFeature mapping for it (unmapped-api). Replace it with per-flag evaluations.`,
     )
   }
-  const ambiguous = new Set<string>()
-  const pattern = new RegExp(`\\.(${UNMAPPED_CLIENT_METHODS.join('|')})\\s*\\(`, 'gu')
+  // Every member call in the SDK-importing files: the receiver cannot be
+  // resolved locally, so any non-catalogued method might be on the client.
+  const uncatalogued = new Set<string>()
+  const catalogued = new Set<string>()
   for (const [, content] of sdkFiles) {
-    for (const match of content.matchAll(pattern)) ambiguous.add(match[1])
+    for (const match of content.matchAll(/\.([A-Za-z_$][\w$]*)\s*\(/gu)) {
+      ;(CATALOGUED_CLIENT_METHODS.has(match[1]) ? catalogued : uncatalogued).add(match[1])
+    }
   }
-  if (ambiguous.size > 0) {
+  if (uncatalogued.size > 0) {
+    const names = [...uncatalogued].sort()
     return gate(
       'sdk-api-surface',
       'unknown',
-      `calls to ${[...ambiguous].sort().map((m) => `${m}()`).join(', ')} in files importing the SDK; if their receiver is the LaunchDarkly client they are unmapped-api refusals, which only the hosted analyzer can resolve`,
+      `${plural(names.length, 'method')} outside the catalogued client surface called in the ${plural(sdkFiles.length, 'file')} importing the SDK (${sample(names.map((m) => `${m}()`), 6)}); any of them on the LaunchDarkly client is an unmapped-api refusal, and only the hosted analyzer can prove the receiver`,
     )
   }
-  return gate('sdk-api-surface', 'pass', `no allFlagsState, on/off/once, track or identify calls in the ${plural(sdkFiles.length, 'file')} importing the SDK`)
+  return gate(
+    'sdk-api-surface',
+    'pass',
+    `only catalogued client methods (${[...catalogued].sort().map((m) => `${m}()`).join(', ') || 'none'}) are called in the ${plural(sdkFiles.length, 'file')} importing the SDK; the receiver proof itself still requires the hosted analyzer`,
+  )
 }
 
 // ── Assembly ─────────────────────────────────────────────────────
 
 const NOT_CHECKED = 'not checked: requires exactly one readable package.json'
+
+/** First occurrence of each path wins; later index stages of the same path are dropped. */
+function dedupePaths(entries: readonly AdmissionTreeEntry[]): AdmissionTreeEntry[] {
+  const seen = new Set<string>()
+  return entries.filter((entry) => {
+    if (seen.has(entry.path)) return false
+    seen.add(entry.path)
+    return true
+  })
+}
 
 /**
  * Preflight for the LaunchDarkly Node server `draft-pr` cell. Gate order is
@@ -807,15 +888,28 @@ const NOT_CHECKED = 'not checked: requires exactly one readable package.json'
  * scripts, then what only the hosted analyzer and sandbox can decide.
  */
 export function preflightNodeServerAdmission(tree: AdmissionTreeView): HostedAdmissionPreflight {
-  const entries = tree.entries
+  // Merge-conflict stages list one path several times in the index; the
+  // committed tree the hosted collector reads has each path once.
+  const entries = dedupePaths(tree.entries)
   const paths = entries.map((e) => e.path)
   // Manifests and lockfiles are regular files; markers match any entry kind (a `.yarn/` directory is a marker too).
   const filePaths = entries.filter((e) => e.kind === 'file').map((e) => e.path)
   const regularPaths = new Set(filePaths)
-  const gates: AdmissionGate[] = [treeSizeGate(entries), treePathsGate(entries), contentBudgetGate(entries)]
+  const gates: AdmissionGate[] = []
 
-  const manifest = selectManifest(tree, filePaths)
-  gates.push(manifest.gate, packageManagerMarkersGate(paths), npmrcGate(paths))
+  if (tree.incomplete !== undefined) {
+    // Nothing that depends on seeing the whole tree can be decided: a second
+    // manifest or a marker could sit in the part that was not enumerated.
+    const detail = `tree enumeration incomplete (${tree.incomplete}); the hosted collector reads the committed tree in full`
+    for (const id of ['tree-size', 'tree-paths', 'content-budget', 'single-manifest', 'package-manager-markers', 'npmrc'] as const) {
+      gates.push(gate(id, 'unknown', detail))
+    }
+  } else {
+    gates.push(treeSizeGate(entries), treePathsGate(entries), contentBudgetGate(entries))
+  }
+
+  const manifest = tree.incomplete === undefined ? selectManifest(tree, filePaths) : { gate: undefined, selected: undefined }
+  if (manifest.gate !== undefined) gates.push(manifest.gate, packageManagerMarkersGate(paths), npmrcGate(paths))
 
   const selected = manifest.selected
   if (selected === undefined) {
@@ -842,7 +936,7 @@ export function preflightNodeServerAdmission(tree: AdmissionTreeView): HostedAdm
   const analyzerInputs = paths.filter((p) => regularPaths.has(p) && isAnalyzerInput(p)).length
   gates.push(
     gate('analyzer-budget', 'unknown', `${plural(analyzerInputs, 'analyzer-input file')} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`),
-    gate('transformation-blockers', 'unknown', 'provider setup, client escape, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer'),
+    gate('transformation-blockers', 'unknown', 'provider setup, client escape, unmapped client APIs, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer'),
     gate('dependency-closure', 'unknown', 'the certified dependency closure is verified only inside the hosted sandbox'),
     gate('sandbox-validation', 'unknown', 'npm ci, the type check and the test suite run only inside the hosted sandbox'),
   )

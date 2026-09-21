@@ -461,7 +461,7 @@ describe('formatMarkdown — lock-in section', () => {
     const md = formatMarkdown(makeResult({ lockIn }), { scanMode: 'full' })
     expect(md).toContain('| LaunchDarkly Node Server SDK | 1 (TypeScript) | hosted draft PR refused by the local preflight — see gates |')
     expect(md).toContain(
-      '**Hosted draft PR preflight (local; no account, no network; the hosted planner decides):** 1 gate refuse (1 pass; 1 not checkable locally: `analyzer-budget`).\n\n- `lockfile` — no package-lock.json next to package.json. Run `npm install` and commit the lockfile.\n\n_Next:',
+      '**Hosted draft PR preflight (local; no account, no network; the hosted planner decides):** 1 gate refuses (1 pass; 1 not checkable locally: `analyzer-budget`).\n\n- `lockfile` — no package-lock.json next to package.json. Run `npm install` and commit the lockfile.\n\n_Next:',
     )
     expect(md.indexOf('| LaunchDarkly Node Server SDK |')).toBeLessThan(md.indexOf('**Hosted draft PR preflight'))
     expect(md).not.toMatch(/available/i)
@@ -471,7 +471,7 @@ describe('formatMarkdown — lock-in section', () => {
     const lockIn = summary([row('LaunchDarkly Node Server SDK', 1, 'draft-pr-refused')], { 'draft-pr-refused': 1 })
     lockIn.hostedAdmission = [admission([{ id: 'lockfile', status: 'refuse', detail: 'a' }, { id: 'test-script', status: 'refuse', detail: 'b' }])]
     const md = formatMarkdown(makeResult({ lockIn }), { scanMode: 'full' })
-    expect(md).toContain('2 gates refuse (0 pass; 0 not checkable locally: ).\n\n- `lockfile` — a\n- `test-script` — b\n')
+    expect(md).toContain('2 gates refuse (0 pass; 0 not checkable locally).\n\n- `lockfile` — a\n- `test-script` — b\n')
   })
 
   it('an admissible preflight only says that no gate refuses', () => {

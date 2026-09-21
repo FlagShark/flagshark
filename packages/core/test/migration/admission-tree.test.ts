@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -43,6 +43,9 @@ describe('collectAdmissionTree — git index', () => {
 
     const view = collectAdmissionTree({ root: dir })
     expect(view.source).toBe('git-index')
+    expect(view.enumeratedRoot).toBe(realpathSync(dir))
+    expect(view.scope).toBe('')
+    expect(view.incomplete).toBeUndefined()
     const byPath = new Map(view.entries.map((e) => [e.path, e]))
     expect(byPath.get('link.json')).toEqual({ path: 'link.json', kind: 'symlink' })
     expect(byPath.get('vendor/sub')).toEqual({ path: 'vendor/sub', kind: 'submodule' })
@@ -98,6 +101,35 @@ describe('collectAdmissionTree — git index', () => {
     expect(view.files.get('src/flags.ts')).toBe('sdk')
   })
 
+  it('enumerates from the git toplevel when scanning a package inside a monorepo, scoping the sources', () => {
+    const dir = repo()
+    writeFixtureFile(dir, 'package.json', '{"workspaces":["packages/*"],"packageManager":"yarn@4.18.0"}')
+    writeFixtureFile(dir, 'yarn.lock', '')
+    writeFixtureFile(dir, 'packages/svc/package.json', '{"name":"svc"}')
+    writeFixtureFile(dir, 'packages/svc/src/flags.ts', 'sdk')
+    commitAll(dir, 'init')
+    const scanDir = join(dir, 'packages', 'svc')
+
+    const view = collectAdmissionTree({ root: scanDir, sourceFiles: new Map([[join(scanDir, 'src', 'flags.ts'), 'sdk']]) })
+    expect(view.source).toBe('git-index')
+    expect(view.enumeratedRoot).toBe(realpathSync(dir))
+    expect(view.scope).toBe('packages/svc')
+    expect(view.entries.map((e) => e.path).sort()).toEqual(['package.json', 'packages/svc/package.json', 'packages/svc/src/flags.ts', 'yarn.lock'])
+    expect(view.files.get('package.json')).toContain('workspaces')
+    expect(view.files.get('packages/svc/src/flags.ts')).toBe('sdk')
+  })
+
+  it('passes merge-conflict stages through as listed (the preflight collapses them)', () => {
+    const dir = repo()
+    writeFixtureFile(dir, 'package.json', '{}')
+    commitAll(dir, 'init')
+    const sha = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: dir, input: 'ours', encoding: 'utf-8' }).trim()
+    execFileSync('git', ['update-index', '--index-info'], { cwd: dir, input: `100644 ${sha} 2\tconflict.ts\n100644 ${sha} 3\tconflict.ts\n` })
+
+    const view = collectAdmissionTree({ root: dir })
+    expect(view.entries.filter((e) => e.path === 'conflict.ts')).toHaveLength(2)
+  })
+
   it('falls back to the filesystem when the repository has nothing tracked yet', () => {
     const dir = repo()
     writeFixtureFile(dir, 'package.json', '{}')
@@ -128,5 +160,41 @@ describe('collectAdmissionTree — filesystem fallback', () => {
       { path: 'vendor/lib', kind: 'submodule' },
     ])
     expect(view.files.get('package.json')).toBe('{"name":"svc"}')
+    expect(view.enumeratedRoot).toBe(dir)
+    expect(view.scope).toBe('')
+    expect(view.incomplete).toBeUndefined()
   })
+
+  // Root can read anything, so the unreadable-directory case is only observable as a normal user.
+  it.skipIf(typeof process.getuid === 'function' && process.getuid() === 0)(
+    'marks the view incomplete instead of throwing when a subdirectory cannot be listed',
+    () => {
+      const dir = plainDir()
+      writeFixtureFile(dir, 'package.json', '{"name":"svc"}')
+      writeFixtureFile(dir, 'private/secret.txt', 'x')
+      writeFixtureFile(dir, 'src/flags.ts', 'sdk')
+      chmodSync(join(dir, 'private'), 0o000)
+      try {
+        const view = collectAdmissionTree({ root: dir })
+        expect(view.incomplete).toBe('unreadable directory: private')
+        expect(view.entries.map((e) => e.path).sort()).toEqual(['package.json', 'private', 'src', 'src/flags.ts'])
+        // Several unreadable directories are all named.
+        chmodSync(join(dir, 'src'), 0o000)
+        expect(collectAdmissionTree({ root: dir }).incomplete).toBe('unreadable directories: private, src')
+      } finally {
+        chmodSync(join(dir, 'private'), 0o755)
+        chmodSync(join(dir, 'src'), 0o755)
+      }
+
+      // The scan directory itself being unreadable names `.` and yields no entries.
+      const sealed = plainDir()
+      chmodSync(sealed, 0o000)
+      try {
+        const view = collectAdmissionTree({ root: sealed })
+        expect(view).toMatchObject({ entries: [], incomplete: 'unreadable directory: .', source: 'filesystem' })
+      } finally {
+        chmodSync(sealed, 0o755)
+      }
+    },
+  )
 })

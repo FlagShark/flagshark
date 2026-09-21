@@ -980,7 +980,7 @@ describe('formatText — lock-in block', () => {
     }))
     const summary = lockIn({ hostedAdmission: [admission(gates)] })
     const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
-    expect(output).toContain('7 gates refuse · 0 pass · 0 not checkable locally ()')
+    expect(output).toContain('7 gates refuse · 0 pass · 0 not checkable locally\n')
     expect(output).toContain('    ✗ npmrc            npmrc refused')
     expect(output).not.toContain('workspaces refused')
     expect(output).toContain('    … and 2 more refusing gates (see --format json)')
@@ -1002,6 +1002,12 @@ describe('formatText — lock-in block', () => {
     )
     expect(output).not.toContain('✗')
     expect(output).not.toMatch(/available/i)
+  })
+
+  it('uses singular grammar for one refusing gate', () => {
+    const summary = lockIn({ hostedAdmission: [admission([{ id: 'npm-pin', status: 'refuse', detail: 'd' }, { id: 'tree-size', status: 'pass', detail: 'ok' }])] })
+    const output = formatText(makeScanResult({ lockIn: summary }), { verbose: false, maxDisplay: 10 })
+    expect(output).toContain('1 gate refuses · 1 pass · 0 not checkable locally\n')
   })
 
   it('uses singular wording for one call site and one provider SDK', () => {

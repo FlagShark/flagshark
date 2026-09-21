@@ -60,19 +60,33 @@ network, no filesystem, no subprocess (the test suite pins the invariant).
 
 Every gate is `pass`, `refuse` or `unknown`. Anything that cannot be checked
 locally — the analyzer's token and work budgets, transformation blockers such
-as provider setup and dynamic keys, the certified dependency closure, the
-sandbox's `npm ci` / typecheck / test run — is `unknown`, never `pass`.
-`admissible` therefore means "no locally checkable gate refuses", not "the
-hosted planner will admit". If the hosted rules drift, the worst case is a
-withheld "may qualify", never a false one.
+as provider setup, unmapped client APIs and dynamic keys, the certified
+dependency closure, the sandbox's `npm ci` / typecheck / test run — is
+`unknown`, never `pass`. So are the cases this preflight deliberately does not
+model: a missing lockfile (the planner can supply a certified generated lock
+when `packageManager` is declared), the legacy `launchdarkly-node-server-sdk`
+package (listed by the cell, not modelled here), and any member call outside
+the catalogued client surface (`variation*`, `init`,
+`waitForInitialization`, `flush`, `close`) in a file importing the SDK, since
+the receiver cannot be resolved without the hosted analyzer. `admissible`
+therefore means "no locally checkable gate refuses", not "the hosted planner
+will admit". If the hosted rules drift, the worst case is a withheld "may
+qualify", never a false one.
 
-`admission-tree.ts` builds the tree view for `scanRepo`: the git index when the
-directory is a repository with something tracked (the closest local analogue of
-the committed tree the hosted collector reads, and it names symlinks and
-submodules by mode), otherwise a filesystem walk that skips `.git` and
-`node_modules`. Only the preflight's inputs are read by content — every
-`package.json`, npm lockfiles, `tsconfig*.json`, `.nvmrc` — plus the scanned
-sources, which the SDK-surface gate inspects.
+`admission-tree.ts` builds the tree view for `scanRepo`. The hosted planner
+reads the whole repository, so the view is enumerated from the git toplevel
+(`git rev-parse --show-toplevel`), not the scan directory: a workspace package
+scanned from its own folder still sees the root manifest, its `workspaces`
+and the yarn/pnpm markers. The index is the closest local analogue of the
+committed tree and names symlinks and submodules by mode; merge-conflict stages
+are passed through and collapsed by the preflight. Outside git (or with
+nothing tracked yet) a filesystem walk of the scan directory skips `.git` and
+`node_modules`; an unreadable subdirectory marks the view `incomplete`, which
+turns every whole-tree gate `unknown` instead of aborting the scan, and a
+collector failure of any kind is caught in `scanRepo` and reported the same
+way. Only the preflight's inputs are read by content — every `package.json`,
+npm lockfiles, `tsconfig*.json`, `.nvmrc` — plus the scanned sources, keyed
+relative to the enumerated root, which the SDK-surface gate inspects.
 
 The text and Markdown renderers print the refusing gates by name with one line
 each on what would change the answer (text caps the list at five and points at

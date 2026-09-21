@@ -1,11 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { cpSync, rmSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { scanRepo } from '../../src/scan-repo.js'
+import { makeTempRepo, commitAll } from '../fixtures/repo-builder.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const fixtureDir = resolve(here, '../fixtures/migration/launch-fixture')
+const fixtureSource = resolve(here, '../fixtures/migration/launch-fixture')
+
+// The hosted-admission preflight reads the whole repository from the git
+// toplevel, so the fixture is scanned as its own committed repository rather
+// than as a subdirectory of this monorepo.
+let fixtureDir: string
+beforeAll(() => {
+  fixtureDir = makeTempRepo()
+  cpSync(fixtureSource, fixtureDir, { recursive: true })
+  // Backdated so the age signal marks the flags stale, as the committed fixture in this repository did.
+  commitAll(fixtureDir, 'launch fixture', '2025-01-01T00:00:00Z')
+})
+afterAll(() => rmSync(fixtureDir, { recursive: true, force: true }))
 
 const NODE_SERVER_CELL = {
   id: 'adopt-openfeature/launchdarkly-node-server/ecmascript/server',

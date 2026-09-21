@@ -45742,7 +45742,22 @@ var PACKAGE_MANAGER_MARKER = /(?:^|\/)(?:pnpm-workspace\.ya?ml|pnpm-lock\.yaml|\
 var NPM_LOCKFILE = /(?:^|\/)(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
 var EXACT_NPM_PIN = /^npm@(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 var EXACT_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
-var UNMAPPED_CLIENT_METHODS = ["on", "off", "once", "track", "identify", "isOffline", "secureModeHash", "basicLogger"];
+var CATALOGUED_CLIENT_METHODS = /* @__PURE__ */ new Set([
+  "variation",
+  "variationDetail",
+  "boolVariation",
+  "stringVariation",
+  "numberVariation",
+  "jsonVariation",
+  "boolVariationDetail",
+  "stringVariationDetail",
+  "numberVariationDetail",
+  "jsonVariationDetail",
+  "init",
+  "waitForInitialization",
+  "flush",
+  "close"
+]);
 function basename(path2) {
   return path2.slice(path2.lastIndexOf("/") + 1);
 }
@@ -45784,19 +45799,28 @@ function treeSizeGate(entries) {
   }
   return gate("tree-size", "pass", `${total} tree entries, within the collector's ${HOSTED_ADMISSION_LIMITS.maxTreeEntries}`);
 }
+var RESERVED_SEGMENTS = /* @__PURE__ */ new Set([".git", "node_modules"]);
 function treePathsGate(entries) {
   const symlinks = [];
   const submodules = [];
   const unsafe = [];
+  const aliased = [];
+  const seenLower = /* @__PURE__ */ new Set();
+  const filePaths = new Set(entries.filter((e) => e.kind === "file").map((e) => e.path));
   for (const entry of entries) {
     if (entry.kind === "symlink")
       symlinks.push(entry.path);
     else if (entry.kind === "submodule")
       submodules.push(entry.path);
     const path2 = entry.path;
-    if (path2.length === 0 || path2.length > 1024 || /[^\x20-\x7e]/u.test(path2) || /[\\:]/u.test(path2) || path2.split("/").some((segment) => segment === "" || segment === "." || segment === "..")) {
+    const segments = path2.split("/");
+    if (path2.length === 0 || path2.length > 1024 || /[^\x20-\x7e]/u.test(path2) || /[\\:]/u.test(path2) || segments.some((segment) => segment === "" || segment === "." || segment === ".." || RESERVED_SEGMENTS.has(segment.toLowerCase()) || segment.endsWith(".") || segment.endsWith(" ")) || segments.slice(0, -1).some((_, i2) => filePaths.has(segments.slice(0, i2 + 1).join("/")))) {
       unsafe.push(path2);
     }
+    const lower = path2.toLowerCase();
+    if (seenLower.has(lower))
+      aliased.push(path2);
+    seenLower.add(lower);
   }
   const problems = [];
   if (symlinks.length > 0)
@@ -45805,10 +45829,12 @@ function treePathsGate(entries) {
     problems.push(`${plural(submodules.length, "submodule")} (${sample(submodules)})`);
   if (unsafe.length > 0)
     problems.push(`${plural(unsafe.length, "non-ASCII or unsafe path")} (${sample(unsafe)})`);
+  if (aliased.length > 0)
+    problems.push(`${plural(aliased.length, "path")} differing only by case (${sample(aliased)})`);
   if (problems.length > 0) {
-    return gate("tree-paths", "refuse", `${problems.join("; ")}; the hosted collector admits only regular files and directories with printable-ASCII paths. Replace symlinks with files, drop submodules, rename the paths.`);
+    return gate("tree-paths", "refuse", `${problems.join("; ")}; the hosted collector admits only regular files and directories with printable-ASCII, case-unambiguous paths and no committed .git or node_modules. Replace symlinks with files, drop submodules, rename or remove the paths.`);
   }
-  return gate("tree-paths", "pass", "no symlinks, submodules or non-ASCII paths");
+  return gate("tree-paths", "pass", "no symlinks, submodules, non-ASCII, reserved or case-ambiguous paths");
 }
 function contentBudgetGate(entries) {
   const files = entries.filter((e) => e.kind === "file");
@@ -45883,7 +45909,7 @@ function lockfileGate(paths, selected) {
     return gate("lockfile", "refuse", `competing npm lockfiles (${sample(lockfiles)}); the hosted planner admits exactly one next to package.json. Keep the one beside \`${selected.path}\`.`);
   }
   if (lockfiles.length === 0) {
-    return gate("lockfile", "refuse", "no package-lock.json next to package.json; the hosted sandbox installs with `npm ci`, which needs one. Run `npm install` and commit the lockfile.");
+    return gate("lockfile", "unknown", "no npm lockfile beside package.json; with a declared npm packageManager the hosted planner can supply a certified generated lock, and the dependency closure is verified only in the hosted sandbox (without a packageManager npm cannot be inferred either \u2014 see npm-pin)");
   }
   const [lockfile] = lockfiles;
   if (lockfile !== selected.prefix + basename(lockfile)) {
@@ -46018,7 +46044,7 @@ function dependenciesGate(manifest) {
       return gate("dependencies", "refuse", `package.json \`${key}\` is not an object; the hosted planner refuses a malformed manifest. Fix the section.`);
     }
     for (const [name2, value] of Object.entries(section)) {
-      if (typeof value !== "string" || !value.trim() || value !== value.trim() || /[ -]/u.test(value) || /^(?!https?:|git\+|github:|gitlab:|bitbucket:).*\.(?:tgz|tar\.gz)$/iu.test(value) || /^(?:workspace:|(?:git\+)?file:|link:|portal:|patch:|\.|\/|~[^/]*\/|[a-z]:)|\\/iu.test(value)) {
+      if (typeof value !== "string" || !value.trim() || value !== value.trim() || /[\x00-\x1f\x7f]/u.test(value) || /^(?!https?:|git\+|github:|gitlab:|bitbucket:).*\.(?:tgz|tar\.gz)$/iu.test(value) || /^(?:workspace:|(?:git\+)?file:|link:|portal:|patch:|\.|\/|~[^/]*\/|[a-z]:)|\\/iu.test(value)) {
         offending.push(`${key}.${name2}: ${JSON.stringify(value)}`);
       }
     }
@@ -46058,7 +46084,7 @@ function launchDarklySdkGate(manifest) {
   const modern = declaredVersion(manifest, MODERN_SDK);
   const legacy = declaredVersion(manifest, LEGACY_SDK);
   if (legacy !== void 0) {
-    return gate("launchdarkly-sdk", "refuse", `package.json declares the legacy \`${LEGACY_SDK}\` ${legacy}; the draft-PR cell rewrites only \`${MODERN_SDK}\` 9.x. Upgrade to \`${MODERN_SDK}\` 9.x and remove the legacy package.`);
+    return gate("launchdarkly-sdk", "unknown", `package.json declares the legacy \`${LEGACY_SDK}\` ${legacy}; the local preflight does not model the legacy SDK surface, so whether these call sites are admitted is decided by the hosted analyzer`);
   }
   if (modern === void 0) {
     return gate("launchdarkly-sdk", "refuse", `package.json declares no \`${MODERN_SDK}\`; the SDK reaches the code some other way (transitive dependency or vendored copy), which the hosted planner cannot rewrite. Declare \`${MODERN_SDK}\` 9.x directly.`);
@@ -46093,7 +46119,7 @@ function typecheckGate(tree, regularPaths, selected) {
   }
   const lockPath = `${prefix}package-lock.json`;
   if (!regularPaths.has(lockPath)) {
-    return gate("typecheck", "refuse", `no typecheck script and no \`${lockPath}\` to pin the typescript the tsc fallback would run. ${remedy}`);
+    return gate("typecheck", "unknown", `no typecheck script and no \`${lockPath}\` locally to pin the typescript the tsc fallback would run; the hosted planner may supply a certified generated lock, so this is decided there. ${remedy.replace(/\.$/u, "")} to make it provable locally.`);
   }
   const lockContent = tree.files.get(lockPath);
   if (lockContent === void 0) {
@@ -46228,26 +46254,47 @@ function sdkApiSurfaceGate(tree) {
   if (allFlagsState.length > 0) {
     return gate("sdk-api-surface", "refuse", `allFlagsState() is called in ${sample(allFlagsState)}; the hosted planner has no OpenFeature mapping for it (unmapped-api). Replace it with per-flag evaluations.`);
   }
-  const ambiguous = /* @__PURE__ */ new Set();
-  const pattern = new RegExp(`\\.(${UNMAPPED_CLIENT_METHODS.join("|")})\\s*\\(`, "gu");
+  const uncatalogued = /* @__PURE__ */ new Set();
+  const catalogued = /* @__PURE__ */ new Set();
   for (const [, content] of sdkFiles) {
-    for (const match of content.matchAll(pattern))
-      ambiguous.add(match[1]);
+    for (const match of content.matchAll(/\.([A-Za-z_$][\w$]*)\s*\(/gu)) {
+      ;
+      (CATALOGUED_CLIENT_METHODS.has(match[1]) ? catalogued : uncatalogued).add(match[1]);
+    }
   }
-  if (ambiguous.size > 0) {
-    return gate("sdk-api-surface", "unknown", `calls to ${[...ambiguous].sort().map((m) => `${m}()`).join(", ")} in files importing the SDK; if their receiver is the LaunchDarkly client they are unmapped-api refusals, which only the hosted analyzer can resolve`);
+  if (uncatalogued.size > 0) {
+    const names = [...uncatalogued].sort();
+    return gate("sdk-api-surface", "unknown", `${plural(names.length, "method")} outside the catalogued client surface called in the ${plural(sdkFiles.length, "file")} importing the SDK (${sample(names.map((m) => `${m}()`), 6)}); any of them on the LaunchDarkly client is an unmapped-api refusal, and only the hosted analyzer can prove the receiver`);
   }
-  return gate("sdk-api-surface", "pass", `no allFlagsState, on/off/once, track or identify calls in the ${plural(sdkFiles.length, "file")} importing the SDK`);
+  return gate("sdk-api-surface", "pass", `only catalogued client methods (${[...catalogued].sort().map((m) => `${m}()`).join(", ") || "none"}) are called in the ${plural(sdkFiles.length, "file")} importing the SDK; the receiver proof itself still requires the hosted analyzer`);
 }
 var NOT_CHECKED = "not checked: requires exactly one readable package.json";
+function dedupePaths(entries) {
+  const seen = /* @__PURE__ */ new Set();
+  return entries.filter((entry) => {
+    if (seen.has(entry.path))
+      return false;
+    seen.add(entry.path);
+    return true;
+  });
+}
 function preflightNodeServerAdmission(tree) {
-  const entries = tree.entries;
+  const entries = dedupePaths(tree.entries);
   const paths = entries.map((e) => e.path);
   const filePaths = entries.filter((e) => e.kind === "file").map((e) => e.path);
   const regularPaths = new Set(filePaths);
-  const gates = [treeSizeGate(entries), treePathsGate(entries), contentBudgetGate(entries)];
-  const manifest = selectManifest(tree, filePaths);
-  gates.push(manifest.gate, packageManagerMarkersGate(paths), npmrcGate(paths));
+  const gates = [];
+  if (tree.incomplete !== void 0) {
+    const detail = `tree enumeration incomplete (${tree.incomplete}); the hosted collector reads the committed tree in full`;
+    for (const id of ["tree-size", "tree-paths", "content-budget", "single-manifest", "package-manager-markers", "npmrc"]) {
+      gates.push(gate(id, "unknown", detail));
+    }
+  } else {
+    gates.push(treeSizeGate(entries), treePathsGate(entries), contentBudgetGate(entries));
+  }
+  const manifest = tree.incomplete === void 0 ? selectManifest(tree, filePaths) : { gate: void 0, selected: void 0 };
+  if (manifest.gate !== void 0)
+    gates.push(manifest.gate, packageManagerMarkersGate(paths), npmrcGate(paths));
   const selected = manifest.selected;
   if (selected === void 0) {
     for (const id of ["workspaces", "lockfile", "npm-pin", "dev-engines", "dependencies", "launchdarkly-sdk", "typecheck", "test-script", "node-runtime"]) {
@@ -46259,7 +46306,7 @@ function preflightNodeServerAdmission(tree) {
   }
   gates.push(sdkApiSurfaceGate(tree));
   const analyzerInputs = paths.filter((p) => regularPaths.has(p) && isAnalyzerInput(p)).length;
-  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
+  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, unmapped client APIs, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
   return { admissible: !gates.some((g) => g.status === "refuse"), gates };
 }
 var HOSTED_ADMISSION_PREFLIGHTS = Object.freeze({
@@ -46287,15 +46334,20 @@ function sizeOf(absolute) {
     return void 0;
   }
 }
+function git(args2, cwd) {
+  return (0, import_node_child_process2.execFileSync)("git", args2, {
+    cwd,
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "ignore"]
+  });
+}
 function listGitIndex(root) {
+  let toplevel;
   let output;
   try {
-    output = (0, import_node_child_process2.execFileSync)("git", ["ls-files", "-z", "--cached", "--stage"], {
-      cwd: root,
-      encoding: "utf-8",
-      maxBuffer: 64 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "ignore"]
-    });
+    toplevel = git(["rev-parse", "--show-toplevel"], root).trim();
+    output = git(["ls-files", "-z", "--cached", "--stage"], toplevel);
   } catch {
     return null;
   }
@@ -46311,39 +46363,48 @@ function listGitIndex(root) {
     else if (mode === "160000")
       entries.push({ path: path2, kind: "submodule" });
     else
-      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path6.join)(root, path2)) });
+      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path6.join)(toplevel, path2)) });
   }
-  return entries.length > 0 ? entries : null;
+  return entries.length > 0 ? { toplevel, entries } : null;
 }
 function walkFilesystem(root) {
-  const entries = [];
+  const walk = { entries: [], unreadable: [] };
   const visit = (dir) => {
-    for (const dirent of (0, import_node_fs6.readdirSync)(dir, { withFileTypes: true })) {
+    let dirents;
+    try {
+      dirents = (0, import_node_fs6.readdirSync)(dir, { withFileTypes: true });
+    } catch {
+      walk.unreadable.push(toPosix((0, import_node_path6.relative)(root, dir)) || ".");
+      return;
+    }
+    for (const dirent of dirents) {
       if (WALK_SKIP.has(dirent.name))
         continue;
       const absolute = (0, import_node_path6.join)(dir, dirent.name);
       const path2 = toPosix((0, import_node_path6.relative)(root, absolute));
       if (dirent.isSymbolicLink()) {
-        entries.push({ path: path2, kind: "symlink" });
+        walk.entries.push({ path: path2, kind: "symlink" });
       } else if (dirent.isDirectory()) {
         if ((0, import_node_fs6.existsSync)((0, import_node_path6.join)(absolute, ".git"))) {
-          entries.push({ path: path2, kind: "submodule" });
+          walk.entries.push({ path: path2, kind: "submodule" });
         } else {
-          entries.push({ path: path2, kind: "directory" });
+          walk.entries.push({ path: path2, kind: "directory" });
           visit(absolute);
         }
       } else if (dirent.isFile()) {
-        entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
+        walk.entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
       }
     }
   };
   visit(root);
-  return entries;
+  return walk;
 }
 function collectAdmissionTree(options) {
   const { root } = options;
   const fromGit = listGitIndex(root);
-  const entries = fromGit ?? walkFilesystem(root);
+  const enumeratedRoot = fromGit ? fromGit.toplevel : root;
+  const walk = fromGit ? void 0 : walkFilesystem(root);
+  const entries = fromGit ? fromGit.entries : walk.entries;
   const files = /* @__PURE__ */ new Map();
   for (const entry of entries) {
     if (entry.kind !== "file")
@@ -46352,14 +46413,24 @@ function collectAdmissionTree(options) {
     if (cap === void 0 || entry.size === void 0 || entry.size > cap)
       continue;
     try {
-      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path6.join)(root, entry.path), "utf-8"));
+      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path6.join)(enumeratedRoot, entry.path), "utf-8"));
     } catch {
     }
   }
+  const scope = fromGit ? toPosix((0, import_node_path6.relative)(enumeratedRoot, (0, import_node_fs6.realpathSync)(root))) : "";
   for (const [absolute, content] of options.sourceFiles ?? []) {
-    files.set(toPosix((0, import_node_path6.relative)(root, absolute)), content);
+    const underScan = toPosix((0, import_node_path6.relative)(root, absolute));
+    files.set(scope.length > 0 ? `${scope}/${underScan}` : underScan, content);
   }
-  return { entries, files, source: fromGit ? "git-index" : "filesystem" };
+  const unreadable = walk?.unreadable ?? [];
+  return {
+    entries,
+    files,
+    ...unreadable.length > 0 ? { incomplete: `unreadable director${unreadable.length === 1 ? "y" : "ies"}: ${unreadable.slice(0, 3).join(", ")}` } : {},
+    source: fromGit ? "git-index" : "filesystem",
+    enumeratedRoot,
+    scope
+  };
 }
 
 // ../core/dist/migration/support-snapshot.data.js
@@ -47249,8 +47320,22 @@ async function scanRepo(opts) {
   const detectedProviders = [
     ...new Set(allFlags.map((f) => f.provider).filter((p) => p != null && p !== ""))
   ];
-  const admissionTree = collectAdmissionTree({ root: opts.cwd, sourceFiles: files });
-  logger.debug("Hosted-admission tree collected", { source: admissionTree.source, entries: admissionTree.entries.length });
+  let admissionTree;
+  try {
+    const collected = collectAdmissionTree({ root: opts.cwd, sourceFiles: files });
+    logger.debug("Hosted-admission tree collected", {
+      source: collected.source,
+      entries: collected.entries.length,
+      enumeratedRoot: collected.enumeratedRoot,
+      scope: collected.scope,
+      incomplete: collected.incomplete ?? null
+    });
+    admissionTree = collected;
+  } catch (err2) {
+    const message = err2 instanceof Error ? err2.message : String(err2);
+    logger.warn("Hosted-admission preflight could not read the tree; every local gate is reported as unknown", { error: message });
+    admissionTree = { entries: [], files: /* @__PURE__ */ new Map(), incomplete: `tree could not be read: ${message}` };
+  }
   const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry), void 0, admissionTree);
   const scanDuration = Math.round(performance.now() - start2);
   logger.info("flagshark_scan_complete", {
@@ -47470,13 +47555,14 @@ var DEFAULT_MAX_STALE = 20;
 var MAX_LOCK_IN_ROWS = 5;
 function buildAdmissionSection(entry) {
   const { refusing, unknownIds, passCount } = tallyAdmissionGates(entry.preflight);
-  const unknownText = `${unknownIds.length} not checkable locally: ${unknownIds.map((id) => `\`${id}\``).join(", ")}`;
+  const unknownText = `${unknownIds.length} not checkable locally${unknownIds.length > 0 ? `: ${unknownIds.map((id) => `\`${id}\``).join(", ")}` : ""}`;
   if (refusing.length === 0) {
     return `**${ADMISSION_PREFLIGHT_HEADING}:** no gate refuses (${passCount} pass; ${unknownText}).
 
 `;
   }
-  let body2 = `**${ADMISSION_PREFLIGHT_HEADING}:** ${refusing.length} gate${refusing.length === 1 ? "" : "s"} refuse (${passCount} pass; ${unknownText}).
+  const refuseText = refusing.length === 1 ? "1 gate refuses" : `${refusing.length} gates refuse`;
+  let body2 = `**${ADMISSION_PREFLIGHT_HEADING}:** ${refuseText} (${passCount} pass; ${unknownText}).
 
 `;
   for (const g of refusing) {

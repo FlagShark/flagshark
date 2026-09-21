@@ -352,7 +352,7 @@ describe('summarizeLockIn — hosted-admission preflight', () => {
     expect(summary.hostedAdmission[0].cell).toEqual({ id: CELL.id, version: CELL.version, highestStage: CELL.highestStage })
     expect(summary.hostedAdmission[0].preflight.admissible).toBe(false)
     expect(summary.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse').map((g) => g.id)).toEqual([
-      'lockfile', 'npm-pin', 'launchdarkly-sdk', 'typecheck', 'test-script',
+      'npm-pin', 'launchdarkly-sdk', 'typecheck', 'test-script',
     ])
   })
 

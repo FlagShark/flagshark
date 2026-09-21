@@ -38,11 +38,12 @@ const MAX_LOCK_IN_ROWS = 5
  */
 function buildAdmissionSection(entry: LockInHostedAdmission): string {
   const { refusing, unknownIds, passCount } = tallyAdmissionGates(entry.preflight)
-  const unknownText = `${unknownIds.length} not checkable locally: ${unknownIds.map((id) => `\`${id}\``).join(', ')}`
+  const unknownText = `${unknownIds.length} not checkable locally${unknownIds.length > 0 ? `: ${unknownIds.map((id) => `\`${id}\``).join(', ')}` : ''}`
   if (refusing.length === 0) {
     return `**${ADMISSION_PREFLIGHT_HEADING}:** no gate refuses (${passCount} pass; ${unknownText}).\n\n`
   }
-  let body = `**${ADMISSION_PREFLIGHT_HEADING}:** ${refusing.length} gate${refusing.length === 1 ? '' : 's'} refuse (${passCount} pass; ${unknownText}).\n\n`
+  const refuseText = refusing.length === 1 ? '1 gate refuses' : `${refusing.length} gates refuse`
+  let body = `**${ADMISSION_PREFLIGHT_HEADING}:** ${refuseText} (${passCount} pass; ${unknownText}).\n\n`
   for (const g of refusing) {
     body += `- \`${g.id}\` — ${g.detail}\n`
   }

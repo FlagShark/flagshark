@@ -193,7 +193,46 @@ describe('tree gates', () => {
   it('tree-paths refuses an empty path and an empty segment', () => {
     expect(run({ ...admissibleSpec(), '': 'x' }).gate('tree-paths').status).toBe('refuse')
     expect(run({ ...admissibleSpec(), 'a//b.ts': 'x' }).gate('tree-paths').status).toBe('refuse')
-    expect(run(admissibleSpec()).gate('tree-paths')).toMatchObject({ status: 'pass', detail: 'no symlinks, submodules or non-ASCII paths' })
+    expect(run(admissibleSpec()).gate('tree-paths')).toMatchObject({ status: 'pass', detail: 'no symlinks, submodules, non-ASCII, reserved or case-ambiguous paths' })
+  })
+
+  it.each(['node_modules/left-pad/index.js', 'vendor/NODE_MODULES/x.js', '.git/config', 'sub/.Git/HEAD', 'dir./a.ts', 'trailing /a.ts', 'a/b..', 'src/flags.ts/nested.ts'])(
+    'tree-paths refuses the reserved or ambiguous path %s as the hosted collector does',
+    (path) => {
+      const result = run({ ...admissibleSpec(), [path]: 'x' })
+      expect(result.gate('tree-paths').status).toBe('refuse')
+      expect(result.gate('tree-paths').detail).toContain(`1 non-ASCII or unsafe path (\`${path}\`)`)
+      expect(result.admissible).toBe(false)
+    },
+  )
+
+  it('tree-paths refuses two paths that differ only by case', () => {
+    const result = run({ ...admissibleSpec(), 'readme.md': 'x', 'Src/Flags.TS': 'y' })
+    expect(result.gate('tree-paths').status).toBe('refuse')
+    expect(result.gate('tree-paths').detail).toContain('2 paths differing only by case (`readme.md`, `Src/Flags.TS`)')
+  })
+
+  it('collapses duplicate index entries (merge-conflict stages) before counting or judging paths', () => {
+    const view = tree(admissibleSpec())
+    const duplicated: AdmissionTreeView = { entries: [...view.entries, ...view.entries], files: view.files }
+    const result = preflightNodeServerAdmission(duplicated)
+    expect(gateOf(result.gates, 'tree-size').detail).toBe("6 tree entries, within the collector's 20000")
+    expect(gateOf(result.gates, 'tree-paths').status).toBe('pass')
+    expect(gateOf(result.gates, 'single-manifest').status).toBe('pass')
+    expect(result.admissible).toBe(true)
+  })
+
+  it('an incomplete enumeration makes every whole-tree gate unknown and checks nothing that needs the manifest', () => {
+    const view = tree(admissibleSpec())
+    const result = preflightNodeServerAdmission({ ...view, incomplete: 'unreadable directory: private' })
+    expect(result.admissible).toBe(true)
+    for (const id of ['tree-size', 'tree-paths', 'content-budget', 'single-manifest', 'package-manager-markers', 'npmrc'] as const) {
+      expect(gateOf(result.gates, id)).toEqual({ id, status: 'unknown', detail: 'tree enumeration incomplete (unreadable directory: private); the hosted collector reads the committed tree in full' })
+    }
+    expect(gateOf(result.gates, 'test-script')).toMatchObject({ status: 'unknown', detail: 'not checked: requires exactly one readable package.json' })
+    expect(gateOf(result.gates, 'sdk-api-surface').status).toBe('pass')
+    expect(result.gates.filter((g) => g.status === 'pass').map((g) => g.id)).toEqual(['sdk-api-surface'])
+    expect(result.gates.map((g) => g.id)).toEqual(run(admissibleSpec()).gates.map((g) => g.id))
   })
 
   it('content-budget is unknown when any file size is missing', () => {
@@ -290,15 +329,18 @@ describe('package layout gates', () => {
     expect(run(admissibleSpec()).gate('workspaces').status).toBe('pass')
   })
 
-  it('lockfile refuses competing, missing and misplaced lockfiles', () => {
+  it('lockfile refuses competing and misplaced lockfiles, and is unknown when there is none', () => {
     const competing = run({ ...admissibleSpec(), 'npm-shrinkwrap.json': '{}' })
     expect(competing.gate('lockfile').detail).toContain('competing npm lockfiles (`npm-shrinkwrap.json`, `package-lock.json`)')
 
-    // A directory named like a lockfile is not a lockfile.
+    // A directory named like a lockfile is not a lockfile. With a declared npm
+    // pin the planner can supply a certified generated lock, so nothing is refused.
     const missing = run({ ...admissibleSpec(), 'package-lock.json': { kind: 'directory' } })
-    expect(missing.gate('lockfile').status).toBe('refuse')
-    expect(missing.gate('lockfile').detail).toContain('npm ci')
+    expect(missing.gate('lockfile').status).toBe('unknown')
+    expect(missing.gate('lockfile').detail).toContain('certified generated lock')
+    expect(missing.gate('lockfile').detail).not.toMatch(/npm ci|npm install/u)
     expect(missing.gate('npm-pin').status).toBe('pass')
+    expect(missing.admissible).toBe(true)
 
     const spec = admissibleSpec()
     delete spec['package-lock.json']
@@ -443,9 +485,17 @@ describe('launchdarkly-sdk gate', () => {
     expect(isModernNodeSdkRange(range)).toBe(false)
   })
 
-  it('refuses the legacy package even beside the modern one, and a manifest without either', () => {
-    const legacy = withDeps({ 'launchdarkly-node-server-sdk': '^7.0.0', '@launchdarkly/node-server-sdk': '^9.0.0' })
-    expect(legacy.gate('launchdarkly-sdk').detail).toContain('legacy `launchdarkly-node-server-sdk` ^7.0.0')
+  it('does not model the legacy package: unknown, never a claim that the cell refuses it', () => {
+    const cases: Record<string, string>[] = [{ 'launchdarkly-node-server-sdk': '^7.0.0' }, { 'launchdarkly-node-server-sdk': '^7.0.0', '@launchdarkly/node-server-sdk': '^9.0.0' }]
+    for (const deps of cases) {
+      const g = withDeps(deps).gate('launchdarkly-sdk')
+      expect(g.status).toBe('unknown')
+      expect(g.detail).toContain('legacy `launchdarkly-node-server-sdk` ^7.0.0; the local preflight does not model the legacy SDK surface')
+      expect(g.detail).not.toMatch(/rewrites only|upgrade/iu)
+    }
+  })
+
+  it('refuses a manifest without the modern package', () => {
     const none = withDeps({})
     expect(none.gate('launchdarkly-sdk').detail).toContain('declares no `@launchdarkly/node-server-sdk`')
   })
@@ -486,8 +536,9 @@ describe('typecheck gate', () => {
 
     const noLock: Spec = { ...admissibleSpec(), 'package.json': noScript() }
     delete noLock['package-lock.json']
-    expect(run(noLock).gate('typecheck')).toMatchObject({ status: 'refuse' })
-    expect(run(noLock).gate('typecheck').detail).toContain('no `package-lock.json` to pin the typescript')
+    expect(run(noLock).gate('typecheck')).toMatchObject({ status: 'unknown' })
+    expect(run(noLock).gate('typecheck').detail).toContain('no `package-lock.json` locally to pin the typescript')
+    expect(run(noLock).gate('typecheck').detail).toContain('Add "typecheck": "tsc --noEmit" to package.json scripts to make it provable locally.')
 
     const noPin = run({ ...admissibleSpec(), 'package.json': noScript(), 'package-lock.json': '{"lockfileVersion":3,"packages":{}}' })
     expect(noPin.gate('typecheck').detail).toContain('does not pin node_modules/typescript')
@@ -586,10 +637,22 @@ describe('sdk-api-surface gate', () => {
     expect(result.gate('sdk-api-surface').detail).toContain('allFlagsState() is called in `src/all.js`')
   })
 
-  it('is unknown for ambiguous client methods and passes a clean surface', () => {
-    const result = run({ ...admissibleSpec(), 'src/flags.ts': SDK_SOURCE + `client.on('ready', () => {}); analytics.track('x'); client.identify(ctx)\n` })
+  it('is unknown for any method outside the catalogued client surface, naming what it saw', () => {
+    const result = run({ ...admissibleSpec(), 'src/flags.ts': SDK_SOURCE + `client.on('ready', () => {}); analytics.track('x'); client.identify(ctx); if (client.initialized()) client.migrationVariation('m', ctx, 'off'); client.trackMigration(op); res.json({})\n` })
     expect(result.gate('sdk-api-surface').status).toBe('unknown')
-    expect(result.gate('sdk-api-surface').detail).toContain('calls to identify(), on(), track() in files importing the SDK')
-    expect(run(admissibleSpec()).gate('sdk-api-surface')).toMatchObject({ status: 'pass', detail: 'no allFlagsState, on/off/once, track or identify calls in the 1 file importing the SDK' })
+    expect(result.gate('sdk-api-surface').detail).toBe(
+      '7 methods outside the catalogued client surface called in the 1 file importing the SDK (`identify()`, `initialized()`, `json()`, `migrationVariation()`, `on()`, `track()`, +1 more); any of them on the LaunchDarkly client is an unmapped-api refusal, and only the hosted analyzer can prove the receiver',
+    )
+  })
+
+  it('passes only when every member call is a catalogued evaluation or lifecycle method, and says the receiver proof is hosted', () => {
+    expect(run(admissibleSpec()).gate('sdk-api-surface')).toMatchObject({
+      status: 'pass',
+      detail: 'only catalogued client methods (boolVariation()) are called in the 1 file importing the SDK; the receiver proof itself still requires the hosted analyzer',
+    })
+    const lifecycle = run({ ...admissibleSpec(), 'src/flags.ts': `import * as ld from '@launchdarkly/node-server-sdk'\nconst c = ld.init('k'); await c.waitForInitialization(); c.variationDetail('x', ctx, false); await c.flush(); c.close()\n` })
+    expect(lifecycle.gate('sdk-api-surface').detail).toContain('only catalogued client methods (close(), flush(), init(), variationDetail(), waitForInitialization())')
+    const bare = run({ ...admissibleSpec(), 'src/flags.ts': `import '@launchdarkly/node-server-sdk'\n` })
+    expect(bare.gate('sdk-api-surface').detail).toContain('only catalogued client methods (none)')
   })
 })
