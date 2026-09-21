@@ -2616,7 +2616,7 @@ var require_parseParams = __commonJS({
 var require_basename = __commonJS({
   "../../node_modules/.bun/@fastify+busboy@2.1.1/node_modules/@fastify/busboy/lib/utils/basename.js"(exports2, module2) {
     "use strict";
-    module2.exports = function basename(path2) {
+    module2.exports = function basename2(path2) {
       if (typeof path2 !== "string") {
         return "";
       }
@@ -2643,7 +2643,7 @@ var require_multipart = __commonJS({
     var Dicer = require_Dicer();
     var parseParams = require_parseParams();
     var decodeText = require_decodeText();
-    var basename = require_basename();
+    var basename2 = require_basename();
     var getLimit = require_getLimit();
     var RE_BOUNDARY = /^boundary$/i;
     var RE_FIELD = /^form-data$/i;
@@ -2760,7 +2760,7 @@ var require_multipart = __commonJS({
               } else if (RE_FILENAME.test(parsed[i2][0])) {
                 filename = parsed[i2][1];
                 if (!preservePath) {
-                  filename = basename(filename);
+                  filename = basename2(filename);
                 }
               }
             }
@@ -4266,8 +4266,8 @@ var require_webidl = __commonJS({
       return new TypeError(`${message.header}: ${message.message}`);
     };
     webidl.errors.conversionFailed = function(context) {
-      const plural = context.types.length === 1 ? "" : " one of";
-      const message = `${context.argument} could not be converted to${plural}: ${context.types.join(", ")}.`;
+      const plural2 = context.types.length === 1 ? "" : " one of";
+      const message = `${context.argument} could not be converted to${plural2}: ${context.types.join(", ")}.`;
       return webidl.errors.exception({
         header: context.prefix,
         message
@@ -4324,10 +4324,10 @@ var require_webidl = __commonJS({
       }
     };
     webidl.util.ConvertToInt = function(V, bitLength, signedness, opts = {}) {
-      let upperBound;
+      let upperBound2;
       let lowerBound;
       if (bitLength === 64) {
-        upperBound = Math.pow(2, 53) - 1;
+        upperBound2 = Math.pow(2, 53) - 1;
         if (signedness === "unsigned") {
           lowerBound = 0;
         } else {
@@ -4335,10 +4335,10 @@ var require_webidl = __commonJS({
         }
       } else if (signedness === "unsigned") {
         lowerBound = 0;
-        upperBound = Math.pow(2, bitLength) - 1;
+        upperBound2 = Math.pow(2, bitLength) - 1;
       } else {
         lowerBound = Math.pow(-2, bitLength) - 1;
-        upperBound = Math.pow(2, bitLength - 1) - 1;
+        upperBound2 = Math.pow(2, bitLength - 1) - 1;
       }
       let x = Number(V);
       if (x === 0) {
@@ -4352,16 +4352,16 @@ var require_webidl = __commonJS({
           });
         }
         x = webidl.util.IntegerPart(x);
-        if (x < lowerBound || x > upperBound) {
+        if (x < lowerBound || x > upperBound2) {
           throw webidl.errors.exception({
             header: "Integer conversion",
-            message: `Value must be between ${lowerBound}-${upperBound}, got ${x}.`
+            message: `Value must be between ${lowerBound}-${upperBound2}, got ${x}.`
           });
         }
         return x;
       }
       if (!Number.isNaN(x) && opts.clamp === true) {
-        x = Math.min(Math.max(x, lowerBound), upperBound);
+        x = Math.min(Math.max(x, lowerBound), upperBound2);
         if (Math.floor(x) % 2 === 0) {
           x = Math.floor(x);
         } else {
@@ -10869,9 +10869,9 @@ var require_pluralizer = __commonJS({
       this: "these"
     };
     module2.exports = class Pluralizer {
-      constructor(singular, plural) {
+      constructor(singular, plural2) {
         this.singular = singular;
-        this.plural = plural;
+        this.plural = plural2;
       }
       pluralize(count) {
         const one = count === 1;
@@ -18570,8 +18570,8 @@ var require_io_util = __commonJS({
           }
         }
         const originalFilePath = filePath;
-        for (const extension of extensions) {
-          filePath = originalFilePath + extension;
+        for (const extension2 of extensions) {
+          filePath = originalFilePath + extension2;
           stats = void 0;
           try {
             stats = yield exports2.stat(filePath);
@@ -18790,9 +18790,9 @@ var require_io = __commonJS({
         }
         const extensions = [];
         if (ioUtil.IS_WINDOWS && process.env["PATHEXT"]) {
-          for (const extension of process.env["PATHEXT"].split(path2.delimiter)) {
-            if (extension) {
-              extensions.push(extension);
+          for (const extension2 of process.env["PATHEXT"].split(path2.delimiter)) {
+            if (extension2) {
+              extensions.push(extension2);
             }
           }
         }
@@ -28229,10 +28229,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start: start2, key, sep, value } = collItem;
+        const { start: start2, key, sep: sep2, value } = collItem;
         const keyProps = resolveProps.resolveProps(start2, {
           indicator: "explicit-key-ind",
-          next: key ?? sep?.[0],
+          next: key ?? sep2?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -28246,7 +28246,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep) {
+          if (!keyProps.anchor && !keyProps.tag && !sep2) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -28270,7 +28270,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep ?? [], {
+        const valueProps = resolveProps.resolveProps(sep2 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -28286,7 +28286,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep2, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -28377,7 +28377,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep = "";
+        let sep2 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -28391,13 +28391,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep + cb;
-              sep = "";
+                comment += sep2 + cb;
+              sep2 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep += source;
+                sep2 += source;
               hasSpace = true;
               break;
             default:
@@ -28440,18 +28440,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i2 = 0; i2 < fc.items.length; ++i2) {
         const collItem = fc.items[i2];
-        const { start: start2, key, sep, value } = collItem;
+        const { start: start2, key, sep: sep2, value } = collItem;
         const props = resolveProps.resolveProps(start2, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep?.[0],
+          next: key ?? sep2?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep && !value) {
+          if (!props.anchor && !props.tag && !sep2 && !value) {
             if (i2 === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i2 < fc.items.length - 1)
@@ -28505,8 +28505,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep, null, props, onError);
+        if (!isMap && !sep2 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep2, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -28518,7 +28518,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep ?? [], {
+          const valueProps = resolveProps.resolveProps(sep2 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -28529,8 +28529,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep)
-                for (const st of sep) {
+              if (sep2)
+                for (const st of sep2) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -28547,7 +28547,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep2, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -28727,7 +28727,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i2 + 1;
       }
       let value = "";
-      let sep = "";
+      let sep2 = "";
       let prevMoreIndented = false;
       for (let i2 = 0; i2 < contentStart; ++i2)
         value += lines[i2][0].slice(trimIndent) + "\n";
@@ -28744,24 +28744,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep + indent.slice(trimIndent) + content;
-          sep = "\n";
+          value += sep2 + indent.slice(trimIndent) + content;
+          sep2 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep === " ")
-            sep = "\n";
-          else if (!prevMoreIndented && sep === "\n")
-            sep = "\n\n";
-          value += sep + indent.slice(trimIndent) + content;
-          sep = "\n";
+          if (sep2 === " ")
+            sep2 = "\n";
+          else if (!prevMoreIndented && sep2 === "\n")
+            sep2 = "\n\n";
+          value += sep2 + indent.slice(trimIndent) + content;
+          sep2 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep === "\n")
+          if (sep2 === "\n")
             value += "\n";
           else
-            sep = "\n";
+            sep2 = "\n";
         } else {
-          value += sep + content;
-          sep = " ";
+          value += sep2 + content;
+          sep2 = " ";
           prevMoreIndented = false;
         }
       }
@@ -28943,25 +28943,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep = " ";
+      let sep2 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep === "\n")
-            res += sep;
+          if (sep2 === "\n")
+            res += sep2;
           else
-            sep = "\n";
+            sep2 = "\n";
         } else {
-          res += sep + match[1];
-          sep = " ";
+          res += sep2 + match[1];
+          sep2 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep + (match?.[1] ?? "");
+      return res + sep2 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -29771,14 +29771,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start: start2, key, sep, value }) {
+    function stringifyItem({ start: start2, key, sep: sep2, value }) {
       let res = "";
       for (const st of start2)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep)
-        for (const st of sep)
+      if (sep2)
+        for (const st of sep2)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -30945,18 +30945,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start2 = getFirstKeyStartProps(prev);
-          let sep;
+          let sep2;
           if (scalar.end) {
-            sep = scalar.end;
-            sep.push(this.sourceToken);
+            sep2 = scalar.end;
+            sep2.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep = [this.sourceToken];
+            sep2 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start: start2, key: scalar, sep }]
+            items: [{ start: start2, key: scalar, sep: sep2 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -31109,15 +31109,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start3 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep = it.sep;
-                  sep.push(this.sourceToken);
+                  const sep2 = it.sep;
+                  sep2.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start3, key, sep }]
+                    items: [{ start: start3, key, sep: sep2 }]
                   });
                 } else if (start2.length > 0) {
                   it.sep = it.sep.concat(start2, this.sourceToken);
@@ -31311,13 +31311,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start2 = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep = fc.end.splice(1, fc.end.length);
-            sep.push(this.sourceToken);
+            const sep2 = fc.end.splice(1, fc.end.length);
+            sep2.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start: start2, key: fc, sep }]
+              items: [{ start: start2, key: fc, sep: sep2 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -31596,13 +31596,13 @@ var require_dist = __commonJS({
 });
 
 // src/index.ts
-var import_node_path7 = require("node:path");
+var import_node_path8 = require("node:path");
 var core = __toESM(require_core(), 1);
 var github = __toESM(require_github(), 1);
 
 // src/run.ts
-var import_node_fs6 = require("node:fs");
-var import_node_path6 = require("node:path");
+var import_node_fs7 = require("node:fs");
+var import_node_path7 = require("node:path");
 
 // ../core/dist/detection/interface.js
 var Languages = {
@@ -44473,9 +44473,9 @@ function buildImportGraph(files, opts) {
     const fileImports = /* @__PURE__ */ new Set();
     const fileSdks = /* @__PURE__ */ new Set();
     for (const spec of specs) {
-      const sep = python ? "." : "/";
+      const sep2 = python ? "." : "/";
       for (const sdk of opts.seedSdkPatterns) {
-        if (spec === sdk || spec.startsWith(sdk + sep)) {
+        if (spec === sdk || spec.startsWith(sdk + sep2)) {
           fileSdks.add(sdk);
         }
       }
@@ -45663,6 +45663,705 @@ async function orchestratePlatforms(opts) {
   return { signals: out2, permanentByPlatform, metadataByFlag, environmentsByFlag };
 }
 
+// ../core/dist/migration/admission-tree.js
+var import_node_child_process2 = require("node:child_process");
+var import_node_fs6 = require("node:fs");
+var import_node_path6 = require("node:path");
+
+// ../core/dist/migration/hosted-admission.js
+var NODE_SERVER_CELL_ID = "adopt-openfeature/launchdarkly-node-server/ecmascript/server";
+var HOSTED_ADMISSION_LIMITS = Object.freeze({
+  maxTreeEntries: 2e4,
+  maxContentFiles: 1900,
+  maxContentBytes: 7 * 1024 * 1024,
+  maxBlobBytes: 1024 * 1024,
+  maxNpmLockfileBytes: 4 * 1024 * 1024
+});
+var HOSTED_SANDBOX_RUNTIME = Object.freeze({ node: "22.23.2", npm: "10.9.8" });
+var MODERN_SDK = "@launchdarkly/node-server-sdk";
+var LEGACY_SDK = "launchdarkly-node-server-sdk";
+var ECMASCRIPT_EXTENSIONS = /* @__PURE__ */ new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
+var ANALYZER_INPUT_BASENAMES = /* @__PURE__ */ new Set([
+  "package.json",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "pnpm-workspace.yml",
+  "bun.lock",
+  "bun.lockb",
+  "bunfig.toml",
+  ".yarnrc",
+  ".yarnrc.yml",
+  ".nvmrc",
+  ".npmrc",
+  ".flagshark.yml",
+  ".flagshark.yaml"
+]);
+var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".ico",
+  ".webp",
+  ".bmp",
+  ".tiff",
+  ".pdf",
+  ".zip",
+  ".gz",
+  ".tgz",
+  ".tar",
+  ".7z",
+  ".rar",
+  ".jar",
+  ".class",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".eot",
+  ".exe",
+  ".dll",
+  ".so",
+  ".dylib",
+  ".wasm",
+  ".node",
+  ".bin",
+  ".mp3",
+  ".mp4",
+  ".wav",
+  ".ogg",
+  ".mov",
+  ".avi",
+  ".webm",
+  ".lockb"
+]);
+var PACKAGE_MANAGER_MARKER = /(?:^|\/)(?:pnpm-workspace\.ya?ml|pnpm-lock\.yaml|\.pnpmfile\.[cm]?js|yarn\.lock|\.yarnrc(?:\.yml)?|\.pnp\.[cm]?js|bun\.lockb?|bunfig\.toml|deno\.lock|deno\.jsonc?)$|(?:^|\/)\.yarn(?:\/|$)/u;
+var NPM_LOCKFILE = /(?:^|\/)(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
+var EXACT_NPM_PIN = /^npm@(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+var EXACT_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+var UNMAPPED_CLIENT_METHODS = ["on", "off", "once", "track", "identify", "isOffline", "secureModeHash", "basicLogger"];
+function basename(path2) {
+  return path2.slice(path2.lastIndexOf("/") + 1);
+}
+function extension(path2) {
+  const base = basename(path2);
+  const dot = base.lastIndexOf(".");
+  return dot <= 0 ? "" : base.slice(dot).toLowerCase();
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function plural(n, noun) {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+function sample(paths, max = 3) {
+  const shown = paths.slice(0, max).map((p) => `\`${p}\``);
+  return paths.length > max ? `${shown.join(", ")}, +${paths.length - max} more` : shown.join(", ");
+}
+function gate(id, status, detail) {
+  return { id, status, detail };
+}
+function isAnalyzerInput(path2) {
+  const base = basename(path2);
+  return ECMASCRIPT_EXTENSIONS.has(extension(path2)) || ANALYZER_INPUT_BASENAMES.has(base) || /^tsconfig(?:\.[^/]+)?\.json$/u.test(base);
+}
+function treeSizeGate(entries) {
+  const directories = /* @__PURE__ */ new Set();
+  for (const entry of entries) {
+    if (entry.kind === "directory")
+      directories.add(entry.path);
+    const segments = entry.path.split("/");
+    for (let i2 = 1; i2 < segments.length; i2++)
+      directories.add(segments.slice(0, i2).join("/"));
+  }
+  const blobs = entries.filter((e) => e.kind !== "directory").length;
+  const total = blobs + directories.size;
+  if (total > HOSTED_ADMISSION_LIMITS.maxTreeEntries) {
+    return gate("tree-size", "refuse", `${total} tree entries (${blobs} files, ${directories.size} directories); the hosted collector stops at ${HOSTED_ADMISSION_LIMITS.maxTreeEntries}. Move generated or vendored trees out of the repository.`);
+  }
+  return gate("tree-size", "pass", `${total} tree entries, within the collector's ${HOSTED_ADMISSION_LIMITS.maxTreeEntries}`);
+}
+function treePathsGate(entries) {
+  const symlinks = [];
+  const submodules = [];
+  const unsafe = [];
+  for (const entry of entries) {
+    if (entry.kind === "symlink")
+      symlinks.push(entry.path);
+    else if (entry.kind === "submodule")
+      submodules.push(entry.path);
+    const path2 = entry.path;
+    if (path2.length === 0 || path2.length > 1024 || /[^\x20-\x7e]/u.test(path2) || /[\\:]/u.test(path2) || path2.split("/").some((segment) => segment === "" || segment === "." || segment === "..")) {
+      unsafe.push(path2);
+    }
+  }
+  const problems = [];
+  if (symlinks.length > 0)
+    problems.push(`${plural(symlinks.length, "symlink")} (${sample(symlinks)})`);
+  if (submodules.length > 0)
+    problems.push(`${plural(submodules.length, "submodule")} (${sample(submodules)})`);
+  if (unsafe.length > 0)
+    problems.push(`${plural(unsafe.length, "non-ASCII or unsafe path")} (${sample(unsafe)})`);
+  if (problems.length > 0) {
+    return gate("tree-paths", "refuse", `${problems.join("; ")}; the hosted collector admits only regular files and directories with printable-ASCII paths. Replace symlinks with files, drop submodules, rename the paths.`);
+  }
+  return gate("tree-paths", "pass", "no symlinks, submodules or non-ASCII paths");
+}
+function contentBudgetGate(entries) {
+  const files = entries.filter((e) => e.kind === "file");
+  if (files.some((e) => e.size === void 0)) {
+    return gate("content-budget", "unknown", "file sizes were not measured locally; the hosted collector bounds text content by bytes");
+  }
+  const cap = (path2) => NPM_LOCKFILE.test(path2) ? HOSTED_ADMISSION_LIMITS.maxNpmLockfileBytes : HOSTED_ADMISSION_LIMITS.maxBlobBytes;
+  const withinCap = files.filter((e) => e.size <= cap(e.path));
+  const textLike = withinCap.filter((e) => !BINARY_EXTENSIONS.has(extension(e.path)));
+  const textBytes = textLike.reduce((n, e) => n + e.size, 0);
+  const allBytes = withinCap.reduce((n, e) => n + e.size, 0);
+  const { maxContentFiles, maxContentBytes } = HOSTED_ADMISSION_LIMITS;
+  const mib = (n) => `${(n / (1024 * 1024)).toFixed(1)} MiB`;
+  if (textLike.length > maxContentFiles || textBytes > maxContentBytes) {
+    return gate("content-budget", "refuse", `${textLike.length} text-like files totalling ${mib(textBytes)} (judged by extension); the hosted collector carries at most ${maxContentFiles} text files and ${mib(maxContentBytes)}. Move generated, vendored or fixture trees out of the repository.`);
+  }
+  if (withinCap.length <= maxContentFiles && allBytes <= maxContentBytes) {
+    return gate("content-budget", "pass", `${withinCap.length} files, ${mib(allBytes)}, within the collector's ${maxContentFiles} text files and ${mib(maxContentBytes)}`);
+  }
+  return gate("content-budget", "unknown", `${withinCap.length} files, ${mib(allBytes)} in total but ${textLike.length} text-like by extension; the hosted collector decides by bytes which count as text`);
+}
+function packageManagerMarkersGate(paths) {
+  const markers = paths.filter((p) => PACKAGE_MANAGER_MARKER.test(p));
+  if (markers.length > 0) {
+    return gate("package-manager-markers", "refuse", `yarn, pnpm, bun or deno markers in the tree (${sample(markers)}); the hosted sandbox installs with npm only. Remove them and commit a package-lock.json.`);
+  }
+  return gate("package-manager-markers", "pass", "no yarn, pnpm, bun or deno markers");
+}
+function npmrcGate(paths) {
+  const found = paths.filter((p) => basename(p) === ".npmrc");
+  if (found.length > 0) {
+    return gate("npmrc", "refuse", `.npmrc in the tree (${sample(found)}); registry and auth configuration cannot enter the credential-free sandbox. Remove it from the repository.`);
+  }
+  return gate("npmrc", "pass", "no .npmrc");
+}
+function selectManifest(tree, paths) {
+  const manifests = paths.filter((p) => basename(p) === "package.json");
+  if (manifests.length === 0) {
+    return { gate: gate("single-manifest", "refuse", "no package.json in the tree; the draft-PR cell migrates exactly one npm package. Commit the package manifest.") };
+  }
+  if (manifests.length > 1) {
+    return {
+      gate: gate("single-manifest", "refuse", `${manifests.length} package.json files (${sample(manifests)}); the draft-PR cell migrates exactly one npm package. Point the hosted product at a single-package repository.`)
+    };
+  }
+  const path2 = manifests[0];
+  const content = tree.files.get(path2);
+  if (content === void 0) {
+    return { gate: gate("single-manifest", "unknown", `\`${path2}\` was not read locally`) };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    parsed = void 0;
+  }
+  if (!isRecord(parsed)) {
+    return { gate: gate("single-manifest", "refuse", `\`${path2}\` is not a JSON object; the hosted planner refuses a malformed manifest. Fix the file.`) };
+  }
+  const prefix = path2.includes("/") ? path2.slice(0, path2.lastIndexOf("/") + 1) : "";
+  return { gate: gate("single-manifest", "pass", `one package.json (\`${path2}\`)`), selected: { path: path2, prefix, manifest: parsed } };
+}
+function workspacesGate(manifest) {
+  if ("workspaces" in manifest) {
+    return gate("workspaces", "refuse", "package.json declares `workspaces`; the draft-PR cell migrates a single package only. Point the hosted product at one workspace package in its own repository.");
+  }
+  return gate("workspaces", "pass", "no workspaces");
+}
+function lockfileGate(paths, selected) {
+  const lockfiles = paths.filter((p) => NPM_LOCKFILE.test(p)).sort();
+  if (lockfiles.length > 1) {
+    return gate("lockfile", "refuse", `competing npm lockfiles (${sample(lockfiles)}); the hosted planner admits exactly one next to package.json. Keep the one beside \`${selected.path}\`.`);
+  }
+  if (lockfiles.length === 0) {
+    return gate("lockfile", "refuse", "no package-lock.json next to package.json; the hosted sandbox installs with `npm ci`, which needs one. Run `npm install` and commit the lockfile.");
+  }
+  const [lockfile] = lockfiles;
+  if (lockfile !== selected.prefix + basename(lockfile)) {
+    return gate("lockfile", "refuse", `\`${lockfile}\` is not beside \`${selected.path}\`; the hosted planner admits a lockfile only in the package directory. Move it next to package.json.`);
+  }
+  return gate("lockfile", "pass", `\`${lockfile}\` beside package.json`);
+}
+function parseNpmLock(content) {
+  try {
+    const parsed = JSON.parse(content);
+    return isRecord(parsed) ? { lockfileVersion: parsed.lockfileVersion, packages: isRecord(parsed.packages) ? parsed.packages : void 0 } : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function npmPinGate(tree, paths, selected) {
+  const { manifest, prefix } = selected;
+  const { npm } = HOSTED_SANDBOX_RUNTIME;
+  if ("packageManager" in manifest) {
+    const declared = manifest.packageManager;
+    if (typeof declared !== "string" || !EXACT_NPM_PIN.test(declared)) {
+      return {
+        gate: gate("npm-pin", "refuse", `package.json declares packageManager ${JSON.stringify(declared)}; the hosted planner admits only an exact npm pin and its sandbox runs npm ${npm}. Set "packageManager": "npm@${npm}", or remove it and commit a lockfileVersion 3 package-lock.json.`)
+      };
+    }
+    const version = declared.slice(4);
+    if (version !== npm) {
+      return {
+        gate: gate("npm-pin", "refuse", `package.json pins npm@${version}; the hosted sandbox runs npm ${npm} and refuses any other observed runtime. Set "packageManager": "npm@${npm}".`)
+      };
+    }
+    return { gate: gate("npm-pin", "pass", `packageManager npm@${version} matches the sandbox`), npmVersion: version };
+  }
+  const lockPath = `${prefix}package-lock.json`;
+  if (!paths.includes(lockPath)) {
+    return {
+      gate: gate("npm-pin", "refuse", `package.json declares no packageManager and there is no \`${lockPath}\` to infer npm from. Set "packageManager": "npm@${npm}" or commit a lockfileVersion 3 package-lock.json.`)
+    };
+  }
+  const content = tree.files.get(lockPath);
+  if (content === void 0) {
+    return { gate: gate("npm-pin", "unknown", `\`${lockPath}\` was not read locally, so npm could not be inferred`) };
+  }
+  const lock = parseNpmLock(content);
+  if (lock?.lockfileVersion !== 3) {
+    return {
+      gate: gate("npm-pin", "refuse", `package.json declares no packageManager and \`${lockPath}\` is lockfileVersion ${JSON.stringify(lock?.lockfileVersion ?? null)}, not 3, so npm cannot be inferred. Regenerate the lockfile with npm >= 7 or set "packageManager": "npm@${npm}".`)
+    };
+  }
+  return { gate: gate("npm-pin", "pass", `no packageManager; npm ${npm} inferred from lockfileVersion 3 \`${lockPath}\``), npmVersion: npm };
+}
+function devEnginesGate(manifest, npmVersion) {
+  const devEngines = isRecord(manifest.devEngines) ? manifest.devEngines.packageManager : void 0;
+  if (devEngines === void 0) {
+    return gate("dev-engines", "pass", "no devEngines.packageManager");
+  }
+  if (npmVersion === void 0) {
+    return gate("dev-engines", "unknown", "devEngines.packageManager is declared but the npm version is unresolved (see npm-pin)");
+  }
+  const entries = Array.isArray(devEngines) ? devEngines : [devEngines];
+  const conflicting = entries.some((entry) => !isRecord(entry) || entry.name !== "npm" || entry.version !== void 0 && (typeof entry.version !== "string" || !rangeIncludesVersion(entry.version.trim(), npmVersion)));
+  if (entries.length === 0 || conflicting) {
+    return gate("dev-engines", "refuse", `package.json devEngines.packageManager does not name npm ${npmVersion}; the hosted planner treats it as an explicit declaration. Name npm with a range that includes ${npmVersion}, or remove it.`);
+  }
+  return gate("dev-engines", "pass", `devEngines.packageManager names npm ${npmVersion}`);
+}
+function rangeIncludesVersion(range, version) {
+  const target = version.split(".").map(Number);
+  return range.split("||").some((alternative) => {
+    const comparators = alternative.trim().split(/\s+/u).filter(Boolean);
+    return comparators.length > 0 && comparators.every((comparator) => comparatorIncludes(comparator, target));
+  });
+}
+function comparatorIncludes(comparator, target) {
+  if (comparator === "*" || comparator === "x")
+    return true;
+  const match = /^(>=|<=|>|<|=|\^|~)?v?(0|[1-9][0-9]*)(?:\.(0|[1-9][0-9]*|x|\*))?(?:\.(0|[1-9][0-9]*|x|\*))?$/u.exec(comparator);
+  if (!match)
+    return false;
+  const operator = match[1] ?? "";
+  const parts2 = [match[2], match[3], match[4]];
+  const wildcardAt = parts2.findIndex((part) => part === void 0 || part === "x" || part === "*");
+  const lower = [
+    Number(parts2[0]),
+    wildcardAt === 1 ? 0 : Number(parts2[1]),
+    wildcardAt === 1 || wildcardAt === 2 ? 0 : Number(parts2[2])
+  ];
+  const cmp = compareVersions(target, lower);
+  switch (operator) {
+    case ">":
+      return cmp > 0;
+    case ">=":
+      return cmp >= 0;
+    case "<":
+      return cmp < 0;
+    case "<=":
+      return cmp <= 0;
+    default:
+      break;
+  }
+  return cmp >= 0 && compareVersions(target, upperBound(operator, lower, wildcardAt)) < 0;
+}
+function upperBound(operator, lower, wildcardAt) {
+  if (operator === "^") {
+    if (lower[0] > 0)
+      return [lower[0] + 1, 0, 0];
+    if (lower[1] > 0)
+      return [0, lower[1] + 1, 0];
+    return [0, 0, lower[2] + 1];
+  }
+  if (wildcardAt === 1)
+    return [lower[0] + 1, 0, 0];
+  if (operator === "~" || wildcardAt === 2)
+    return [lower[0], lower[1] + 1, 0];
+  return [lower[0], lower[1], lower[2] + 1];
+}
+function compareVersions(a, b) {
+  for (let i2 = 0; i2 < 3; i2++) {
+    if (a[i2] !== b[i2])
+      return a[i2] - b[i2];
+  }
+  return 0;
+}
+var DEPENDENCY_SECTIONS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+function dependenciesGate(manifest) {
+  const offending = [];
+  for (const key of DEPENDENCY_SECTIONS) {
+    const section = manifest[key];
+    if (section === void 0)
+      continue;
+    if (!isRecord(section)) {
+      return gate("dependencies", "refuse", `package.json \`${key}\` is not an object; the hosted planner refuses a malformed manifest. Fix the section.`);
+    }
+    for (const [name2, value] of Object.entries(section)) {
+      if (typeof value !== "string" || !value.trim() || value !== value.trim() || /[ -]/u.test(value) || /^(?!https?:|git\+|github:|gitlab:|bitbucket:).*\.(?:tgz|tar\.gz)$/iu.test(value) || /^(?:workspace:|(?:git\+)?file:|link:|portal:|patch:|\.|\/|~[^/]*\/|[a-z]:)|\\/iu.test(value)) {
+        offending.push(`${key}.${name2}: ${JSON.stringify(value)}`);
+      }
+    }
+  }
+  if (offending.length > 0) {
+    return gate("dependencies", "refuse", `local or malformed dependency declarations (${sample(offending)}); the credential-free sandbox installs registry packages only. Publish or replace them with registry versions.`);
+  }
+  return gate("dependencies", "pass", "every dependency declaration is a registry, git or URL specifier");
+}
+function declaredVersion(manifest, name2) {
+  for (const key of DEPENDENCY_SECTIONS) {
+    const section = manifest[key];
+    if (isRecord(section) && typeof section[name2] === "string")
+      return section[name2];
+  }
+  return void 0;
+}
+function simpleVersionMajor(version) {
+  const match = version.match(/^[~^]?v?(\d+)(?:\.(\d+|x|\*))?(?:\.(\d+|x|\*))?(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/i);
+  if (!match)
+    return void 0;
+  const [, major, minor, patch] = match;
+  const minorWild = minor?.toLowerCase() === "x" || minor === "*";
+  const patchWild = patch?.toLowerCase() === "x" || patch === "*";
+  if (minorWild && patch !== void 0)
+    return void 0;
+  if ((minorWild || patchWild) && /[-+]/.test(version))
+    return void 0;
+  return Number(major);
+}
+function isModernNodeSdkRange(declared) {
+  if (declared.length === 0 || declared !== declared.trim() || declared.includes("||"))
+    return false;
+  return simpleVersionMajor(declared) === 9 || /^(?:>=|>)\s*v?9(?:\.\d+){0,2}(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\s+<\s*v?10(?:\.0+){0,2}(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/i.test(declared);
+}
+function launchDarklySdkGate(manifest) {
+  const modern = declaredVersion(manifest, MODERN_SDK);
+  const legacy = declaredVersion(manifest, LEGACY_SDK);
+  if (legacy !== void 0) {
+    return gate("launchdarkly-sdk", "refuse", `package.json declares the legacy \`${LEGACY_SDK}\` ${legacy}; the draft-PR cell rewrites only \`${MODERN_SDK}\` 9.x. Upgrade to \`${MODERN_SDK}\` 9.x and remove the legacy package.`);
+  }
+  if (modern === void 0) {
+    return gate("launchdarkly-sdk", "refuse", `package.json declares no \`${MODERN_SDK}\`; the SDK reaches the code some other way (transitive dependency or vendored copy), which the hosted planner cannot rewrite. Declare \`${MODERN_SDK}\` 9.x directly.`);
+  }
+  if (!isModernNodeSdkRange(modern)) {
+    return gate("launchdarkly-sdk", "refuse", `package.json declares \`${MODERN_SDK}\` ${JSON.stringify(modern)}; the hosted analyzer models only ranges wholly inside 9.x (for example ^9.0.0). Narrow the range.`);
+  }
+  return gate("launchdarkly-sdk", "pass", `\`${MODERN_SDK}\` ${modern} is inside the modelled 9.x surface`);
+}
+function scriptsOf(manifest) {
+  const scripts = manifest.scripts ?? {};
+  return isRecord(scripts) ? scripts : void 0;
+}
+function typecheckGate(tree, regularPaths, selected) {
+  const { manifest, prefix } = selected;
+  const scripts = scriptsOf(manifest);
+  if (scripts === void 0) {
+    return gate("typecheck", "refuse", "package.json `scripts` is not an object; the hosted planner refuses a malformed manifest. Fix the section.");
+  }
+  const name2 = ["typecheck", "type-check"].find((candidate) => candidate in scripts);
+  if (name2 !== void 0) {
+    const script = scripts[name2];
+    if (typeof script !== "string" || !script.trim()) {
+      return gate("typecheck", "refuse", `package.json script \`${name2}\` is blank; the hosted planner runs it and cannot treat an empty script as a type check. Make it run your type checker (for example tsc --noEmit).`);
+    }
+    return gate("typecheck", "pass", `\`npm run ${name2}\` (${script.trim()})`);
+  }
+  const remedy = 'Add "typecheck": "tsc --noEmit" to package.json scripts.';
+  const declared = [manifest.dependencies, manifest.devDependencies].some((section) => isRecord(section) && typeof section.typescript === "string");
+  if (!declared) {
+    return gate("typecheck", "refuse", `no typecheck or type-check script and no typescript dependency for the tsc fallback. ${remedy}`);
+  }
+  const lockPath = `${prefix}package-lock.json`;
+  if (!regularPaths.has(lockPath)) {
+    return gate("typecheck", "refuse", `no typecheck script and no \`${lockPath}\` to pin the typescript the tsc fallback would run. ${remedy}`);
+  }
+  const lockContent = tree.files.get(lockPath);
+  if (lockContent === void 0) {
+    return gate("typecheck", "unknown", `no typecheck script; the tsc fallback needs the typescript version pinned in \`${lockPath}\`, which was not read locally`);
+  }
+  const locked = parseNpmLock(lockContent)?.packages?.["node_modules/typescript"];
+  const version = isRecord(locked) ? locked.version : void 0;
+  if (typeof version !== "string" || !EXACT_VERSION.test(version)) {
+    return gate("typecheck", "refuse", `no typecheck script and \`${lockPath}\` does not pin node_modules/typescript to an exact version for the tsc fallback. ${remedy}`);
+  }
+  const tsconfigPath = `${prefix}tsconfig.json`;
+  if (!regularPaths.has(tsconfigPath)) {
+    return gate("typecheck", "refuse", `no typecheck script and no \`${tsconfigPath}\` for the tsc fallback. ${remedy}`);
+  }
+  const shape = tsconfigProgramShapeRefusal(tree.files, tsconfigPath, prefix);
+  if (shape === "unread") {
+    return gate("typecheck", "unknown", `no typecheck script; the tsc fallback's tsconfig chain from \`${tsconfigPath}\` was not fully read locally`);
+  }
+  if (shape !== void 0) {
+    return gate("typecheck", "refuse", `no typecheck script and ${shape} ${remedy}`);
+  }
+  return gate("typecheck", "pass", `no typecheck script; tsc fallback usable (typescript ${version} locked, \`${tsconfigPath}\` program shape provable)`);
+}
+function tsconfigProgramShapeRefusal(files, tsconfigPath, prefix) {
+  const seen = /* @__PURE__ */ new Set();
+  let path2 = tsconfigPath;
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (seen.has(path2))
+      return `\`${path2}\` extends itself; the checked program cannot be proven.`;
+    seen.add(path2);
+    const content = files.get(path2);
+    if (content === void 0)
+      return "unread";
+    const parsed = parseJsonc(content);
+    if (!isRecord(parsed))
+      return `\`${path2}\` is not a JSON object; the tsc fallback cannot read it.`;
+    if ("references" in parsed)
+      return `\`${path2}\` is a solution-style config (references); the checked program cannot be proven.`;
+    if ("files" in parsed)
+      return `\`${path2}\` lists files explicitly; the checked program cannot be proven from include globs.`;
+    if (!("extends" in parsed))
+      return void 0;
+    if (typeof parsed.extends !== "string")
+      return `\`${path2}\` extends more than one config; the checked program cannot be proven.`;
+    const resolved = resolveRelative(path2, parsed.extends);
+    if (resolved === void 0 || !resolved.startsWith(prefix)) {
+      return `\`${path2}\` extends ${parsed.extends}, which is outside the package; the checked program cannot be proven.`;
+    }
+    path2 = resolved;
+  }
+  return `\`${tsconfigPath}\` extends too deeply; the checked program cannot be proven.`;
+}
+function resolveRelative(from, target) {
+  if (!target.startsWith("./") && !target.startsWith("../"))
+    return void 0;
+  const base = from.includes("/") ? from.slice(0, from.lastIndexOf("/")).split("/") : [];
+  for (const segment of target.split("/")) {
+    if (segment === "" || segment === ".")
+      continue;
+    if (segment === "..") {
+      if (base.length === 0)
+        return void 0;
+      base.pop();
+      continue;
+    }
+    base.push(segment);
+  }
+  const joined = base.join("/");
+  return joined.endsWith(".json") ? joined : `${joined}.json`;
+}
+function parseJsonc(text) {
+  let output = "";
+  let index = text.startsWith("\uFEFF") ? 1 : 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '"') {
+      let end = index + 1;
+      while (end < text.length && text[end] !== '"')
+        end += text[end] === "\\" ? 2 : 1;
+      output += text.slice(index, end + 1);
+      index = end + 1;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "/") {
+      const end = text.indexOf("\n", index);
+      index = end === -1 ? text.length : end;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "*") {
+      const end = text.indexOf("*/", index + 2);
+      index = end === -1 ? text.length : end + 2;
+      continue;
+    }
+    output += char;
+    index += 1;
+  }
+  try {
+    return JSON.parse(output.replace(/,(\s*[}\]])/gu, "$1"));
+  } catch {
+    return void 0;
+  }
+}
+function testScriptGate(manifest) {
+  const scripts = scriptsOf(manifest);
+  if (scripts === void 0) {
+    return gate("test-script", "refuse", "package.json `scripts` is not an object; the hosted planner refuses a malformed manifest. Fix the section.");
+  }
+  if (!("test" in scripts)) {
+    return gate("test-script", "refuse", 'package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.');
+  }
+  const script = scripts.test;
+  if (typeof script !== "string" || !script.trim()) {
+    return gate("test-script", "refuse", "package.json `test` script is blank; the hosted planner runs it and cannot treat an empty script as a passing suite. Make it run your tests.");
+  }
+  return gate("test-script", "pass", `\`npm test\` (${script.trim()})`);
+}
+function nodeRuntimeGate(tree, selected) {
+  const nvmrc = tree.files.get(`${selected.prefix}.nvmrc`)?.trim();
+  const engines = isRecord(selected.manifest.engines) ? selected.manifest.engines.node : void 0;
+  const declared = [
+    nvmrc !== void 0 ? `.nvmrc ${nvmrc}` : void 0,
+    typeof engines === "string" ? `engines.node ${engines}` : void 0
+  ].filter((part) => part !== void 0);
+  return gate("node-runtime", "pass", `${declared.length > 0 ? declared.join(", ") : "no .nvmrc or engines.node"} accepted; the hosted sandbox runs Node ${HOSTED_SANDBOX_RUNTIME.node} regardless (a limitation, not a gate)`);
+}
+function sdkApiSurfaceGate(tree) {
+  const sdkFiles = [...tree.files].filter(([path2, content]) => ECMASCRIPT_EXTENSIONS.has(extension(path2)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)));
+  if (sdkFiles.length === 0) {
+    return gate("sdk-api-surface", "unknown", "no source file importing the LaunchDarkly Node SDK was read locally");
+  }
+  const allFlagsState = sdkFiles.filter(([, content]) => /\ballFlagsState\s*\(/u.test(content)).map(([path2]) => path2);
+  if (allFlagsState.length > 0) {
+    return gate("sdk-api-surface", "refuse", `allFlagsState() is called in ${sample(allFlagsState)}; the hosted planner has no OpenFeature mapping for it (unmapped-api). Replace it with per-flag evaluations.`);
+  }
+  const ambiguous = /* @__PURE__ */ new Set();
+  const pattern = new RegExp(`\\.(${UNMAPPED_CLIENT_METHODS.join("|")})\\s*\\(`, "gu");
+  for (const [, content] of sdkFiles) {
+    for (const match of content.matchAll(pattern))
+      ambiguous.add(match[1]);
+  }
+  if (ambiguous.size > 0) {
+    return gate("sdk-api-surface", "unknown", `calls to ${[...ambiguous].sort().map((m) => `${m}()`).join(", ")} in files importing the SDK; if their receiver is the LaunchDarkly client they are unmapped-api refusals, which only the hosted analyzer can resolve`);
+  }
+  return gate("sdk-api-surface", "pass", `no allFlagsState, on/off/once, track or identify calls in the ${plural(sdkFiles.length, "file")} importing the SDK`);
+}
+var NOT_CHECKED = "not checked: requires exactly one readable package.json";
+function preflightNodeServerAdmission(tree) {
+  const entries = tree.entries;
+  const paths = entries.map((e) => e.path);
+  const filePaths = entries.filter((e) => e.kind === "file").map((e) => e.path);
+  const regularPaths = new Set(filePaths);
+  const gates = [treeSizeGate(entries), treePathsGate(entries), contentBudgetGate(entries)];
+  const manifest = selectManifest(tree, filePaths);
+  gates.push(manifest.gate, packageManagerMarkersGate(paths), npmrcGate(paths));
+  const selected = manifest.selected;
+  if (selected === void 0) {
+    for (const id of ["workspaces", "lockfile", "npm-pin", "dev-engines", "dependencies", "launchdarkly-sdk", "typecheck", "test-script", "node-runtime"]) {
+      gates.push(gate(id, "unknown", NOT_CHECKED));
+    }
+  } else {
+    const npmPin = npmPinGate(tree, filePaths, selected);
+    gates.push(workspacesGate(selected.manifest), lockfileGate(filePaths, selected), npmPin.gate, devEnginesGate(selected.manifest, npmPin.npmVersion), dependenciesGate(selected.manifest), launchDarklySdkGate(selected.manifest), typecheckGate(tree, regularPaths, selected), testScriptGate(selected.manifest), nodeRuntimeGate(tree, selected));
+  }
+  gates.push(sdkApiSurfaceGate(tree));
+  const analyzerInputs = paths.filter((p) => regularPaths.has(p) && isAnalyzerInput(p)).length;
+  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
+  return { admissible: !gates.some((g) => g.status === "refuse"), gates };
+}
+var HOSTED_ADMISSION_PREFLIGHTS = Object.freeze({
+  [NODE_SERVER_CELL_ID]: preflightNodeServerAdmission
+});
+
+// ../core/dist/migration/admission-tree.js
+var NPM_LOCKFILE2 = /^(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
+var WALK_SKIP = /* @__PURE__ */ new Set([".git", "node_modules"]);
+function toPosix(path2) {
+  return path2.split(import_node_path6.sep).join("/");
+}
+function readCap(base) {
+  if (NPM_LOCKFILE2.test(base))
+    return HOSTED_ADMISSION_LIMITS.maxNpmLockfileBytes;
+  if (base === "package.json" || base === ".nvmrc" || /^tsconfig(?:\.[^/]+)?\.json$/u.test(base)) {
+    return HOSTED_ADMISSION_LIMITS.maxBlobBytes;
+  }
+  return void 0;
+}
+function sizeOf(absolute) {
+  try {
+    return (0, import_node_fs6.lstatSync)(absolute).size;
+  } catch {
+    return void 0;
+  }
+}
+function listGitIndex(root) {
+  let output;
+  try {
+    output = (0, import_node_child_process2.execFileSync)("git", ["ls-files", "-z", "--cached", "--stage"], {
+      cwd: root,
+      encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+  } catch {
+    return null;
+  }
+  const entries = [];
+  for (const record of output.split("\0")) {
+    if (record.length === 0)
+      continue;
+    const tab = record.indexOf("	");
+    const mode = record.slice(0, 6);
+    const path2 = record.slice(tab + 1);
+    if (mode === "120000")
+      entries.push({ path: path2, kind: "symlink" });
+    else if (mode === "160000")
+      entries.push({ path: path2, kind: "submodule" });
+    else
+      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path6.join)(root, path2)) });
+  }
+  return entries.length > 0 ? entries : null;
+}
+function walkFilesystem(root) {
+  const entries = [];
+  const visit = (dir) => {
+    for (const dirent of (0, import_node_fs6.readdirSync)(dir, { withFileTypes: true })) {
+      if (WALK_SKIP.has(dirent.name))
+        continue;
+      const absolute = (0, import_node_path6.join)(dir, dirent.name);
+      const path2 = toPosix((0, import_node_path6.relative)(root, absolute));
+      if (dirent.isSymbolicLink()) {
+        entries.push({ path: path2, kind: "symlink" });
+      } else if (dirent.isDirectory()) {
+        if ((0, import_node_fs6.existsSync)((0, import_node_path6.join)(absolute, ".git"))) {
+          entries.push({ path: path2, kind: "submodule" });
+        } else {
+          entries.push({ path: path2, kind: "directory" });
+          visit(absolute);
+        }
+      } else if (dirent.isFile()) {
+        entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
+      }
+    }
+  };
+  visit(root);
+  return entries;
+}
+function collectAdmissionTree(options) {
+  const { root } = options;
+  const fromGit = listGitIndex(root);
+  const entries = fromGit ?? walkFilesystem(root);
+  const files = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    if (entry.kind !== "file")
+      continue;
+    const cap = readCap(entry.path.slice(entry.path.lastIndexOf("/") + 1));
+    if (cap === void 0 || entry.size === void 0 || entry.size > cap)
+      continue;
+    try {
+      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path6.join)(root, entry.path), "utf-8"));
+    } catch {
+    }
+  }
+  for (const [absolute, content] of options.sourceFiles ?? []) {
+    files.set(toPosix((0, import_node_path6.relative)(root, absolute)), content);
+  }
+  return { entries, files, source: fromGit ? "git-index" : "filesystem" };
+}
+
 // ../core/dist/migration/support-snapshot.data.js
 var SUPPORT_SNAPSHOT_DATA = {
   "schemaVersion": 1,
@@ -46329,6 +47028,7 @@ var SUPPORT_SNAPSHOT = loadSupportSnapshot(SUPPORT_SNAPSHOT_DATA);
 // ../core/dist/migration/lock-in.js
 var LOCK_IN_CLASSIFICATIONS = [
   "draft-pr",
+  "draft-pr-refused",
   "preview",
   "assessment",
   "needs-review",
@@ -46336,7 +47036,8 @@ var LOCK_IN_CLASSIFICATIONS = [
   "already-openfeature"
 ];
 var LOCK_IN_LABELS = {
-  "draft-pr": "hosted draft PR available \u2014 review and merge stay with you",
+  "draft-pr": "may qualify for a hosted draft PR \u2014 the hosted planner decides",
+  "draft-pr-refused": "hosted draft PR refused by the local preflight \u2014 see gates",
   preview: "preview only",
   assessment: "assessment only",
   "needs-review": "needs review (weaker detection)",
@@ -46382,25 +47083,50 @@ function emptyTotals() {
     "already-openfeature": 0,
     "needs-review": 0,
     "draft-pr": 0,
+    "draft-pr-refused": 0,
     preview: 0,
     assessment: 0,
     "detection-only": 0
   };
 }
-function classifyOccurrence(openFeature, weak, cell) {
+var AdmissionMemo = class {
+  tree;
+  results = /* @__PURE__ */ new Map();
+  entries = [];
+  constructor(tree) {
+    this.tree = tree;
+  }
+  refuses(cell) {
+    let preflight = this.results.get(cell.id);
+    if (preflight === void 0) {
+      const run3 = this.tree === void 0 ? void 0 : HOSTED_ADMISSION_PREFLIGHTS[cell.id];
+      preflight = run3 === void 0 ? null : run3(this.tree);
+      this.results.set(cell.id, preflight);
+      if (preflight !== null) {
+        this.entries.push({ cell: { id: cell.id, version: cell.version, highestStage: cell.highestStage }, preflight });
+      }
+    }
+    return preflight !== null && !preflight.admissible;
+  }
+};
+function classifyOccurrence(openFeature, weak, cell, admission) {
   if (openFeature)
     return "already-openfeature";
   if (cell === null)
     return "detection-only";
   if (weak)
     return "needs-review";
-  return STAGE_CLASSIFICATION[cell.highestStage];
+  const classification = STAGE_CLASSIFICATION[cell.highestStage];
+  if (classification === "draft-pr" && admission.refuses(cell))
+    return "draft-pr-refused";
+  return classification;
 }
-function summarizeLockIn(flags2, providers, snapshot = SUPPORT_SNAPSHOT) {
+function summarizeLockIn(flags2, providers, snapshot = SUPPORT_SNAPSHOT, admissionTree) {
   const index = buildProviderIndex(providers);
   const totals = emptyTotals();
   const rows = /* @__PURE__ */ new Map();
   const allNames = /* @__PURE__ */ new Set();
+  const admission = new AdmissionMemo(admissionTree);
   for (const flag of flags2) {
     const key = flag.provider || "unknown";
     const definition = index.get(key);
@@ -46408,7 +47134,7 @@ function summarizeLockIn(flags2, providers, snapshot = SUPPORT_SNAPSHOT) {
     const openFeature = packages.some(isOpenFeaturePackage);
     const weak = flag.confidence === "medium" || flag.confidence === "low";
     const cell = openFeature ? null : matchCell(packages, flag.language, snapshot);
-    totals[classifyOccurrence(openFeature, weak, cell)] += 1;
+    totals[classifyOccurrence(openFeature, weak, cell, admission)] += 1;
     allNames.add(flag.name);
     let row = rows.get(key);
     if (!row) {
@@ -46439,7 +47165,7 @@ function summarizeLockIn(flags2, providers, snapshot = SUPPORT_SNAPSHOT) {
     callSites: row.callSites,
     uniqueFlags: row.names.size,
     cell: row.cell === null ? null : { id: row.cell.id, version: row.cell.version, highestStage: row.cell.highestStage },
-    classification: classifyOccurrence(row.openFeature, row.needsReview === row.callSites, row.cell),
+    classification: classifyOccurrence(row.openFeature, row.needsReview === row.callSites, row.cell, admission),
     needsReview: row.needsReview
   }));
   providerSummaries.sort((a, b) => b.callSites - a.callSites || a.provider.localeCompare(b.provider));
@@ -46449,7 +47175,8 @@ function summarizeLockIn(flags2, providers, snapshot = SUPPORT_SNAPSHOT) {
     callSites: flags2.length,
     uniqueFlags: allNames.size,
     totals,
-    providers: providerSummaries
+    providers: providerSummaries,
+    hostedAdmission: admission.entries
   };
 }
 
@@ -46522,7 +47249,9 @@ async function scanRepo(opts) {
   const detectedProviders = [
     ...new Set(allFlags.map((f) => f.provider).filter((p) => p != null && p !== ""))
   ];
-  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry));
+  const admissionTree = collectAdmissionTree({ root: opts.cwd, sourceFiles: files });
+  logger.debug("Hosted-admission tree collected", { source: admissionTree.source, entries: admissionTree.entries.length });
+  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry), void 0, admissionTree);
   const scanDuration = Math.round(performance.now() - start2);
   logger.info("flagshark_scan_complete", {
     event: "flagshark_scan_complete",
@@ -46697,6 +47426,14 @@ function applyCustomDetectors(files, detectors, totalFlags, logger) {
 }
 
 // ../core/dist/output/shared.js
+var ADMISSION_PREFLIGHT_HEADING = "Hosted draft PR preflight (local; no account, no network; the hosted planner decides)";
+function tallyAdmissionGates(preflight) {
+  return {
+    refusing: preflight.gates.filter((g) => g.status === "refuse"),
+    unknownIds: preflight.gates.filter((g) => g.status === "unknown").map((g) => g.id),
+    passCount: preflight.gates.filter((g) => g.status === "pass").length
+  };
+}
 function uniqueStaleCount(stale) {
   return new Set(stale.map((f) => f.name)).size;
 }
@@ -46731,6 +47468,23 @@ function languageLabel(language) {
 // ../core/dist/output/markdown.js
 var DEFAULT_MAX_STALE = 20;
 var MAX_LOCK_IN_ROWS = 5;
+function buildAdmissionSection(entry) {
+  const { refusing, unknownIds, passCount } = tallyAdmissionGates(entry.preflight);
+  const unknownText = `${unknownIds.length} not checkable locally: ${unknownIds.map((id) => `\`${id}\``).join(", ")}`;
+  if (refusing.length === 0) {
+    return `**${ADMISSION_PREFLIGHT_HEADING}:** no gate refuses (${passCount} pass; ${unknownText}).
+
+`;
+  }
+  let body2 = `**${ADMISSION_PREFLIGHT_HEADING}:** ${refusing.length} gate${refusing.length === 1 ? "" : "s"} refuse (${passCount} pass; ${unknownText}).
+
+`;
+  for (const g of refusing) {
+    body2 += `- \`${g.id}\` \u2014 ${g.detail}
+`;
+  }
+  return body2 + "\n";
+}
 function buildLockInSection(lockIn) {
   if (lockIn.callSites === 0)
     return "";
@@ -46750,7 +47504,11 @@ function buildLockInSection(lockIn) {
 *... and ${lockIn.providers.length - MAX_LOCK_IN_ROWS} more provider SDKs.*
 `;
   }
-  body2 += "\n_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n";
+  body2 += "\n";
+  for (const entry of lockIn.hostedAdmission) {
+    body2 += buildAdmissionSection(entry);
+  }
+  body2 += "_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n";
   return body2;
 }
 function formatMarkdown(result, options) {
@@ -47054,9 +47812,9 @@ async function run2(deps) {
     if (sarifPath) {
       const actionVersion = process.env.GITHUB_ACTION_REF || "unknown";
       const sarifJson = formatSarif(result, { version: actionVersion });
-      const absolutePath = (0, import_node_path6.resolve)(cwd, sarifPath);
-      (0, import_node_fs6.mkdirSync)((0, import_node_path6.dirname)(absolutePath), { recursive: true });
-      (0, import_node_fs6.writeFileSync)(absolutePath, sarifJson);
+      const absolutePath = (0, import_node_path7.resolve)(cwd, sarifPath);
+      (0, import_node_fs7.mkdirSync)((0, import_node_path7.dirname)(absolutePath), { recursive: true });
+      (0, import_node_fs7.writeFileSync)(absolutePath, sarifJson);
       core2.info(`Wrote SARIF to ${absolutePath}`);
       core2.setOutput("sarif-path", absolutePath);
     }
@@ -47149,8 +47907,8 @@ async function postComment(opts) {
 }
 
 // src/index.ts
-process.env.FLAGSHARK_WASM_DIR = (0, import_node_path7.join)(__dirname, "grammars");
-process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path7.join)(__dirname, "queries");
+process.env.FLAGSHARK_WASM_DIR = (0, import_node_path8.join)(__dirname, "grammars");
+process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path8.join)(__dirname, "queries");
 run2({ core, github, cwd: process.cwd() });
 /*! Bundled license information:
 

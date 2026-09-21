@@ -39,6 +39,42 @@ Per occurrence, in order:
 4. Otherwise the cell's `highestStage`: `verification` / `draft-pr` →
    `draft-pr`, `preview` → `preview`, `assessment` / `inventory` →
    `assessment`.
+5. A `draft-pr` occurrence whose cell has a local admission preflight
+   (`HOSTED_ADMISSION_PREFLIGHTS`, keyed by cell id) and whose preflight
+   refuses → `draft-pr-refused`. Without a tree view, or for a cell with no
+   local preflight, nothing is checked and the occurrence stays `draft-pr`.
 
 The wording in `LOCK_IN_LABELS` describes what the hosted product can prove
-(draft PR, preview, assessment). It never promises automation or speed.
+(draft PR, preview, assessment). It never promises automation or speed, and it
+never says "available": a draft PR is decided by the hosted planner, so the
+scanner says "may qualify" at best.
+
+## Hosted-admission preflight (`hosted-admission.ts`)
+
+`preflightNodeServerAdmission(tree)` is a pure function over an in-memory tree
+view (`{ entries, files }`) that returns `{ admissible, gates }`. It mirrors the
+hosted planner's snapshot collector, package selection and analyzer scope for
+the LaunchDarkly Node server cell, as of the registry revision recorded in
+`support-snapshot.json`, and it is local only: no account, no token, no
+network, no filesystem, no subprocess (the test suite pins the invariant).
+
+Every gate is `pass`, `refuse` or `unknown`. Anything that cannot be checked
+locally — the analyzer's token and work budgets, transformation blockers such
+as provider setup and dynamic keys, the certified dependency closure, the
+sandbox's `npm ci` / typecheck / test run — is `unknown`, never `pass`.
+`admissible` therefore means "no locally checkable gate refuses", not "the
+hosted planner will admit". If the hosted rules drift, the worst case is a
+withheld "may qualify", never a false one.
+
+`admission-tree.ts` builds the tree view for `scanRepo`: the git index when the
+directory is a repository with something tracked (the closest local analogue of
+the committed tree the hosted collector reads, and it names symlinks and
+submodules by mode), otherwise a filesystem walk that skips `.git` and
+`node_modules`. Only the preflight's inputs are read by content — every
+`package.json`, npm lockfiles, `tsconfig*.json`, `.nvmrc` — plus the scanned
+sources, which the SDK-surface gate inspects.
+
+The text and Markdown renderers print the refusing gates by name with one line
+each on what would change the answer (text caps the list at five and points at
+`--format json`), then the gates that are not checkable locally. The JSON output
+carries every gate under `lockIn.hostedAdmission`.

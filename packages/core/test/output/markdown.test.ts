@@ -388,8 +388,15 @@ describe('formatMarkdown — lock-in section', () => {
       registry: { sourceRevision: 'abc', generatedAt: '2026-09-09' },
       callSites,
       uniqueFlags: callSites,
-      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 0, preview: 0, assessment: 0, 'detection-only': 0, ...totals },
+      totals: { 'already-openfeature': 0, 'needs-review': 0, 'draft-pr': 0, 'draft-pr-refused': 0, preview: 0, assessment: 0, 'detection-only': 0, ...totals },
       providers,
+      hostedAdmission: [],
+    }
+  }
+  function admission(gates: LockInSummary['hostedAdmission'][number]['preflight']['gates']): LockInSummary['hostedAdmission'][number] {
+    return {
+      cell: { id: 'adopt-openfeature/launchdarkly-node-server/ecmascript/server', version: 2, highestStage: 'verification' },
+      preflight: { admissible: !gates.some((g) => g.status === 'refuse'), gates },
     }
   }
   function row(provider: string, callSites: number, classification: LockInSummary['providers'][number]['classification']): LockInSummary['providers'][number] {
@@ -408,9 +415,10 @@ describe('formatMarkdown — lock-in section', () => {
       { scanMode: 'full' },
     )
     expect(md).toContain(
-      '**Lock-in:** 21 flag call sites across 3 provider SDKs — 14 hosted draft PR available — review and merge stay with you; 4 preview only; 3 detection only (no migration cell).',
+      '**Lock-in:** 21 flag call sites across 3 provider SDKs — 14 may qualify for a hosted draft PR — the hosted planner decides; 4 preview only; 3 detection only (no migration cell).',
     )
-    expect(md).toContain('| LaunchDarkly Node Server SDK | 14 (TypeScript) | hosted draft PR available — review and merge stay with you |')
+    expect(md).toContain('| LaunchDarkly Node Server SDK | 14 (TypeScript) | may qualify for a hosted draft PR — the hosted planner decides |')
+    expect(md).not.toMatch(/available/i)
     expect(md).toContain('_Next: `npx flagshark assess` (private assessment; invite-only today)._')
     expect(md.indexOf('**Health Score')).toBeLessThan(md.indexOf('**Lock-in:**'))
     expect(md.indexOf('**Lock-in:**')).toBeLessThan(md.indexOf('| Metric | Value |'))
@@ -439,5 +447,38 @@ describe('formatMarkdown — lock-in section', () => {
   it('omits the section when there are no call sites or no summary', () => {
     expect(formatMarkdown(makeResult({ lockIn: summary([]) }), { scanMode: 'full' })).not.toContain('Lock-in')
     expect(formatMarkdown(makeResult(), { scanMode: 'full' })).not.toContain('Lock-in')
+  })
+
+  it('lists the refusing preflight gates between the provider table and the next step', () => {
+    const lockIn = summary([row('LaunchDarkly Node Server SDK', 1, 'draft-pr-refused')], { 'draft-pr-refused': 1 })
+    lockIn.hostedAdmission = [
+      admission([
+        { id: 'tree-size', status: 'pass', detail: 'ok' },
+        { id: 'lockfile', status: 'refuse', detail: 'no package-lock.json next to package.json. Run `npm install` and commit the lockfile.' },
+        { id: 'analyzer-budget', status: 'unknown', detail: 'hosted only' },
+      ]),
+    ]
+    const md = formatMarkdown(makeResult({ lockIn }), { scanMode: 'full' })
+    expect(md).toContain('| LaunchDarkly Node Server SDK | 1 (TypeScript) | hosted draft PR refused by the local preflight — see gates |')
+    expect(md).toContain(
+      '**Hosted draft PR preflight (local; no account, no network; the hosted planner decides):** 1 gate refuse (1 pass; 1 not checkable locally: `analyzer-budget`).\n\n- `lockfile` — no package-lock.json next to package.json. Run `npm install` and commit the lockfile.\n\n_Next:',
+    )
+    expect(md.indexOf('| LaunchDarkly Node Server SDK |')).toBeLessThan(md.indexOf('**Hosted draft PR preflight'))
+    expect(md).not.toMatch(/available/i)
+  })
+
+  it('pluralises several refusing gates', () => {
+    const lockIn = summary([row('LaunchDarkly Node Server SDK', 1, 'draft-pr-refused')], { 'draft-pr-refused': 1 })
+    lockIn.hostedAdmission = [admission([{ id: 'lockfile', status: 'refuse', detail: 'a' }, { id: 'test-script', status: 'refuse', detail: 'b' }])]
+    const md = formatMarkdown(makeResult({ lockIn }), { scanMode: 'full' })
+    expect(md).toContain('2 gates refuse (0 pass; 0 not checkable locally: ).\n\n- `lockfile` — a\n- `test-script` — b\n')
+  })
+
+  it('an admissible preflight only says that no gate refuses', () => {
+    const lockIn = summary([row('LaunchDarkly Node Server SDK', 2, 'draft-pr')], { 'draft-pr': 2 })
+    lockIn.hostedAdmission = [admission([{ id: 'tree-size', status: 'pass', detail: 'ok' }, { id: 'sandbox-validation', status: 'unknown', detail: 'hosted only' }, { id: 'dependency-closure', status: 'unknown', detail: 'hosted only' }])]
+    const md = formatMarkdown(makeResult({ lockIn }), { scanMode: 'full' })
+    expect(md).toContain('**Hosted draft PR preflight (local; no account, no network; the hosted planner decides):** no gate refuses (1 pass; 2 not checkable locally: `sandbox-validation`, `dependency-closure`).\n\n_Next:')
+    expect(md).not.toMatch(/available/i)
   })
 })

@@ -15,9 +15,12 @@ npx flagshark scan
 Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
 
 Lock-in: 21 flag call sites · 3 provider SDKs
-  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR available — review and merge stay with you
+  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR refused by the local preflight — see gates
   Unleash JavaScript SDK          4 call sites (TypeScript)   detection only (no migration cell)
   PostHog                         3 call sites (TypeScript)   detection only (no migration cell)
+  Hosted draft PR preflight (local; no account, no network; the hosted planner decides): 2 gates refuse · 14 pass · 4 not checkable locally (analyzer-budget, transformation-blockers, dependency-closure, sandbox-validation)
+    ✗ npm-pin      package.json declares packageManager "yarn@4.18.0"; the hosted planner admits only an exact npm pin and its sandbox runs npm 10.9.8. Set "packageManager": "npm@10.9.8", or remove it and commit a lockfileVersion 3 package-lock.json.
+    ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
   Next: npx flagshark assess   (private assessment; invite-only today)
 
 Found 23 feature flags · 7 stale · health 70/100 ⚠️
@@ -35,11 +38,25 @@ Exit code: 1 (stale flags found)
 
 The `Lock-in:` block is the migration-assessment wedge. Each provider SDK is
 classified strictly from a copied snapshot of the hosted support registry, so
-the scanner never claims a path the hosted product does not admit: `hosted
-draft PR available` (review and merge stay with you), `preview only`,
-`assessment only`, `needs review (weaker detection)`, or `detection only (no
-migration cell)`. OpenFeature SDK usage is reported separately because it is
-not lock-in. The same summary is in the JSON output under `lockIn`.
+the scanner never claims a path the hosted product does not admit: `may qualify
+for a hosted draft PR — the hosted planner decides`, `hosted draft PR refused
+by the local preflight — see gates`, `preview only`, `assessment only`, `needs
+review (weaker detection)`, or `detection only (no migration cell)`. OpenFeature
+SDK usage is reported separately because it is not lock-in. The same summary is
+in the JSON output under `lockIn`.
+
+A draft-PR cell is never a promise. Before the scanner says a repository *may
+qualify*, it runs a **local hosted-admission preflight**: the same tree,
+package-layout, package-manager, script and SDK-version gates the hosted
+planner applies, re-derived from its rules and checked against the committed
+tree (git index) — no account, no token, no network. A refusing gate is printed
+by name with one line on what would change the answer (for example `npm-pin`,
+`lockfile`, `test-script`, `typecheck`, `launchdarkly-sdk`,
+`package-manager-markers`, `workspaces`, `tree-paths`). Gates only the hosted
+analyzer or sandbox can decide (`analyzer-budget`, `transformation-blockers`,
+`dependency-closure`, `sandbox-validation`) are reported as *not checkable
+locally*, never as passed. Every gate, including the unknown ones, is in the
+JSON output under `lockIn.hostedAdmission`.
 
 Then request a private LaunchDarkly to OpenFeature migration assessment from a
 GitHub checkout without shipping the proprietary analysis engine in the public
@@ -328,7 +345,9 @@ The CLI prints both so downstream tooling can distinguish detection volume from 
 
 ### JSON output — `lockIn`
 
-`lockIn` is an additive top-level object: `{ schemaVersion: 1, registry: { sourceRevision, generatedAt }, callSites, uniqueFlags, totals, providers[] }`. `totals` counts call sites per classification (`draft-pr`, `preview`, `assessment`, `needs-review`, `detection-only`, `already-openfeature`); each `providers[]` entry carries the SDK's packages, languages, call-site and unique-flag counts, the matched registry `cell` (`id`, `version`, `highestStage`) or `null`, its classification and how many of its occurrences need review. The classification comes from `packages/core/src/migration/support-snapshot.json`, a copy of the hosted support registry that is synced with `bun scripts/sync-support-snapshot.ts` and never hand-edited.
+`lockIn` is an additive top-level object: `{ schemaVersion: 1, registry: { sourceRevision, generatedAt }, callSites, uniqueFlags, totals, providers[], hostedAdmission[] }`. `totals` counts call sites per classification (`draft-pr`, `draft-pr-refused`, `preview`, `assessment`, `needs-review`, `detection-only`, `already-openfeature`); each `providers[]` entry carries the SDK's packages, languages, call-site and unique-flag counts, the matched registry `cell` (`id`, `version`, `highestStage`) or `null`, its classification and how many of its occurrences need review. The classification comes from `packages/core/src/migration/support-snapshot.json`, a copy of the hosted support registry that is synced with `bun scripts/sync-support-snapshot.ts` and never hand-edited.
+
+`hostedAdmission[]` holds the local hosted-admission preflight for each draft-PR-stage cell the scan matched: `{ cell, preflight: { admissible, gates: [{ id, status: 'pass' | 'refuse' | 'unknown', detail }] } }`. `admissible` means no locally checkable gate refuses — it is not a promise; `unknown` gates are the ones only the hosted analyzer or sandbox can decide, and they are never reported as passed. A refusing preflight is what turns a cell's call sites into `draft-pr-refused`.
 
 ## Detection precision
 

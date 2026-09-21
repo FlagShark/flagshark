@@ -14,22 +14,26 @@
  */
 
 import { getImportPattern } from '../detection/interface.js'
+import { HOSTED_ADMISSION_PREFLIGHTS } from './hosted-admission.js'
 import { SUPPORT_SNAPSHOT } from './support-snapshot.js'
 
 import type { FeatureFlag } from '../detection/feature-flag.js'
 import type { FeatureFlagProvider } from '../detection/interface.js'
+import type { AdmissionTreeView, HostedAdmissionPreflight } from './hosted-admission.js'
 import type { SupportCell, SupportSnapshot, SupportStage } from './support-snapshot.js'
 
 export type LockInClassification =
   | 'already-openfeature'
   | 'needs-review'
   | 'draft-pr'
+  | 'draft-pr-refused'
   | 'preview'
   | 'assessment'
   | 'detection-only'
 
 export const LOCK_IN_CLASSIFICATIONS: readonly LockInClassification[] = [
   'draft-pr',
+  'draft-pr-refused',
   'preview',
   'assessment',
   'needs-review',
@@ -39,10 +43,13 @@ export const LOCK_IN_CLASSIFICATIONS: readonly LockInClassification[] = [
 
 /**
  * User-facing wording per classification. Deliberately says what the hosted
- * product can prove, never how fast it is: no "automatic", no "minutes".
+ * product can prove, never how fast it is: no "automatic", no "minutes", and
+ * never "available" — a draft PR is decided by the hosted planner, so the
+ * scanner says "may qualify" at best and names the refusing gates otherwise.
  */
 export const LOCK_IN_LABELS: Record<LockInClassification, string> = {
-  'draft-pr': 'hosted draft PR available — review and merge stay with you',
+  'draft-pr': 'may qualify for a hosted draft PR — the hosted planner decides',
+  'draft-pr-refused': 'hosted draft PR refused by the local preflight — see gates',
   preview: 'preview only',
   assessment: 'assessment only',
   'needs-review': 'needs review (weaker detection)',
@@ -54,6 +61,12 @@ export interface LockInCellRef {
   id: string
   version: number
   highestStage: SupportStage
+}
+
+/** The local admission preflight run for one draft-PR-stage cell the scan matched. */
+export interface LockInHostedAdmission {
+  cell: LockInCellRef
+  preflight: HostedAdmissionPreflight
 }
 
 export interface LockInProviderSummary {
@@ -80,6 +93,13 @@ export interface LockInSummary {
   totals: Record<LockInClassification, number>
   /** Sorted by callSites descending, then provider name. */
   providers: LockInProviderSummary[]
+  /**
+   * Local hosted-admission preflights, one per draft-PR-stage cell matched
+   * (see `hosted-admission.ts`). Empty when no such cell matched or the
+   * summary was built without a tree view. A refusing preflight turns the
+   * cell's `draft-pr` occurrences into `draft-pr-refused`.
+   */
+  hostedAdmission: LockInHostedAdmission[]
 }
 
 const STAGE_CLASSIFICATION: Record<SupportStage, LockInClassification> = {
@@ -130,9 +150,36 @@ function emptyTotals(): Record<LockInClassification, number> {
     'already-openfeature': 0,
     'needs-review': 0,
     'draft-pr': 0,
+    'draft-pr-refused': 0,
     preview: 0,
     assessment: 0,
     'detection-only': 0,
+  }
+}
+
+/**
+ * Runs the local preflight for a cell at most once per summary. Without a
+ * tree view, or for a cell with no local preflight, the classification stays
+ * `draft-pr` ("may qualify") — never a promise, and never a refusal that was
+ * not actually checked.
+ */
+class AdmissionMemo {
+  private readonly results = new Map<string, HostedAdmissionPreflight | null>()
+  readonly entries: LockInHostedAdmission[] = []
+
+  constructor(private readonly tree: AdmissionTreeView | undefined) {}
+
+  refuses(cell: SupportCell): boolean {
+    let preflight = this.results.get(cell.id)
+    if (preflight === undefined) {
+      const run = this.tree === undefined ? undefined : HOSTED_ADMISSION_PREFLIGHTS[cell.id]
+      preflight = run === undefined ? null : run(this.tree!)
+      this.results.set(cell.id, preflight)
+      if (preflight !== null) {
+        this.entries.push({ cell: { id: cell.id, version: cell.version, highestStage: cell.highestStage }, preflight })
+      }
+    }
+    return preflight !== null && !preflight.admissible
   }
 }
 
@@ -153,27 +200,34 @@ interface ProviderAccumulator {
  * rather than migratable; a high-confidence occurrence takes the cell's
  * highest stage; anything outside every cell is `detection-only` (weak
  * detections included — with no cell there is nothing a review could unlock).
+ * A `draft-pr` stage whose local admission preflight refuses becomes
+ * `draft-pr-refused`.
  */
 function classifyOccurrence(
   openFeature: boolean,
   weak: boolean,
   cell: SupportCell | null,
+  admission: AdmissionMemo,
 ): LockInClassification {
   if (openFeature) return 'already-openfeature'
   if (cell === null) return 'detection-only'
   if (weak) return 'needs-review'
-  return STAGE_CLASSIFICATION[cell.highestStage]
+  const classification = STAGE_CLASSIFICATION[cell.highestStage]
+  if (classification === 'draft-pr' && admission.refuses(cell)) return 'draft-pr-refused'
+  return classification
 }
 
 export function summarizeLockIn(
   flags: FeatureFlag[],
   providers: FeatureFlagProvider[],
   snapshot: SupportSnapshot = SUPPORT_SNAPSHOT,
+  admissionTree?: AdmissionTreeView,
 ): LockInSummary {
   const index = buildProviderIndex(providers)
   const totals = emptyTotals()
   const rows = new Map<string, ProviderAccumulator>()
   const allNames = new Set<string>()
+  const admission = new AdmissionMemo(admissionTree)
 
   for (const flag of flags) {
     const key = flag.provider || 'unknown'
@@ -183,7 +237,7 @@ export function summarizeLockIn(
     const weak = flag.confidence === 'medium' || flag.confidence === 'low'
     const cell = openFeature ? null : matchCell(packages, flag.language, snapshot)
 
-    totals[classifyOccurrence(openFeature, weak, cell)] += 1
+    totals[classifyOccurrence(openFeature, weak, cell, admission)] += 1
     allNames.add(flag.name)
 
     let row = rows.get(key)
@@ -214,7 +268,7 @@ export function summarizeLockIn(
     callSites: row.callSites,
     uniqueFlags: row.names.size,
     cell: row.cell === null ? null : { id: row.cell.id, version: row.cell.version, highestStage: row.cell.highestStage },
-    classification: classifyOccurrence(row.openFeature, row.needsReview === row.callSites, row.cell),
+    classification: classifyOccurrence(row.openFeature, row.needsReview === row.callSites, row.cell, admission),
     needsReview: row.needsReview,
   }))
 
@@ -227,5 +281,6 @@ export function summarizeLockIn(
     uniqueFlags: allNames.size,
     totals,
     providers: providerSummaries,
+    hostedAdmission: admission.entries,
   }
 }

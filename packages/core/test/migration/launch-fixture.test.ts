@@ -43,6 +43,7 @@ describe('lock-in summary on the launch fixture', () => {
       'already-openfeature': 0,
       'needs-review': 0,
       'draft-pr': 3,
+      'draft-pr-refused': 0,
       preview: 0,
       assessment: 0,
       'detection-only': 0,
@@ -60,6 +61,17 @@ describe('lock-in summary on the launch fixture', () => {
       },
     ])
     expect(lockIn.registry.sourceRevision).toMatch(/^[0-9a-f]{40}$/)
+
+    // The public fixture mirrors the admissible shape (exact npm pin, both
+    // scripts, lockfileVersion 3 lockfile): the local preflight refuses
+    // nothing, and what remains is decided only by the hosted planner.
+    expect(lockIn.hostedAdmission).toHaveLength(1)
+    expect(lockIn.hostedAdmission[0].cell).toEqual(NODE_SERVER_CELL)
+    expect(lockIn.hostedAdmission[0].preflight.admissible).toBe(true)
+    expect(lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse')).toEqual([])
+    expect(lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'unknown').map((g) => g.id)).toEqual([
+      'analyzer-budget', 'transformation-blockers', 'dependency-closure', 'sandbox-validation',
+    ])
   })
 
   it('regex engine: exactly the two literal-key call sites, both draft-pr', async () => {

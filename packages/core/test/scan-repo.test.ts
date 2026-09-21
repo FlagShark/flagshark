@@ -35,6 +35,36 @@ describe('scanRepo', () => {
     expect(result.staleFlags).toEqual([])
   })
 
+  it('runs the local hosted-admission preflight over the committed tree and reports refusals honestly', async () => {
+    const dir = makeTempRepo()
+    mkdirSync(join(dir, 'src'))
+    // Modern SDK, literal key — the registry cell is draft-pr — but the
+    // manifest has no scripts and there is no lockfile, so the hosted planner
+    // would refuse it. The scan must say so instead of promising a draft PR.
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'svc', dependencies: { '@launchdarkly/node-server-sdk': '^9.11.0' } }))
+    const body =
+      `import { init } from '@launchdarkly/node-server-sdk'\n` +
+      `const client = init('sdk-key')\n` +
+      `export const on = () => client.boolVariation('checkout-v2', ctx, false)\n`
+    writeFileSync(join(dir, 'src', 'a.ts'), body)
+    writeFileSync(join(dir, 'src', 'b.ts'), body)
+    execFileSync('git', ['add', '.'], { cwd: dir })
+    execFileSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+    const debug: unknown[][] = []
+
+    const result = await scanRepo({ cwd: dir, noConfig: true, noIgnoreFile: true, logger: { debug: (...a) => { debug.push(a) }, info: () => {}, warn: () => {}, error: () => {} } })
+
+    const lockIn = result.lockIn!
+    expect(lockIn.providers[0].classification).toBe('draft-pr-refused')
+    expect(lockIn.totals['draft-pr-refused']).toBe(2)
+    expect(lockIn.hostedAdmission).toHaveLength(1)
+    const refusing = lockIn.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse').map((g) => g.id)
+    expect(refusing).toEqual(['lockfile', 'npm-pin', 'typecheck', 'test-script'])
+    // The scanned sources reach the preflight, so the SDK surface gate is decided, not unknown.
+    expect(lockIn.hostedAdmission[0].preflight.gates.find((g) => g.id === 'sdk-api-surface')).toMatchObject({ status: 'pass' })
+    expect(debug.find((a) => a[0] === 'Hosted-admission tree collected')?.[1]).toMatchObject({ source: 'git-index', entries: 3 })
+  })
+
   it('marks an old flag as stale', async () => {
     const dir = makeTempRepo()
     mkdirSync(join(dir, 'src'))

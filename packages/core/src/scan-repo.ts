@@ -14,6 +14,7 @@ import { buildExcluder } from './config/excluder.js'
 import { loadConfigFile } from './config/loader.js'
 import { loadIgnoreFile } from './config/ignore-file.js'
 import { orchestratePlatforms } from './providers/orchestrate.js'
+import { collectAdmissionTree } from './migration/admission-tree.js'
 import { summarizeLockIn } from './migration/lock-in.js'
 
 import type { FeatureFlag } from './detection/feature-flag.js'
@@ -304,7 +305,13 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     ),
   ]
 
-  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry))
+  // The hosted-admission preflight reads the committed tree (git index, or a
+  // filesystem walk outside git) plus the scanned sources. Local only: no
+  // account, no token, no network — see src/migration/hosted-admission.ts.
+  const admissionTree = collectAdmissionTree({ root: opts.cwd, sourceFiles: files })
+  logger.debug('Hosted-admission tree collected', { source: admissionTree.source, entries: admissionTree.entries.length })
+
+  const lockIn = summarizeLockIn(allFlags, collectProviderDefinitions(registry), undefined, admissionTree)
 
   const scanDuration = Math.round(performance.now() - start)
 

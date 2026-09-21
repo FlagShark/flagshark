@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 
 import { summarizeLockIn, LOCK_IN_LABELS, LOCK_IN_CLASSIFICATIONS } from '../../src/migration/lock-in.js'
+import { NODE_SERVER_CELL_ID } from '../../src/migration/hosted-admission.js'
 import { loadSupportSnapshot, SUPPORT_SNAPSHOT } from '../../src/migration/support-snapshot.js'
 
 import type { FeatureFlag } from '../../src/detection/feature-flag.js'
 import type { FeatureFlagProvider } from '../../src/detection/interface.js'
+import type { AdmissionTreeView } from '../../src/migration/hosted-admission.js'
 import type { SupportCell, SupportStage } from '../../src/migration/support-snapshot.js'
 
 function provider(name: string, importPattern?: string, importAliases?: string[]): FeatureFlagProvider {
@@ -250,6 +252,7 @@ describe('summarizeLockIn — totals, counts and ordering', () => {
       'already-openfeature': 0,
       'needs-review': 0,
       'draft-pr': 3,
+      'draft-pr-refused': 0,
       preview: 0,
       assessment: 0,
       'detection-only': 2,
@@ -300,10 +303,89 @@ describe('LOCK_IN_LABELS', () => {
       expect(LOCK_IN_LABELS[c]).toBeTruthy()
       expect(LOCK_IN_LABELS[c]).not.toMatch(/automat|minute/i)
     }
-    expect(LOCK_IN_LABELS['draft-pr']).toBe('hosted draft PR available — review and merge stay with you')
+    expect(LOCK_IN_LABELS['draft-pr']).toBe('may qualify for a hosted draft PR — the hosted planner decides')
+    expect(LOCK_IN_LABELS['draft-pr-refused']).toBe('hosted draft PR refused by the local preflight — see gates')
     expect(LOCK_IN_LABELS.preview).toBe('preview only')
     expect(LOCK_IN_LABELS.assessment).toBe('assessment only')
     expect(LOCK_IN_LABELS['detection-only']).toBe('detection only (no migration cell)')
     expect(LOCK_IN_LABELS['needs-review']).toBe('needs review (weaker detection)')
+  })
+
+  it('never says "available": only the hosted planner decides a draft PR', () => {
+    for (const c of LOCK_IN_CLASSIFICATIONS) expect(LOCK_IN_LABELS[c]).not.toMatch(/available/i)
+    expect(LOCK_IN_CLASSIFICATIONS).toEqual(['draft-pr', 'draft-pr-refused', 'preview', 'assessment', 'needs-review', 'detection-only', 'already-openfeature'])
+  })
+})
+
+describe('summarizeLockIn — hosted-admission preflight', () => {
+  const REFUSING_TREE: AdmissionTreeView = {
+    entries: [{ path: 'package.json', kind: 'file', size: 2 }],
+    files: new Map([['package.json', '{}']]),
+  }
+  const ADMISSIBLE_TREE: AdmissionTreeView = {
+    entries: [
+      { path: 'package.json', kind: 'file', size: 1 },
+      { path: 'package-lock.json', kind: 'file', size: 1 },
+      { path: 'tsconfig.json', kind: 'file', size: 1 },
+      { path: 'src/flags.ts', kind: 'file', size: 1 },
+    ],
+    files: new Map([
+      ['package.json', JSON.stringify({ packageManager: 'npm@10.9.8', scripts: { typecheck: 'tsc --noEmit', test: 'node --test' }, dependencies: { '@launchdarkly/node-server-sdk': '^9.11.0' } })],
+      ['package-lock.json', '{"lockfileVersion":3}'],
+      ['tsconfig.json', '{}'],
+      ['src/flags.ts', `import { init } from '@launchdarkly/node-server-sdk'\ninit('k').boolVariation('x', ctx, false)\n`],
+    ]),
+  }
+  const CELL = SUPPORT_SNAPSHOT.cells.find((c) => c.id === NODE_SERVER_CELL_ID && c.version === 2)!
+
+  it('turns draft-pr into draft-pr-refused when the local preflight refuses, and carries the gates', () => {
+    const summary = summarizeLockIn(
+      [flag('a', '@launchdarkly/node-server-sdk'), flag('b', 'launchdarkly-node-server-sdk', 'javascript')],
+      PROVIDERS,
+      SUPPORT_SNAPSHOT,
+      REFUSING_TREE,
+    )
+    expect(summary.totals).toMatchObject({ 'draft-pr': 0, 'draft-pr-refused': 2 })
+    expect(summary.providers.map((p) => p.classification)).toEqual(['draft-pr-refused', 'draft-pr-refused'])
+    // Two providers share one cell: the preflight ran once.
+    expect(summary.hostedAdmission).toHaveLength(1)
+    expect(summary.hostedAdmission[0].cell).toEqual({ id: CELL.id, version: CELL.version, highestStage: CELL.highestStage })
+    expect(summary.hostedAdmission[0].preflight.admissible).toBe(false)
+    expect(summary.hostedAdmission[0].preflight.gates.filter((g) => g.status === 'refuse').map((g) => g.id)).toEqual([
+      'lockfile', 'npm-pin', 'launchdarkly-sdk', 'typecheck', 'test-script',
+    ])
+  })
+
+  it('keeps draft-pr ("may qualify") when no local gate refuses, still reporting the unknown gates', () => {
+    const summary = summarizeLockIn([flag('a', '@launchdarkly/node-server-sdk')], PROVIDERS, SUPPORT_SNAPSHOT, ADMISSIBLE_TREE)
+    expect(summary.providers[0].classification).toBe('draft-pr')
+    expect(summary.totals['draft-pr']).toBe(1)
+    expect(summary.hostedAdmission[0].preflight.admissible).toBe(true)
+    expect(summary.hostedAdmission[0].preflight.gates.some((g) => g.status === 'unknown')).toBe(true)
+  })
+
+  it('without a tree view nothing is checked: draft-pr stays and no preflight is reported', () => {
+    const summary = summarizeLockIn([flag('a', '@launchdarkly/node-server-sdk')], PROVIDERS, SUPPORT_SNAPSHOT)
+    expect(summary.providers[0].classification).toBe('draft-pr')
+    expect(summary.hostedAdmission).toEqual([])
+  })
+
+  it('a draft-pr cell with no local preflight stays draft-pr even with a refusing tree', () => {
+    const snap = snapshot([cell('ld/other', 1, ['@launchdarkly/node-server-sdk'], ['typescript'], 'draft-pr')])
+    const summary = summarizeLockIn([flag('a', '@launchdarkly/node-server-sdk'), flag('b', '@launchdarkly/node-server-sdk')], PROVIDERS, snap, REFUSING_TREE)
+    expect(summary.providers[0].classification).toBe('draft-pr')
+    expect(summary.hostedAdmission).toEqual([])
+  })
+
+  it('weaker detections inside a refused cell are still needs-review, and preview cells are untouched', () => {
+    const snap = snapshot([CELL, cell('ld/go', 1, ['github.com/launchdarkly/go-server-sdk'], ['go'], 'preview')])
+    const summary = summarizeLockIn(
+      [flag('a', '@launchdarkly/node-server-sdk', 'typescript', 'medium'), flag('b', 'github.com/launchdarkly/go-server-sdk', 'go')],
+      PROVIDERS,
+      snap,
+      REFUSING_TREE,
+    )
+    expect(summary.totals).toMatchObject({ 'needs-review': 1, preview: 1, 'draft-pr-refused': 0 })
+    expect(summary.hostedAdmission).toEqual([])
   })
 })

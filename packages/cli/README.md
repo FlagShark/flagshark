@@ -15,7 +15,7 @@ npx flagshark scan
 Detected providers: LaunchDarkly (Node SDK), Unleash, PostHog
 
 Lock-in: 21 flag call sites · 3 provider SDKs
-  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR available — review and merge stay with you
+  LaunchDarkly Node Server SDK   14 call sites (TypeScript)   hosted draft PR refused by the local preflight — see gates
   Unleash JavaScript SDK          4 call sites (TypeScript)   detection only (no migration cell)
   PostHog                         3 call sites (TypeScript)   detection only (no migration cell)
   Next: npx flagshark assess   (private assessment; invite-only today)
@@ -35,11 +35,21 @@ Exit code: 1 (stale flags found)
 
 The `Lock-in:` block classifies each provider SDK strictly from a copied
 snapshot of the hosted support registry, so the scanner never claims a path the
-hosted product does not admit: `hosted draft PR available` (review and merge
-stay with you), `preview only`, `assessment only`, `needs review (weaker
-detection)` or `detection only (no migration cell)`. OpenFeature SDK usage is
-listed separately because it is not lock-in. The same summary is in `--json`
-output under `lockIn`. Stale-flag detection follows, unchanged.
+hosted product does not admit: `may qualify for a hosted draft PR — the hosted
+planner decides`, `hosted draft PR refused by the local preflight — see gates`,
+`preview only`, `assessment only`, `needs review (weaker detection)` or
+`detection only (no migration cell)`. OpenFeature SDK usage is listed separately
+because it is not lock-in. The same summary is in `--json` output under
+`lockIn`. Stale-flag detection follows, unchanged.
+
+A draft-PR cell is never a promise. The scanner first runs a local
+hosted-admission preflight — the hosted planner's tree, package-layout,
+package-manager, script and SDK-version gates, re-derived and checked against
+the committed tree with no account, no token and no network. Refusing gates are
+printed by name with one line each on what would change the answer; gates only
+the hosted analyzer or sandbox can decide are reported as *not checkable
+locally*, never as passed. The full gate list is in `--json` output under
+`lockIn.hostedAdmission`.
 
 ## Why FlagShark
 
