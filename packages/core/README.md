@@ -108,6 +108,8 @@ interface ScanRepoResult {
   excludedCount?: number           // files skipped by config + .flagsharkignore
   excludedPaths?: string[]         // set when collectExcludedPaths: true
   effectiveExcludes?: EffectiveRules  // for debug/verbose output
+  lockIn?: LockInSummary           // call sites per provider SDK + hosted-admission preflight
+  detectionCoverage?: DetectionCoverage  // coverage, wrappers, rewrite refusals, FS-069 cross-check
 }
 ```
 
@@ -230,6 +232,66 @@ LaunchDarkly · Unleash · Flipt · Split.io · PostHog · Flagsmith · ConfigCa
 FlagShark only scans files that actually import a flag SDK. A function called `isEnabled()` in a file that doesn't import LaunchDarkly/Unleash/etc. won't be flagged — this prevents false positives from generic identifier names.
 
 Once a file qualifies, the engine (tree-sitter for tier-1, regex for the rest) walks call expressions and extracts the flag-key argument at the configured position for each provider's method signatures. Provider attribution and source location come along automatically.
+
+### Wrapper-mediated evaluations and detection coverage
+
+Most real repositories do not call the SDK at the point of use; they call a
+wrapper. `scanRepo` runs a repository-level TypeScript/JavaScript pass
+(`analyzeWrapperEvaluations`) that identifies a function or method forwarding one
+of its own parameters as the flag key of a catalogued provider method, resolves
+its callers through their import bindings, and reports the literal and proven-const
+keys at those callers as flags with `confidence: 'medium'`.
+
+The same pass counts every call-shaped evaluation site the parsed trees hold,
+independently of provenance, and `summarizeDetectionCoverage` turns that into
+`ScanRepoResult.detectionCoverage`:
+
+```ts
+import { analyzeWrapperEvaluations, summarizeDetectionCoverage } from '@flagshark/core'
+
+interface DetectionCoverage {
+  schemaVersion: 1
+  filesInScope: number   // TS/JS files reaching a provider SDK that were parsed
+  sites: number          // evaluation sites the scanner classified
+  flagsNamed: number     // sites a flag is reported for
+  delegated: number      // sites whose key is forwarded by an identified wrapper
+  unnamed: number        // sites with no flag name the scan will claim
+  gaps: DetectionCoverageGap[]          // one entry per refusal reason, with a sample
+  wrappers: DetectionCoverageWrapper[]  // wrappers, caller counts, rewrite refusals
+  refusedForRewrite: number             // call sites the hosted migration would refuse
+  rewriteRefusals: DetectionCoverageRewriteRefusal[]  // those refusals by reason
+  evaluationSurface: EvaluationSurfaceCoverage        // { callShaped, accountedFor }
+}
+```
+
+`sites` always equals `flagsNamed + delegated + unnamed`, and every site counted as
+`flagsNamed` has a flag in the result at the same file and line — so the number
+cannot flatter the scan.
+
+`evaluationSurface` is a second, independent metric kept under FS-069's name and
+semantics so it can be joined against the hosted product's number: `callShaped`
+counts `<expression>.<name>(…)` calls naming a catalogued evaluation method, from
+the tree, **without consulting provenance**, and `accountedFor` counts those the
+scan then explained (a named flag, a delegation, or a named refusal). A shortfall
+means an evaluation-shaped call was neither named nor explained.
+
+`rewriteRefusals` carries the refusals the scanner can derive from the evaluation
+method and its position, via `rewriteRefusalFor(provider, method, position)`:
+`generic-variation` (a wrapper over a method LaunchDarkly does not type-check —
+its key set can never be closed), `unproven-served-type` (the same methods at a
+static key, provable only from a read of the LaunchDarkly project),
+`details-consumer` (any `*VariationDetail` form) and `second-sdk-call` (a wrapper
+body reached through more than one evaluation). The same fact sits on each wrapper
+as `rewriteBlocker`. Absent means the scanner makes **no claim**, never that the
+evaluation is migratable.
+
+All three of those decisions — the detector's provider catalogue, the coverage
+metric's denominator and the rewrite refusal — derive from one table,
+`launchdarkly-node-methods.ts`, whose `returnType === null` rows are the untyped
+set. It is a hand-maintained copy of the hosted mapping; a generated,
+drift-tested snapshot is a named follow-up.
+
+The pass is pure and local: no account, no token, no network.
 
 ## How staleness works
 

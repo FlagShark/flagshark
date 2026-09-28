@@ -3,8 +3,15 @@
  */
 
 import { LOCK_IN_LABELS } from '../migration/lock-in.js'
-import { languageLabel, tallyAdmissionGates, ADMISSION_PREFLIGHT_HEADING } from './shared.js'
+import {
+  languageLabel,
+  tallyAdmissionGates,
+  describeDetectionCoverage,
+  ADMISSION_PREFLIGHT_HEADING,
+  DETECTION_COVERAGE_HEADING,
+} from './shared.js'
 
+import type { DetectionCoverage } from '../detection/detection-coverage.js'
 import type { LockInHostedAdmission, LockInSummary } from '../migration/lock-in.js'
 import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag, StalenessSignal } from '../staleness.js'
@@ -162,7 +169,7 @@ function buildAdmissionLines(entry: LockInHostedAdmission): string[] {
  * Wording says what is provable (draft PR, preview, assessment), never how
  * fast it is. Empty when there are no call sites.
  */
-function buildLockInBlock(lockIn: LockInSummary): string[] {
+function buildLockInBlock(lockIn: LockInSummary, coverage: DetectionCoverage | undefined): string[] {
   if (lockIn.callSites === 0) return []
 
   const sdkRows = lockIn.providers.filter((p) => p.classification !== 'already-openfeature')
@@ -187,7 +194,30 @@ function buildLockInBlock(lockIn: LockInSummary): string[] {
   for (const entry of lockIn.hostedAdmission) {
     lines.push(...buildAdmissionLines(entry))
   }
+  lines.push(...buildDetectionCoverageLines(coverage, '  '))
   lines.push('  Next: npx flagshark assess   (private assessment; invite-only today)')
+  return lines
+}
+
+/**
+ * The detection-coverage metrics: how many call-shaped evaluation sites the parsed
+ * trees held, how many the scan named a flag for, which wrappers carry the rest,
+ * which of those wrappers the hosted migration refuses to rewrite, and what the
+ * scan refused to guess about. Printed wherever a flag count is printed, so the
+ * count is never read without the surface it came from — and a wrapper the hosted
+ * product refuses is never presented as detected-and-therefore-migratable.
+ */
+function buildDetectionCoverageLines(
+  coverage: DetectionCoverage | undefined,
+  indent: string,
+): string[] {
+  if (!coverage) return []
+  const described = describeDetectionCoverage(coverage)
+  if (!described) return []
+  const lines = [`${indent}${DETECTION_COVERAGE_HEADING}: ${described.headline}`]
+  for (const wrapper of described.wrappers) lines.push(`${indent}  → ${wrapper}`)
+  for (const refusal of described.refusals) lines.push(`${indent}  ⛔ ${refusal}`)
+  for (const gap of described.gaps) lines.push(`${indent}  ✗ ${gap}`)
   return lines
 }
 
@@ -237,6 +267,15 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
 
   if (result.totalFlags === 0) {
     lines.push('No feature flags detected.')
+    // A zero is only trustworthy next to the surface it was measured over. When
+    // the parsed trees did hold evaluation-shaped calls the scan could not
+    // attribute, say so here rather than letting the zero read as certainty.
+    const coverageLines = buildDetectionCoverageLines(result.detectionCoverage, '')
+    if (coverageLines.length > 0 && describeDetectionCoverage(result.detectionCoverage!)!.hasShortfall) {
+      lines.push('')
+      lines.push('⚠ This is not a confident zero.')
+      lines.push(...coverageLines)
+    }
     lines.push('')
     lines.push('Supported providers: LaunchDarkly, Unleash, Flipt, Split.io, PostHog, and more.')
     lines.push('Run flagshark scan --help for configuration options.')
@@ -268,7 +307,7 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
   }
 
   if (result.lockIn) {
-    const block = buildLockInBlock(result.lockIn)
+    const block = buildLockInBlock(result.lockIn, result.detectionCoverage)
     if (block.length > 0) {
       lines.push('')
       lines.push(...block)

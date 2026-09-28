@@ -82,6 +82,21 @@ const ESM_IMPORT_RE =
 const REQUIRE_RE = /(?<![.\w$])require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g
 
 /**
+ * ESM re-exports, which are import edges for reachability even though they carry
+ * no import keyword. Matches:
+ *   export * from 'foo'
+ *   export * as ns from 'foo'
+ *   export { a, b as c } from 'foo'
+ *   export type { A } from 'foo'
+ *
+ * Without this the graph stops at every re-export barrel — the exact shape the
+ * module docstring above promises to cover — so a consumer that reaches the SDK
+ * only through an `index.ts` was left out of scope.
+ */
+const ESM_EXPORT_FROM_RE =
+  /^[ \t]*export\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s+from\s+['"`]([^'"`]+)['"`]/gm
+
+/**
  * Dynamic ESM imports. Matches:
  *   import('foo')
  *   await import('foo')
@@ -140,6 +155,7 @@ export function extractImports(content: string): string[] {
   }
 
   collect(ESM_IMPORT_RE)
+  collect(ESM_EXPORT_FROM_RE)
   collect(REQUIRE_RE)
   collect(DYNAMIC_IMPORT_RE)
   return out

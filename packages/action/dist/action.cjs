@@ -4266,8 +4266,8 @@ var require_webidl = __commonJS({
       return new TypeError(`${message.header}: ${message.message}`);
     };
     webidl.errors.conversionFailed = function(context) {
-      const plural2 = context.types.length === 1 ? "" : " one of";
-      const message = `${context.argument} could not be converted to${plural2}: ${context.types.join(", ")}.`;
+      const plural3 = context.types.length === 1 ? "" : " one of";
+      const message = `${context.argument} could not be converted to${plural3}: ${context.types.join(", ")}.`;
       return webidl.errors.exception({
         header: context.prefix,
         message
@@ -10869,9 +10869,9 @@ var require_pluralizer = __commonJS({
       this: "these"
     };
     module2.exports = class Pluralizer {
-      constructor(singular, plural2) {
+      constructor(singular, plural3) {
         this.singular = singular;
-        this.plural = plural2;
+        this.plural = plural3;
       }
       pluralize(count) {
         const one = count === 1;
@@ -31596,13 +31596,13 @@ var require_dist = __commonJS({
 });
 
 // src/index.ts
-var import_node_path8 = require("node:path");
+var import_node_path9 = require("node:path");
 var core = __toESM(require_core(), 1);
 var github = __toESM(require_github(), 1);
 
 // src/run.ts
 var import_node_fs7 = require("node:fs");
-var import_node_path7 = require("node:path");
+var import_node_path8 = require("node:path");
 
 // ../core/dist/detection/interface.js
 var Languages = {
@@ -37270,6 +37270,45 @@ function defaultJavaProviders() {
   ];
 }
 
+// ../core/dist/detection/launchdarkly-node-methods.js
+var LAUNCHDARKLY_NODE_EVALUATION_METHODS = Object.freeze([
+  { name: "boolVariation", returnType: "boolean", detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.boolVariation("flag-key", context, false)' },
+  { name: "stringVariation", returnType: "string", detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.stringVariation("flag-key", context, "default")' },
+  { name: "numberVariation", returnType: "number", detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.numberVariation("flag-key", context, 0)' },
+  { name: "jsonVariation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.jsonVariation("flag-key", context, {})' },
+  { name: "variation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.variation("flag-key", context, defaultValue)' },
+  { name: "boolVariationDetail", returnType: "boolean", detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.boolVariationDetail("flag-key", context, false)' },
+  { name: "stringVariationDetail", returnType: "string", detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.stringVariationDetail("flag-key", context, "default")' },
+  { name: "numberVariationDetail", returnType: "number", detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.numberVariationDetail("flag-key", context, 0)' },
+  { name: "jsonVariationDetail", returnType: null, detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.jsonVariationDetail("flag-key", context, {})' },
+  { name: "variationDetail", returnType: null, detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.variationDetail("flag-key", context, defaultValue)' },
+  { name: "intVariation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: false, example: 'client.intVariation("flag-key", context, 0)' },
+  { name: "doubleVariation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: false, example: 'client.doubleVariation("flag-key", context, 0.0)' }
+]);
+var LAUNCHDARKLY_NODE_LIFECYCLE_METHODS = Object.freeze([
+  "init",
+  "waitForInitialization",
+  "flush",
+  "close"
+]);
+var BY_NAME = new Map(LAUNCHDARKLY_NODE_EVALUATION_METHODS.map((method) => [method.name, method]));
+var LAUNCHDARKLY_NODE_PACKAGES = Object.freeze([
+  "@launchdarkly/node-server-sdk",
+  "launchdarkly-node-server-sdk"
+]);
+function isLaunchDarklyNodePackage(provider) {
+  return LAUNCHDARKLY_NODE_PACKAGES.includes(provider);
+}
+function launchDarklyNodeMethod(name2) {
+  return BY_NAME.get(name2);
+}
+var LAUNCHDARKLY_UNTYPED_METHOD_NAMES = Object.freeze(LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.returnType === null).map((method) => method.name));
+var LAUNCHDARKLY_DETAIL_METHOD_NAMES = Object.freeze(LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.detail).map((method) => method.name));
+var LAUNCHDARKLY_NODE_CLIENT_METHODS = Object.freeze([
+  ...LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.onNodeClient).map((method) => method.name),
+  ...LAUNCHDARKLY_NODE_LIFECYCLE_METHODS
+]);
+
 // ../core/dist/detection/detectors/typescript.js
 var TypeScriptDetector = class {
   providers;
@@ -37302,6 +37341,13 @@ var TypeScriptDetector = class {
     return this.providers;
   }
 };
+function launchDarklyNodeMethods() {
+  return LAUNCHDARKLY_NODE_EVALUATION_METHODS.map((method) => ({
+    name: method.name,
+    flagKeyIndex: method.flagKeyIndex,
+    examples: [method.example]
+  }));
+}
 function defaultTypeScriptProviders() {
   return [
     {
@@ -37327,43 +37373,14 @@ function defaultTypeScriptProviders() {
       importPattern: "@launchdarkly/node-server-sdk",
       description: "LaunchDarkly Node.js Server SDK",
       enabled: true,
-      methods: [
-        {
-          name: "variation",
-          flagKeyIndex: 0,
-          examples: ['client.variation("flag-key", context, defaultValue)']
-        },
-        {
-          name: "boolVariation",
-          flagKeyIndex: 0,
-          examples: ['client.boolVariation("flag-key", context, false)']
-        },
-        {
-          name: "stringVariation",
-          flagKeyIndex: 0,
-          examples: ['client.stringVariation("flag-key", context, "default")']
-        },
-        {
-          name: "intVariation",
-          flagKeyIndex: 0,
-          examples: ['client.intVariation("flag-key", context, 0)']
-        },
-        {
-          name: "doubleVariation",
-          flagKeyIndex: 0,
-          examples: ['client.doubleVariation("flag-key", context, 0.0)']
-        },
-        {
-          name: "jsonVariation",
-          flagKeyIndex: 0,
-          examples: ['client.jsonVariation("flag-key", context, {})']
-        },
-        {
-          name: "variationDetail",
-          flagKeyIndex: 0,
-          examples: ['client.variationDetail("flag-key", context, defaultValue)']
-        }
-      ]
+      // Derived from the one method table (launchdarkly-node-methods.ts), which
+      // mirrors the hosted product's `LD_TO_OPENFEATURE_TS`. Before that, this list
+      // was hand-maintained and had drifted: `numberVariation` and all four typed
+      // `*Detail` forms were missing, so a repository evaluating through any of them
+      // reported zero flags AND a balanced coverage metric — the denominator and the
+      // detector keyed off the same incomplete list, so a total miss could not
+      // surface as a shortfall.
+      methods: launchDarklyNodeMethods()
     },
     {
       name: "LaunchDarkly React SDK",
@@ -44217,6 +44234,7 @@ var fs2 = __toESM(require("node:fs"), 1);
 var import_node_path2 = __toESM(require("node:path"), 1);
 var ESM_IMPORT_RE = /^[ \t]*import\s*(?:\s+type)?\s*(?:[^'"`;\n]*?\s+from\s+)?['"`]([^'"`]+)['"`]/gm;
 var REQUIRE_RE = /(?<![.\w$])require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+var ESM_EXPORT_FROM_RE = /^[ \t]*export\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s+from\s+['"`]([^'"`]+)['"`]/gm;
 var DYNAMIC_IMPORT_RE = /(?<![.\w$])import\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
 var PY_FROM_IMPORT_RE = /^[ \t]*from\s+(\.*[\w.]+)\s+import\s+/gm;
 var PY_IMPORT_RE = /^[ \t]*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/gm;
@@ -44235,6 +44253,7 @@ function extractImports(content) {
     }
   };
   collect(ESM_IMPORT_RE);
+  collect(ESM_EXPORT_FROM_RE);
   collect(REQUIRE_RE);
   collect(DYNAMIC_IMPORT_RE);
   return out2;
@@ -44575,6 +44594,1033 @@ function isTsJsFile(filePath) {
   return TS_JS_EXTENSIONS.includes(ext);
 }
 
+// ../core/dist/detection/detection-coverage.js
+var import_node_path3 = require("node:path");
+
+// ../core/dist/detection/wrapper-evaluations.js
+var TYPED_VALUE_METHOD_LIST = LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.returnType !== null && !method.detail).map((method) => method.name).join(", ");
+function rewriteRefusalFor(provider, sdkMethod, position) {
+  if (!isLaunchDarklyNodePackage(provider))
+    return null;
+  const method = launchDarklyNodeMethod(sdkMethod);
+  if (method === void 0)
+    return null;
+  if (method.detail) {
+    return {
+      reason: "details-consumer",
+      sdkMethod,
+      detail: `${sdkMethod}() consumes the evaluation detail, and OpenFeature's reason and variant semantics are not LaunchDarkly's, so the hosted planner refuses a detail consumer whatever else is proven. Read the value instead of the detail.`
+    };
+  }
+  if (method.returnType !== null)
+    return null;
+  if (position === "wrapper") {
+    return {
+      reason: "generic-variation",
+      sdkMethod,
+      detail: `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to ${TYPED_VALUE_METHOD_LIST} first, or rewrite it by hand.`
+    };
+  }
+  return {
+    reason: "unproven-served-type",
+    sdkMethod,
+    detail: `${sdkMethod}() is an evaluation LaunchDarkly does not type-check, so it returns whatever type the flag serves while a typed OpenFeature accessor substitutes the default when the types differ. The key is static, so this is provable \u2014 but only from a read of your LaunchDarkly project showing every variation of the flag carries the default's type, which is not in the source and which no local scan can supply. Migrate the call to ${TYPED_VALUE_METHOD_LIST} and the proof is no longer needed.`
+  };
+}
+function secondSdkCallRefusal(targets) {
+  return {
+    reason: "second-sdk-call",
+    sdkMethod: targets.join(", "),
+    detail: `the body forwards its key into ${targets.length} evaluations (${targets.join(", ")}); a wrapper is rewritten only when its body's sole SDK call is the evaluation being migrated, so the hosted migration refuses it. Split the body into one wrapper per evaluation.`
+  };
+}
+var EVALUATION_GAP_DETAILS = {
+  "computed-key": "the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source",
+  "unprovable-key": "the flag key is an identifier the scan cannot prove: a local variable, a re-assigned binding, or a const in a module it did not read",
+  "unusable-literal-key": "the flag key is a literal FlagShark will not accept as a key (a URL, a path, or a string with whitespace), so the call is probably not an evaluation",
+  "destructured-parameter": "the flag key arrives through a destructured parameter, so it has no fixed argument position to read at the callers",
+  "spread-caller": "an argument at or before the key position is spread, so no argument position is provable (FS-069 refuses this shape for rewriting too)",
+  "unnamed-wrapper": "the function forwarding the key has no name call sites can be bound to (an inline callback, an IIFE, or an anonymous default export)",
+  "ambiguous-client-provenance": "a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client \u2014 the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows (FS-069 uses this name for the same refusal)",
+  "wrapper-without-callers": "a wrapper forwards the key to the SDK but the scan found no call site for it, so its flag keys are somewhere the scan cannot see"
+};
+var DEFAULT_MAX_WRAPPER_DEPTH = 3;
+var MAX_RE_EXPORT_HOPS = 4;
+var FUNCTION_NODES = /* @__PURE__ */ new Set([
+  "function_declaration",
+  "generator_function_declaration",
+  "function_expression",
+  "generator_function",
+  "arrow_function",
+  "method_definition"
+]);
+function namedChildren(node) {
+  return node.namedChildren.filter((child) => child !== null);
+}
+function* walk(node) {
+  yield node;
+  for (const child of namedChildren(node))
+    yield* walk(child);
+}
+function enclosingFunction(node) {
+  let current = node.parent;
+  while (current) {
+    if (FUNCTION_NODES.has(current.type))
+      return current;
+    current = current.parent;
+  }
+  return null;
+}
+function isExportedDeclaration(node) {
+  return node.parent?.type === "export_statement";
+}
+function receiverKey(node) {
+  switch (node.type) {
+    case "identifier":
+      return node.text;
+    case "this":
+      return "this";
+    case "member_expression": {
+      const object = node.childForFieldName("object");
+      return object.type === "this" ? `this.${node.childForFieldName("property").text}` : receiverKey(object);
+    }
+    case "subscript_expression":
+      return receiverKey(node.childForFieldName("object"));
+    case "call_expression":
+      return receiverKey(node.childForFieldName("function"));
+    case "new_expression":
+      return receiverKey(node.childForFieldName("constructor"));
+    case "await_expression":
+    case "parenthesized_expression":
+    case "non_null_expression":
+      return receiverKey(namedChildren(node)[0]);
+    default:
+      return null;
+  }
+}
+function annotatedTypeName(annotation) {
+  for (const node of walk(annotation)) {
+    if (node.type === "type_identifier")
+      return node.text;
+  }
+  return null;
+}
+function parameterSlots(fn) {
+  const single = fn.childForFieldName("parameter");
+  if (single)
+    return [{ kind: "identifier", name: single.text }];
+  const list = fn.childForFieldName("parameters");
+  if (!list)
+    return [];
+  const slots = [];
+  for (const parameter of namedChildren(list)) {
+    if (parameter.type !== "required_parameter" && parameter.type !== "optional_parameter")
+      continue;
+    const pattern = parameter.childForFieldName("pattern");
+    if (!pattern)
+      continue;
+    if (pattern.type === "identifier") {
+      slots.push({ kind: "identifier", name: pattern.text });
+      continue;
+    }
+    const names = [];
+    for (const node of walk(pattern)) {
+      if (node.type === "shorthand_property_identifier_pattern" || node.type === "identifier") {
+        names.push(node.text);
+      }
+    }
+    slots.push({ kind: "pattern", names });
+  }
+  return slots;
+}
+function declaresLocal(fn, name2) {
+  for (const node of walk(fn)) {
+    if (node.type !== "variable_declarator")
+      continue;
+    if (node.childForFieldName("name")?.text === name2)
+      return true;
+  }
+  return false;
+}
+function literalString(node) {
+  if (node.type === "template_string" && namedChildren(node).some((child) => child.type === "template_substitution")) {
+    return null;
+  }
+  return extractStringLiteral(node);
+}
+function* fileScopeDeclarators(root) {
+  for (const child of namedChildren(root)) {
+    const declaration = child.type === "export_statement" ? child.childForFieldName("declaration") : child;
+    if (!declaration || declaration.type !== "lexical_declaration")
+      continue;
+    if (declaration.children[0]?.type !== "const")
+      continue;
+    for (const declarator of namedChildren(declaration)) {
+      if (declarator.type === "variable_declarator")
+        yield declarator;
+    }
+  }
+}
+function constStringInModule(root, name2) {
+  for (const declarator of fileScopeDeclarators(root)) {
+    if (declarator.childForFieldName("name")?.text !== name2)
+      continue;
+    const value = declarator.childForFieldName("value");
+    if (!value)
+      continue;
+    const literal = literalString(value);
+    if (literal !== null)
+      return literal;
+  }
+  return null;
+}
+function constObjectPropertyInModule(root, name2, property) {
+  for (const declarator of fileScopeDeclarators(root)) {
+    if (declarator.childForFieldName("name")?.text !== name2)
+      continue;
+    const value = declarator.childForFieldName("value");
+    if (!value || value.type !== "object")
+      continue;
+    for (const pair of namedChildren(value)) {
+      if (pair.type !== "pair")
+        continue;
+      const key = pair.childForFieldName("key");
+      if (!key)
+        continue;
+      const keyName = key.type === "string" ? extractStringLiteral(key) : key.text;
+      if (keyName !== property)
+        continue;
+      const pairValue = pair.childForFieldName("value");
+      if (!pairValue)
+        continue;
+      const literal = literalString(pairValue);
+      if (literal !== null)
+        return literal;
+    }
+  }
+  return null;
+}
+function collectFileFacts(root, filePath, fileSet, aliases) {
+  const facts = {
+    bindings: [],
+    exportListNames: /* @__PURE__ */ new Set(),
+    reExports: [],
+    injectedTypes: /* @__PURE__ */ new Map(),
+    localInstances: /* @__PURE__ */ new Map(),
+    calls: []
+  };
+  const resolve4 = (specifier) => resolveImportPath(filePath, specifier, fileSet, aliases);
+  const bind = (local, imported, resolved) => {
+    if (resolved !== null)
+      facts.bindings.push({ local, imported, resolved });
+  };
+  for (const node of walk(root)) {
+    switch (node.type) {
+      case "import_statement":
+        collectImport(node, resolve4, bind);
+        break;
+      case "export_statement":
+        collectExport(node, resolve4, facts);
+        break;
+      case "variable_declarator":
+        collectDeclarator(node, resolve4, bind, facts);
+        break;
+      case "public_field_definition":
+        collectAnnotatedMember(node, facts.injectedTypes);
+        break;
+      case "method_definition":
+        if (node.childForFieldName("name")?.text === "constructor") {
+          collectConstructorInjection(node, facts.injectedTypes);
+        }
+        break;
+      case "call_expression":
+        collectCall(node, facts.calls);
+        break;
+      default:
+        break;
+    }
+  }
+  return facts;
+}
+function specifierOf(node) {
+  const source = node.childForFieldName("source");
+  if (!source)
+    return null;
+  return extractStringLiteral(source);
+}
+function collectImport(node, resolve4, bind) {
+  const specifier = specifierOf(node);
+  if (specifier === null)
+    return;
+  const resolved = resolve4(specifier);
+  for (const clause of namedChildren(node)) {
+    if (clause.type !== "import_clause")
+      continue;
+    for (const part of namedChildren(clause)) {
+      if (part.type === "identifier") {
+        bind(part.text, "default", resolved);
+      } else if (part.type === "namespace_import") {
+        const alias = namedChildren(part).find((child) => child.type === "identifier");
+        if (alias)
+          bind(alias.text, "*", resolved);
+      } else if (part.type === "named_imports") {
+        for (const specifierNode of namedChildren(part)) {
+          if (specifierNode.type !== "import_specifier")
+            continue;
+          const name2 = specifierNode.childForFieldName("name");
+          if (!name2)
+            continue;
+          bind((specifierNode.childForFieldName("alias") ?? name2).text, name2.text, resolved);
+        }
+      }
+    }
+  }
+}
+function collectExport(node, resolve4, facts) {
+  const specifier = specifierOf(node);
+  const clause = namedChildren(node).find((child) => child.type === "export_clause");
+  if (specifier === null) {
+    if (!clause)
+      return;
+    for (const exportSpecifier of namedChildren(clause)) {
+      if (exportSpecifier.type !== "export_specifier")
+        continue;
+      const name2 = exportSpecifier.childForFieldName("name");
+      if (!name2)
+        continue;
+      facts.exportListNames.add((exportSpecifier.childForFieldName("alias") ?? name2).text);
+    }
+    return;
+  }
+  const target = resolve4(specifier);
+  if (target === null)
+    return;
+  if (!clause) {
+    facts.reExports.push({ exported: null, source: null, target });
+    return;
+  }
+  for (const exportSpecifier of namedChildren(clause)) {
+    if (exportSpecifier.type !== "export_specifier")
+      continue;
+    const name2 = exportSpecifier.childForFieldName("name");
+    if (!name2)
+      continue;
+    facts.reExports.push({
+      exported: (exportSpecifier.childForFieldName("alias") ?? name2).text,
+      source: name2.text,
+      target
+    });
+  }
+}
+function collectDeclarator(node, resolve4, bind, facts) {
+  const name2 = node.childForFieldName("name");
+  if (!name2)
+    return;
+  const value = node.childForFieldName("value");
+  if (name2.type === "identifier") {
+    const annotation = node.childForFieldName("type");
+    const annotated = annotation === null ? null : annotatedTypeName(annotation);
+    if (annotated !== null) {
+      facts.localInstances.set(name2.text, annotated);
+    } else if (value?.type === "new_expression") {
+      const constructed = value.childForFieldName("constructor");
+      if (constructed?.type === "identifier")
+        facts.localInstances.set(name2.text, constructed.text);
+    }
+  }
+  if (!value || value.type !== "call_expression")
+    return;
+  if (value.childForFieldName("function")?.text !== "require")
+    return;
+  const args2 = value.childForFieldName("arguments");
+  if (!args2)
+    return;
+  const first = getArgument(args2, 0);
+  if (!first)
+    return;
+  const specifier = extractStringLiteral(first);
+  if (specifier === null)
+    return;
+  const resolved = resolve4(specifier);
+  if (name2.type === "identifier") {
+    bind(name2.text, "*", resolved);
+    bind(name2.text, "default", resolved);
+    return;
+  }
+  if (name2.type !== "object_pattern")
+    return;
+  for (const part of namedChildren(name2)) {
+    if (part.type === "shorthand_property_identifier_pattern") {
+      bind(part.text, part.text, resolved);
+    } else if (part.type === "pair_pattern") {
+      const key = part.childForFieldName("key");
+      const local = part.childForFieldName("value");
+      if (key && local)
+        bind(local.text, key.text, resolved);
+    }
+  }
+}
+function collectAnnotatedMember(node, into) {
+  const name2 = node.childForFieldName("name");
+  const annotation = node.childForFieldName("type");
+  if (!name2 || !annotation)
+    return;
+  const typeName = annotatedTypeName(annotation);
+  if (typeName)
+    into.set(name2.text, typeName);
+}
+function collectConstructorInjection(node, into) {
+  const parameters = node.childForFieldName("parameters");
+  if (!parameters)
+    return;
+  for (const parameter of namedChildren(parameters)) {
+    if (parameter.type !== "required_parameter" && parameter.type !== "optional_parameter")
+      continue;
+    const pattern = parameter.childForFieldName("pattern");
+    const annotation = parameter.childForFieldName("type");
+    if (!pattern || pattern.type !== "identifier" || !annotation)
+      continue;
+    const typeName = annotatedTypeName(annotation);
+    if (typeName)
+      into.set(pattern.text, typeName);
+  }
+}
+function collectCall(node, into) {
+  const fn = node.childForFieldName("function");
+  const args2 = node.childForFieldName("arguments");
+  if (!fn || !args2 || args2.type !== "arguments")
+    return;
+  const lineNumber = node.startPosition.row + 1;
+  if (fn.type === "identifier") {
+    into.push({ id: node.id, callee: fn.text, receiver: null, args: args2, lineNumber });
+    return;
+  }
+  if (fn.type !== "member_expression")
+    return;
+  const property = fn.childForFieldName("property");
+  const receiver = fn.childForFieldName("object");
+  if (!property || !receiver)
+    return;
+  if (property.type !== "property_identifier")
+    return;
+  into.push({ id: node.id, callee: property.text, receiver, args: args2, lineNumber });
+}
+function buildSdkCatalogue(providers) {
+  const catalogue = /* @__PURE__ */ new Map();
+  for (const provider of providers) {
+    if (!provider.enabled)
+      continue;
+    const pattern = getImportPattern(provider);
+    if (!pattern)
+      continue;
+    let methods = catalogue.get(pattern);
+    if (!methods) {
+      methods = /* @__PURE__ */ new Map();
+      catalogue.set(pattern, methods);
+    }
+    for (const method of provider.methods) {
+      if (method.flagKeyIndex < 0)
+        continue;
+      if (!methods.has(method.name)) {
+        methods.set(method.name, { keyIndex: method.flagKeyIndex, provider: pattern });
+      }
+    }
+  }
+  return catalogue;
+}
+function providerPackages(providers) {
+  const packages = /* @__PURE__ */ new Map();
+  for (const provider of providers) {
+    const pattern = getImportPattern(provider);
+    if (!pattern)
+      continue;
+    const existing = packages.get(pattern) ?? [pattern];
+    packages.set(pattern, [.../* @__PURE__ */ new Set([...existing, ...provider.importAliases ?? []])]);
+  }
+  return packages;
+}
+function originModules(analyzer, start2, name2) {
+  const origins = /* @__PURE__ */ new Set([start2]);
+  let frontier = [{ file: start2, name: name2 }];
+  for (let hop = 0; hop < MAX_RE_EXPORT_HOPS && frontier.length > 0; hop++) {
+    const next = [];
+    for (const entry of frontier) {
+      const file = analyzer.parsed.get(entry.file);
+      if (!file)
+        continue;
+      for (const reExport of file.reExports) {
+        if (reExport.exported !== null && reExport.exported !== entry.name)
+          continue;
+        if (origins.has(reExport.target))
+          continue;
+        origins.add(reExport.target);
+        next.push({ file: reExport.target, name: reExport.source ?? entry.name });
+      }
+    }
+    frontier = next;
+  }
+  return origins;
+}
+function acceptedCallsFor(analyzer, file, wrapper) {
+  const accepted = [];
+  const sameFile = file.filePath === wrapper.filePath;
+  const reaches = (binding) => originModules(analyzer, binding.resolved, binding.imported).has(wrapper.filePath);
+  if (wrapper.kind === "function") {
+    if (sameFile)
+      accepted.push({ callee: wrapper.name, receivers: null, wrapper });
+    if (wrapper.exported) {
+      for (const binding of file.bindings) {
+        if (!reaches(binding))
+          continue;
+        if (binding.imported === wrapper.name || binding.imported === "default") {
+          accepted.push({ callee: binding.local, receivers: null, wrapper });
+        } else if (binding.imported === "*") {
+          accepted.push({ callee: wrapper.name, receivers: /* @__PURE__ */ new Set([binding.local]), wrapper });
+        }
+      }
+    }
+    return accepted;
+  }
+  const handles = (owner) => {
+    const receivers = /* @__PURE__ */ new Set([owner]);
+    for (const [property, typeName] of file.injectedTypes) {
+      if (typeName === owner)
+        receivers.add(`this.${property}`);
+    }
+    for (const [variable, typeName] of file.localInstances) {
+      if (typeName === owner)
+        receivers.add(variable);
+    }
+    return receivers;
+  };
+  if (sameFile) {
+    const receivers = handles(wrapper.owner);
+    receivers.add("this");
+    accepted.push({ callee: wrapper.name, receivers, wrapper });
+  }
+  if (wrapper.exported) {
+    for (const binding of file.bindings) {
+      if (!reaches(binding))
+        continue;
+      if (binding.imported !== wrapper.owner && binding.imported !== "default" && binding.imported !== "*")
+        continue;
+      accepted.push({ callee: wrapper.name, receivers: handles(binding.local), wrapper });
+    }
+  }
+  return accepted;
+}
+function matchesAccepted(call, accepted) {
+  if (call.callee !== accepted.callee)
+    return false;
+  if (accepted.receivers === null)
+    return call.receiver === null;
+  if (call.receiver === null)
+    return false;
+  const key = receiverKey(call.receiver);
+  return key !== null && accepted.receivers.has(key);
+}
+function callShapedIds(file, catalogue) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const call of file.calls) {
+    if (call.receiver === null)
+      continue;
+    for (const sdk of file.reachableSdks) {
+      if (catalogue.get(sdk)?.has(call.callee)) {
+        ids.add(call.id);
+        break;
+      }
+    }
+  }
+  return ids;
+}
+function sdkTargetFor(call, file, catalogue) {
+  for (const sdk of file.reachableSdks) {
+    const method = catalogue.get(sdk)?.get(call.callee);
+    if (method)
+      return method;
+  }
+  return null;
+}
+function importedConst(analyzer, file, name2, property) {
+  for (const binding of file.bindings) {
+    if (binding.local !== name2)
+      continue;
+    const namespaced = binding.imported === "*";
+    if (namespaced && property === null)
+      continue;
+    const wanted = namespaced ? property : binding.imported;
+    for (const origin of originModules(analyzer, binding.resolved, wanted)) {
+      const module2 = analyzer.parsed.get(origin);
+      if (!module2)
+        continue;
+      const value = namespaced || property === null ? constStringInModule(module2.root, wanted) : constObjectPropertyInModule(module2.root, wanted, property);
+      if (value !== null)
+        return value;
+    }
+  }
+  return null;
+}
+function findParameterBinder(node, name2) {
+  let fn = enclosingFunction(node);
+  while (fn) {
+    if (declaresLocal(fn, name2))
+      return { kind: "gap", reason: "unprovable-key" };
+    const slots = parameterSlots(fn);
+    const index = slots.findIndex((slot) => slot.kind === "identifier" && slot.name === name2);
+    if (index >= 0)
+      return { kind: "parameter", fn, index };
+    if (slots.some((slot) => slot.kind === "pattern" && slot.names.includes(name2))) {
+      return { kind: "gap", reason: "destructured-parameter" };
+    }
+    fn = enclosingFunction(fn);
+  }
+  return null;
+}
+function hasSpreadBeforeKey(args2, keyIndex) {
+  const positional = namedChildren(args2).filter((child) => child.type !== "comment");
+  return positional.slice(0, keyIndex + 1).some((child) => child.type === "spread_element");
+}
+function resolveKeyArgument(analyzer, file, argument) {
+  const literal = literalString(argument);
+  if (literal !== null) {
+    return isValidFlagKey(literal) ? { kind: "key", flagKey: literal } : { kind: "gap", reason: "unusable-literal-key" };
+  }
+  if (argument.type === "identifier") {
+    const name2 = argument.text;
+    for (const candidate of [constStringInModule(file.root, name2), importedConst(analyzer, file, name2, null)]) {
+      if (candidate !== null && isValidFlagKey(candidate))
+        return { kind: "key", flagKey: candidate };
+    }
+    return findParameterBinder(argument, name2) ?? { kind: "gap", reason: "unprovable-key" };
+  }
+  if (argument.type === "member_expression") {
+    const object = argument.childForFieldName("object");
+    const property = argument.childForFieldName("property");
+    if (object?.type === "identifier" && property?.type === "property_identifier") {
+      const candidates = [
+        constObjectPropertyInModule(file.root, object.text, property.text),
+        importedConst(analyzer, file, object.text, property.text)
+      ];
+      for (const candidate of candidates) {
+        if (candidate !== null && isValidFlagKey(candidate))
+          return { kind: "key", flagKey: candidate };
+      }
+    }
+    return { kind: "gap", reason: "unprovable-key" };
+  }
+  return { kind: "gap", reason: "computed-key" };
+}
+function nameWrapper(fn, file) {
+  if (fn.type === "function_declaration" || fn.type === "generator_function_declaration") {
+    const name2 = fn.childForFieldName("name");
+    if (!name2)
+      return null;
+    return {
+      kind: "function",
+      name: name2.text,
+      owner: null,
+      exported: isExportedDeclaration(fn) || file.exportListNames.has(name2.text),
+      declaration: fn
+    };
+  }
+  if (fn.type === "method_definition") {
+    const name2 = fn.childForFieldName("name");
+    if (!name2)
+      return null;
+    const container = fn.parent;
+    if (!container)
+      return null;
+    const owner = container.type === "class_body" ? ownerOfClass(container, file) : ownerOfObject(container, file);
+    if (!owner)
+      return null;
+    return { kind: "method", name: name2.text, owner: owner.name, exported: owner.exported, declaration: fn };
+  }
+  const parent = fn.parent;
+  if (!parent)
+    return null;
+  if (parent.type === "variable_declarator") {
+    const name2 = parent.childForFieldName("name");
+    if (!name2 || name2.type !== "identifier")
+      return null;
+    const declaration = parent.parent;
+    if (!declaration)
+      return null;
+    return {
+      kind: "function",
+      name: name2.text,
+      owner: null,
+      exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text),
+      declaration: parent
+    };
+  }
+  if (parent.type === "pair" && parent.parent?.type === "object") {
+    const key = parent.childForFieldName("key");
+    if (!key)
+      return null;
+    const keyName = key.type === "string" ? extractStringLiteral(key) : key.text;
+    if (keyName === null)
+      return null;
+    const owner = ownerOfObject(parent.parent, file);
+    if (!owner)
+      return null;
+    return { kind: "method", name: keyName, owner: owner.name, exported: owner.exported, declaration: parent };
+  }
+  return null;
+}
+function ownerOfClass(classBody, file) {
+  const declaration = classBody.parent;
+  if (!declaration)
+    return null;
+  const name2 = declaration.childForFieldName("name");
+  if (!name2)
+    return null;
+  return { name: name2.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text) };
+}
+function ownerOfObject(object, file) {
+  const declarator = object.parent;
+  if (!declarator || declarator.type !== "variable_declarator")
+    return null;
+  const name2 = declarator.childForFieldName("name");
+  if (!name2 || name2.type !== "identifier")
+    return null;
+  const declaration = declarator.parent;
+  if (!declaration)
+    return null;
+  return { name: name2.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text) };
+}
+function callerCount(wrapper) {
+  return wrapper.resolvedCallers + wrapper.unresolvedCallers + wrapper.forwardingCallers;
+}
+function wrapperLabel(wrapper) {
+  return `${wrapper.owner === null ? "" : `${wrapper.owner}.`}${wrapper.name}()`;
+}
+async function analyzeWrapperEvaluations(options) {
+  const catalogue = buildSdkCatalogue(options.providers);
+  const packages = providerPackages(options.providers);
+  const maxDepth = options.maxWrapperDepth ?? DEFAULT_MAX_WRAPPER_DEPTH;
+  const fileSet = /* @__PURE__ */ new Set();
+  for (const filePath of options.files.keys()) {
+    if (isTsJsFile(filePath))
+      fileSet.add(filePath);
+  }
+  const inScopePaths = [...fileSet].filter((filePath) => options.transitiveSdks.has(filePath)).sort();
+  if (inScopePaths.length === 0) {
+    return {
+      wrappers: [],
+      flags: [],
+      sites: [],
+      filesInScope: 0,
+      evaluationSurface: { callShaped: 0, accountedFor: 0 }
+    };
+  }
+  const parser = await getParser("typescript");
+  const parsed = /* @__PURE__ */ new Map();
+  const analyzer = { parsed };
+  const parseFile = (filePath) => {
+    const content = options.files.get(filePath);
+    const root = parser.parse(content).rootNode;
+    const directSdks = /* @__PURE__ */ new Set();
+    for (const [pattern, names] of packages) {
+      if (names.some((name2) => content.includes(name2)))
+        directSdks.add(pattern);
+    }
+    parsed.set(filePath, {
+      ...collectFileFacts(root, filePath, fileSet, options.aliases),
+      filePath,
+      root,
+      language: options.languageForFile(filePath),
+      directSdks,
+      reachableSdks: options.transitiveSdks.get(filePath) ?? /* @__PURE__ */ new Set()
+    });
+  };
+  for (const filePath of inScopePaths)
+    parseFile(filePath);
+  const oneHop = /* @__PURE__ */ new Set();
+  for (const filePath of inScopePaths) {
+    for (const binding of parsed.get(filePath).bindings) {
+      if (!parsed.has(binding.resolved))
+        oneHop.add(binding.resolved);
+    }
+  }
+  for (const filePath of [...oneHop].sort())
+    parseFile(filePath);
+  const inScopeFiles = inScopePaths.map((filePath) => parsed.get(filePath));
+  const wrappers = [];
+  const byDeclaration = /* @__PURE__ */ new Map();
+  const targets = /* @__PURE__ */ new Map();
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let grew = false;
+    for (const wrapper of identifyWrappers(analyzer, inScopeFiles, catalogue, wrappers, depth)) {
+      const key = `${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`;
+      const existing = byDeclaration.get(key);
+      if (existing === void 0) {
+        byDeclaration.set(key, wrapper);
+        targets.set(key, [wrapper.forwardsTo]);
+        wrappers.push(wrapper);
+        grew = true;
+        continue;
+      }
+      const seenTargets = targets.get(key);
+      seenTargets.push(wrapper.forwardsTo);
+      existing.rewriteBlocker = secondSdkCallRefusal(seenTargets);
+    }
+    if (!grew)
+      break;
+  }
+  const { sites, flags: flags2, explainedIds } = classifySites(analyzer, inScopeFiles, catalogue, wrappers);
+  let callShaped = 0;
+  let accountedFor = 0;
+  for (const file of inScopeFiles) {
+    for (const id of callShapedIds(file, catalogue)) {
+      callShaped += 1;
+      if (explainedIds.has(id))
+        accountedFor += 1;
+    }
+  }
+  wrappers.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.name.localeCompare(b.name));
+  sites.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.callee.localeCompare(b.callee));
+  return {
+    wrappers,
+    flags: flags2,
+    sites,
+    filesInScope: inScopeFiles.length,
+    evaluationSurface: { callShaped, accountedFor }
+  };
+}
+function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
+  const found = [];
+  for (const file of inScopeFiles) {
+    if (depth === 1 && file.directSdks.size === 0)
+      continue;
+    const accepted = depth === 1 ? [] : known.filter((wrapper) => wrapper.depth === depth - 1).flatMap((wrapper) => acceptedCallsFor(analyzer, file, wrapper));
+    for (const call of file.calls) {
+      let keyIndex;
+      let provider;
+      let forwardsTo;
+      let rewriteBlocker;
+      if (depth === 1) {
+        const target = sdkTargetFor(call, file, catalogue);
+        if (!target || !file.directSdks.has(target.provider))
+          continue;
+        keyIndex = target.keyIndex;
+        provider = target.provider;
+        forwardsTo = call.callee;
+        rewriteBlocker = rewriteRefusalFor(provider, call.callee, "wrapper");
+      } else {
+        const match = accepted.find((candidate) => matchesAccepted(call, candidate));
+        if (!match)
+          continue;
+        keyIndex = match.wrapper.keyParameterIndex;
+        provider = match.wrapper.provider;
+        forwardsTo = wrapperLabel(match.wrapper);
+        rewriteBlocker = match.wrapper.rewriteBlocker;
+      }
+      const argument = getArgument(call.args, keyIndex);
+      if (!argument || argument.type !== "identifier")
+        continue;
+      const binder = findParameterBinder(argument, argument.text);
+      if (!binder || binder.kind !== "parameter")
+        continue;
+      const named = nameWrapper(binder.fn, file);
+      if (!named)
+        continue;
+      found.push({
+        filePath: file.filePath,
+        lineNumber: named.declaration.startPosition.row + 1,
+        kind: named.kind,
+        name: named.name,
+        owner: named.owner,
+        keyParameterIndex: binder.index,
+        provider,
+        forwardsTo,
+        depth,
+        exported: named.exported,
+        resolvedCallers: 0,
+        unresolvedCallers: 0,
+        forwardingCallers: 0,
+        rewriteBlocker
+      });
+    }
+  }
+  return found;
+}
+function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
+  const byDeclaration = /* @__PURE__ */ new Map();
+  for (const wrapper of wrappers) {
+    byDeclaration.set(`${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`, wrapper);
+  }
+  const pending = [];
+  for (const file of inScopeFiles) {
+    const accepted = wrappers.flatMap((wrapper) => acceptedCallsFor(analyzer, file, wrapper));
+    for (const call of file.calls) {
+      const sdkTarget = sdkTargetFor(call, file, catalogue);
+      const wrapperMatch = sdkTarget ? void 0 : accepted.find((candidate) => matchesAccepted(call, candidate));
+      if (!sdkTarget && !wrapperMatch)
+        continue;
+      const keyIndex = sdkTarget ? sdkTarget.keyIndex : wrapperMatch.wrapper.keyParameterIndex;
+      const provider = sdkTarget ? sdkTarget.provider : wrapperMatch.wrapper.provider;
+      const spread = hasSpreadBeforeKey(call.args, keyIndex);
+      const argument = getArgument(call.args, keyIndex);
+      if (!spread && !argument)
+        continue;
+      const resolution = spread ? { kind: "gap", reason: "spread-caller" } : resolveKeyArgument(analyzer, file, argument);
+      if (wrapperMatch) {
+        if (resolution.kind === "key")
+          wrapperMatch.wrapper.resolvedCallers += 1;
+        else if (resolution.kind === "gap")
+          wrapperMatch.wrapper.unresolvedCallers += 1;
+        else
+          wrapperMatch.wrapper.forwardingCallers += 1;
+      }
+      pending.push({ file, call, via: sdkTarget ? "sdk" : "wrapper", provider, resolution });
+    }
+  }
+  const sites = [];
+  const flags2 = [];
+  const explainedIds = new Set(pending.map((entry) => entry.call.id));
+  for (const entry of pending) {
+    const direct = entry.via === "sdk" && entry.resolution.kind !== "parameter";
+    const base = {
+      filePath: entry.file.filePath,
+      lineNumber: entry.call.lineNumber,
+      callee: entry.call.callee,
+      via: entry.via,
+      rewriteRefusal: direct ? rewriteRefusalFor(entry.provider, entry.call.callee, "direct") : null
+    };
+    if (entry.resolution.kind === "key") {
+      sites.push({ ...base, status: { kind: "accounted", flagKey: entry.resolution.flagKey } });
+      flags2.push({
+        name: entry.resolution.flagKey,
+        filePath: entry.file.filePath,
+        lineNumber: entry.call.lineNumber,
+        language: entry.file.language,
+        provider: entry.provider,
+        confidence: "medium"
+      });
+      continue;
+    }
+    if (entry.resolution.kind === "gap") {
+      sites.push({ ...base, status: { kind: "gap", reason: entry.resolution.reason } });
+      continue;
+    }
+    const named = nameWrapper(entry.resolution.fn, entry.file);
+    if (!named) {
+      sites.push({ ...base, status: { kind: "gap", reason: "unnamed-wrapper" } });
+      continue;
+    }
+    const wrapper = byDeclaration.get(`${entry.file.filePath}:${named.declaration.startPosition.row + 1}:${named.name}`);
+    if (!wrapper) {
+      sites.push({ ...base, status: { kind: "gap", reason: "ambiguous-client-provenance" } });
+      continue;
+    }
+    if (callerCount(wrapper) > 0) {
+      sites.push({ ...base, status: { kind: "delegated", wrapper: wrapperLabel(wrapper) } });
+      continue;
+    }
+    sites.push({ ...base, status: { kind: "gap", reason: "wrapper-without-callers" } });
+  }
+  return { sites, flags: flags2, explainedIds };
+}
+
+// ../core/dist/detection/detection-coverage.js
+function summarizeDetectionCoverage(analysis, options) {
+  const location = (filePath, lineNumber) => `${(0, import_node_path3.relative)(options.root, filePath) || filePath}:${lineNumber}`;
+  let flagsNamed = 0;
+  let delegated = 0;
+  const gapCounts = /* @__PURE__ */ new Map();
+  for (const site of analysis.sites) {
+    if (site.status.kind === "accounted") {
+      flagsNamed += 1;
+      continue;
+    }
+    if (site.status.kind === "delegated") {
+      delegated += 1;
+      continue;
+    }
+    const existing = gapCounts.get(site.status.reason);
+    if (existing)
+      existing.count += 1;
+    else
+      gapCounts.set(site.status.reason, { count: 1, sample: location(site.filePath, site.lineNumber) });
+  }
+  const gaps = [...gapCounts].map(([reason, { count, sample: sample2 }]) => ({
+    reason,
+    count,
+    sample: sample2,
+    detail: EVALUATION_GAP_DETAILS[reason]
+  })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+  let refusedForRewrite = 0;
+  const refusalsByReason = /* @__PURE__ */ new Map();
+  const addRefusal = (blocker, sites, at) => {
+    refusedForRewrite += sites;
+    const existing = refusalsByReason.get(blocker.reason);
+    if (existing)
+      existing.count += sites;
+    else
+      refusalsByReason.set(blocker.reason, {
+        count: sites,
+        sample: at,
+        sdkMethod: blocker.sdkMethod,
+        detail: blocker.detail
+      });
+  };
+  for (const wrapper of analysis.wrappers) {
+    if (wrapper.rewriteBlocker !== null) {
+      addRefusal(wrapper.rewriteBlocker, callerCount(wrapper), location(wrapper.filePath, wrapper.lineNumber));
+    }
+  }
+  for (const site of analysis.sites) {
+    if (site.rewriteRefusal !== null) {
+      addRefusal(site.rewriteRefusal, 1, location(site.filePath, site.lineNumber));
+    }
+  }
+  const rewriteRefusals = [...refusalsByReason].map(([reason, rest]) => ({ reason, ...rest })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+  const wrappers = analysis.wrappers.map((wrapper) => {
+    return {
+      label: wrapperLabel(wrapper),
+      declaredAt: location(wrapper.filePath, wrapper.lineNumber),
+      kind: wrapper.kind,
+      keyParameterIndex: wrapper.keyParameterIndex,
+      provider: wrapper.provider,
+      forwardsTo: wrapper.forwardsTo,
+      depth: wrapper.depth,
+      callers: callerCount(wrapper),
+      resolvedCallers: wrapper.resolvedCallers,
+      unresolvedCallers: wrapper.unresolvedCallers,
+      forwardingCallers: wrapper.forwardingCallers,
+      rewriteBlocker: wrapper.rewriteBlocker
+    };
+  });
+  const reported = /* @__PURE__ */ new Set();
+  for (const flag of options.detectedFlags) {
+    reported.add(`${flag.filePath}:${flag.lineNumber}:${flag.name}`);
+  }
+  const flags2 = [];
+  for (const flag of analysis.flags) {
+    const key = `${flag.filePath}:${flag.lineNumber}:${flag.name}`;
+    if (reported.has(key))
+      continue;
+    reported.add(key);
+    flags2.push(flag);
+  }
+  return {
+    coverage: {
+      schemaVersion: 1,
+      filesInScope: analysis.filesInScope,
+      sites: analysis.sites.length,
+      flagsNamed,
+      delegated,
+      unnamed: analysis.sites.length - flagsNamed - delegated,
+      gaps,
+      wrappers,
+      refusedForRewrite,
+      rewriteRefusals,
+      evaluationSurface: analysis.evaluationSurface
+    },
+    flags: flags2
+  };
+}
+
 // ../core/dist/config/schema.js
 var PRESET_NAMES = [
   "test-files",
@@ -44822,20 +45868,20 @@ function buildExcluder(input) {
 // ../core/dist/config/loader.js
 var import_node_fs3 = require("node:fs");
 var import_node_os = require("node:os");
-var import_node_path3 = require("node:path");
+var import_node_path4 = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 var FILENAMES = [".flagshark.yml", ".flagshark.yaml"];
 async function loadConfigFile(startDir) {
   const home = (0, import_node_os.homedir)();
-  let dir = (0, import_node_path3.resolve)(startDir);
+  let dir = (0, import_node_path4.resolve)(startDir);
   for (; ; ) {
     for (const name2 of FILENAMES) {
-      const candidate = (0, import_node_path3.join)(dir, name2);
+      const candidate = (0, import_node_path4.join)(dir, name2);
       if ((0, import_node_fs3.existsSync)(candidate)) {
         return readAndValidate(candidate);
       }
     }
-    const parent = (0, import_node_path3.dirname)(dir);
+    const parent = (0, import_node_path4.dirname)(dir);
     if (parent === dir || dir === home || dir === "/")
       return null;
     dir = parent;
@@ -44866,18 +45912,18 @@ function readAndValidate(path2) {
 // ../core/dist/config/ignore-file.js
 var import_node_fs4 = require("node:fs");
 var import_node_os2 = require("node:os");
-var import_node_path4 = require("node:path");
+var import_node_path5 = require("node:path");
 async function loadIgnoreFile(startDir) {
   const home = (0, import_node_os2.homedir)();
-  let dir = (0, import_node_path4.resolve)(startDir);
+  let dir = (0, import_node_path5.resolve)(startDir);
   for (; ; ) {
-    const candidate = (0, import_node_path4.join)(dir, ".flagsharkignore");
+    const candidate = (0, import_node_path5.join)(dir, ".flagsharkignore");
     if ((0, import_node_fs4.existsSync)(candidate)) {
       const raw = (0, import_node_fs4.readFileSync)(candidate, "utf-8");
       const patterns = raw.split("\n").map((line) => line.trim()).filter((line) => line.length > 0 && !line.startsWith("#"));
       return { patterns, path: candidate };
     }
-    const parent = (0, import_node_path4.dirname)(dir);
+    const parent = (0, import_node_path5.dirname)(dir);
     if (parent === dir || dir === home || dir === "/")
       return null;
     dir = parent;
@@ -45465,14 +46511,14 @@ function mergePlatformSignals(into, source) {
 var import_node_crypto = require("node:crypto");
 var import_node_fs5 = require("node:fs");
 var import_node_os3 = require("node:os");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var DEFAULT_TTL_MS = 24 * 60 * 60 * 1e3;
 function resolveCacheDir(override) {
   if (override)
     return override;
   const xdg = process.env.XDG_CACHE_HOME;
-  const base = xdg && xdg.length > 0 ? xdg : (0, import_node_path5.join)((0, import_node_os3.homedir)(), ".cache");
-  return (0, import_node_path5.join)(base, "flagshark");
+  const base = xdg && xdg.length > 0 ? xdg : (0, import_node_path6.join)((0, import_node_os3.homedir)(), ".cache");
+  return (0, import_node_path6.join)(base, "flagshark");
 }
 function computeCacheKey(platformName, config, token) {
   const tokenHash = (0, import_node_crypto.createHash)("sha256").update(token).digest("hex").slice(0, 8);
@@ -45481,7 +46527,7 @@ function computeCacheKey(platformName, config, token) {
 }
 function readCache(key, opts = {}) {
   const dir = resolveCacheDir(opts.cacheDir);
-  const path2 = (0, import_node_path5.join)(dir, `${key}.json`);
+  const path2 = (0, import_node_path6.join)(dir, `${key}.json`);
   let raw;
   try {
     raw = (0, import_node_fs5.readFileSync)(path2, "utf-8");
@@ -45529,7 +46575,7 @@ function writeCache(key, flags2, opts = {}) {
         lastModified: f.lastModified ? f.lastModified.toISOString() : null
       }))
     };
-    (0, import_node_fs5.writeFileSync)((0, import_node_path5.join)(dir, `${key}.json`), JSON.stringify(body2));
+    (0, import_node_fs5.writeFileSync)((0, import_node_path6.join)(dir, `${key}.json`), JSON.stringify(body2));
   } catch {
   }
 }
@@ -45666,9 +46712,10 @@ async function orchestratePlatforms(opts) {
 // ../core/dist/migration/admission-tree.js
 var import_node_child_process2 = require("node:child_process");
 var import_node_fs6 = require("node:fs");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 
 // ../core/dist/migration/hosted-admission.js
+var TYPED_VALUE_METHOD_LIST2 = LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.returnType !== null && !method.detail).map((method) => method.name).join(", ");
 var NODE_SERVER_CELL_ID = "adopt-openfeature/launchdarkly-node-server/ecmascript/server";
 var HOSTED_ADMISSION_LIMITS = Object.freeze({
   maxTreeEntries: 2e4,
@@ -45742,22 +46789,7 @@ var PACKAGE_MANAGER_MARKER = /(?:^|\/)(?:pnpm-workspace\.ya?ml|pnpm-lock\.yaml|\
 var NPM_LOCKFILE = /(?:^|\/)(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
 var EXACT_NPM_PIN = /^npm@(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 var EXACT_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
-var CATALOGUED_CLIENT_METHODS = /* @__PURE__ */ new Set([
-  "variation",
-  "variationDetail",
-  "boolVariation",
-  "stringVariation",
-  "numberVariation",
-  "jsonVariation",
-  "boolVariationDetail",
-  "stringVariationDetail",
-  "numberVariationDetail",
-  "jsonVariationDetail",
-  "init",
-  "waitForInitialization",
-  "flush",
-  "close"
-]);
+var CATALOGUED_CLIENT_METHODS = new Set(LAUNCHDARKLY_NODE_CLIENT_METHODS);
 function basename(path2) {
   return path2.slice(path2.lastIndexOf("/") + 1);
 }
@@ -46245,8 +47277,11 @@ function nodeRuntimeGate(tree, selected) {
   ].filter((part) => part !== void 0);
   return gate("node-runtime", "pass", `${declared.length > 0 ? declared.join(", ") : "no .nvmrc or engines.node"} accepted; the hosted sandbox runs Node ${HOSTED_SANDBOX_RUNTIME.node} regardless (a limitation, not a gate)`);
 }
+function launchDarklySourceFiles(tree) {
+  return [...tree.files].filter(([path2, content]) => ECMASCRIPT_EXTENSIONS.has(extension(path2)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)));
+}
 function sdkApiSurfaceGate(tree) {
-  const sdkFiles = [...tree.files].filter(([path2, content]) => ECMASCRIPT_EXTENSIONS.has(extension(path2)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)));
+  const sdkFiles = launchDarklySourceFiles(tree);
   if (sdkFiles.length === 0) {
     return gate("sdk-api-surface", "unknown", "no source file importing the LaunchDarkly Node SDK was read locally");
   }
@@ -46267,6 +47302,32 @@ function sdkApiSurfaceGate(tree) {
     return gate("sdk-api-surface", "unknown", `${plural(names.length, "method")} outside the catalogued client surface called in the ${plural(sdkFiles.length, "file")} importing the SDK (${sample(names.map((m) => `${m}()`), 6)}); any of them on the LaunchDarkly client is an unmapped-api refusal, and only the hosted analyzer can prove the receiver`);
   }
   return gate("sdk-api-surface", "pass", `only catalogued client methods (${[...catalogued].sort().map((m) => `${m}()`).join(", ") || "none"}) are called in the ${plural(sdkFiles.length, "file")} importing the SDK; the receiver proof itself still requires the hosted analyzer`);
+}
+function evaluationMethodGate(tree) {
+  const sdkFiles = launchDarklySourceFiles(tree);
+  if (sdkFiles.length === 0) {
+    return gate("evaluation-method", "unknown", "no source file importing the LaunchDarkly Node SDK was read locally");
+  }
+  const found = (names) => {
+    const hits = [];
+    for (const [path2, content] of sdkFiles) {
+      for (const name2 of names) {
+        if (new RegExp(`\\.${name2}\\s*\\(`, "u").test(content))
+          hits.push({ method: name2, path: path2 });
+      }
+    }
+    return hits;
+  };
+  const details = found(LAUNCHDARKLY_DETAIL_METHOD_NAMES);
+  if (details.length > 0) {
+    return gate("evaluation-method", "refuse", `${sample(details.map((hit) => `${hit.method}() in ${hit.path}`), 3)} consumes the evaluation detail; OpenFeature's reason and variant semantics are not LaunchDarkly's, so the hosted planner refuses a detail consumer (details-consumer) whatever else is proven. Read the value instead \u2014 ${plural(LAUNCHDARKLY_DETAIL_METHOD_NAMES.length, "detail method")} are affected.`);
+  }
+  const untypedValueMethods = LAUNCHDARKLY_UNTYPED_METHOD_NAMES.filter((name2) => !LAUNCHDARKLY_DETAIL_METHOD_NAMES.includes(name2));
+  const untyped = found(untypedValueMethods);
+  if (untyped.length > 0) {
+    return gate("evaluation-method", "refuse", `${sample(untyped.map((hit) => `${hit.method}() in ${hit.path}`), 3)} is an evaluation LaunchDarkly does not type-check, so it returns whatever type the flag serves while a typed OpenFeature accessor substitutes the default when the types differ. The hosted planner refuses it (unproven-served-type) unless it can prove every variation of that flag carries the default's type, which is a read of your LaunchDarkly project and is never provable from source. Migrate the call to ${TYPED_VALUE_METHOD_LIST2}, whose type LaunchDarkly itself checks, and this gate passes on the source alone.`);
+  }
+  return gate("evaluation-method", "pass", `only evaluations LaunchDarkly type-checks are called in the ${plural(sdkFiles.length, "file")} importing the SDK; the receiver proof itself still requires the hosted analyzer`);
 }
 var NOT_CHECKED = "not checked: requires exactly one readable package.json";
 function dedupePaths(entries) {
@@ -46304,9 +47365,9 @@ function preflightNodeServerAdmission(tree) {
     const npmPin = npmPinGate(tree, filePaths, selected);
     gates.push(workspacesGate(selected.manifest), lockfileGate(filePaths, selected), npmPin.gate, devEnginesGate(selected.manifest, npmPin.npmVersion), dependenciesGate(selected.manifest), launchDarklySdkGate(selected.manifest), typecheckGate(tree, regularPaths, selected), testScriptGate(selected.manifest), nodeRuntimeGate(tree, selected));
   }
-  gates.push(sdkApiSurfaceGate(tree));
+  gates.push(sdkApiSurfaceGate(tree), evaluationMethodGate(tree));
   const analyzerInputs = paths.filter((p) => regularPaths.has(p) && isAnalyzerInput(p)).length;
-  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, unmapped client APIs, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
+  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, unmapped client APIs, default-value types, wrapper-forwarded (dynamic) flag keys and the served type of a flag read through an untyped evaluation are proven only by the hosted analyzer \u2014 the last one needs a read of your LaunchDarkly project, which no local check can substitute for"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
   return { admissible: !gates.some((g) => g.status === "refuse"), gates };
 }
 var HOSTED_ADMISSION_PREFLIGHTS = Object.freeze({
@@ -46317,7 +47378,7 @@ var HOSTED_ADMISSION_PREFLIGHTS = Object.freeze({
 var NPM_LOCKFILE2 = /^(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
 var WALK_SKIP = /* @__PURE__ */ new Set([".git", "node_modules"]);
 function toPosix(path2) {
-  return path2.split(import_node_path6.sep).join("/");
+  return path2.split(import_node_path7.sep).join("/");
 }
 function readCap(base) {
   if (NPM_LOCKFILE2.test(base))
@@ -46363,48 +47424,48 @@ function listGitIndex(root) {
     else if (mode === "160000")
       entries.push({ path: path2, kind: "submodule" });
     else
-      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path6.join)(toplevel, path2)) });
+      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path7.join)(toplevel, path2)) });
   }
   return entries.length > 0 ? { toplevel, entries } : null;
 }
 function walkFilesystem(root) {
-  const walk = { entries: [], unreadable: [] };
+  const walk2 = { entries: [], unreadable: [] };
   const visit = (dir) => {
     let dirents;
     try {
       dirents = (0, import_node_fs6.readdirSync)(dir, { withFileTypes: true });
     } catch {
-      walk.unreadable.push(toPosix((0, import_node_path6.relative)(root, dir)) || ".");
+      walk2.unreadable.push(toPosix((0, import_node_path7.relative)(root, dir)) || ".");
       return;
     }
     for (const dirent of dirents) {
       if (WALK_SKIP.has(dirent.name))
         continue;
-      const absolute = (0, import_node_path6.join)(dir, dirent.name);
-      const path2 = toPosix((0, import_node_path6.relative)(root, absolute));
+      const absolute = (0, import_node_path7.join)(dir, dirent.name);
+      const path2 = toPosix((0, import_node_path7.relative)(root, absolute));
       if (dirent.isSymbolicLink()) {
-        walk.entries.push({ path: path2, kind: "symlink" });
+        walk2.entries.push({ path: path2, kind: "symlink" });
       } else if (dirent.isDirectory()) {
-        if ((0, import_node_fs6.existsSync)((0, import_node_path6.join)(absolute, ".git"))) {
-          walk.entries.push({ path: path2, kind: "submodule" });
+        if ((0, import_node_fs6.existsSync)((0, import_node_path7.join)(absolute, ".git"))) {
+          walk2.entries.push({ path: path2, kind: "submodule" });
         } else {
-          walk.entries.push({ path: path2, kind: "directory" });
+          walk2.entries.push({ path: path2, kind: "directory" });
           visit(absolute);
         }
       } else if (dirent.isFile()) {
-        walk.entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
+        walk2.entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
       }
     }
   };
   visit(root);
-  return walk;
+  return walk2;
 }
 function collectAdmissionTree(options) {
   const { root } = options;
   const fromGit = listGitIndex(root);
   const enumeratedRoot = fromGit ? fromGit.toplevel : root;
-  const walk = fromGit ? void 0 : walkFilesystem(root);
-  const entries = fromGit ? fromGit.entries : walk.entries;
+  const walk2 = fromGit ? void 0 : walkFilesystem(root);
+  const entries = fromGit ? fromGit.entries : walk2.entries;
   const files = /* @__PURE__ */ new Map();
   for (const entry of entries) {
     if (entry.kind !== "file")
@@ -46413,16 +47474,16 @@ function collectAdmissionTree(options) {
     if (cap === void 0 || entry.size === void 0 || entry.size > cap)
       continue;
     try {
-      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path6.join)(enumeratedRoot, entry.path), "utf-8"));
+      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path7.join)(enumeratedRoot, entry.path), "utf-8"));
     } catch {
     }
   }
-  const scope = fromGit ? toPosix((0, import_node_path6.relative)(enumeratedRoot, (0, import_node_fs6.realpathSync)(root))) : "";
+  const scope = fromGit ? toPosix((0, import_node_path7.relative)(enumeratedRoot, (0, import_node_fs6.realpathSync)(root))) : "";
   for (const [absolute, content] of options.sourceFiles ?? []) {
-    const underScan = toPosix((0, import_node_path6.relative)(root, absolute));
+    const underScan = toPosix((0, import_node_path7.relative)(root, absolute));
     files.set(scope.length > 0 ? `${scope}/${underScan}` : underScan, content);
   }
-  const unreadable = walk?.unreadable ?? [];
+  const unreadable = walk2?.unreadable ?? [];
   return {
     entries,
     files,
@@ -47285,8 +48346,17 @@ async function scanRepo(opts) {
   logger.debug(`Detected ${files.size} candidate files (excluded ${excludedCount})`);
   const filesScanned = files.size;
   const tsJsSdkPatterns = collectSdkPatterns(registry);
-  const filesForAnalysis = augmentForWrapperDetection(files, tsJsSdkPatterns, logger, opts.cwd);
+  const wrapperGraph = buildWrapperGraph(files, tsJsSdkPatterns, logger, opts.cwd);
+  const filesForAnalysis = augmentForWrapperDetection(files, wrapperGraph.graph, logger);
   const analysisResult = await analyzer.analyzeFiles(filesForAnalysis, opts.signal);
+  const detectionCoverage = opts.engine === "regex" ? void 0 : await analyzeDetectionCoverage({
+    files,
+    wrapperGraph,
+    registry,
+    root: opts.cwd,
+    totalFlags: analysisResult.totalFlags,
+    logger
+  });
   if (config.custom_detectors && config.custom_detectors.length > 0) {
     applyCustomDetectors(files, config.custom_detectors, analysisResult.totalFlags, logger);
   }
@@ -47371,7 +48441,8 @@ async function scanRepo(opts) {
     excludedPermanent,
     permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
-    lockIn
+    lockIn,
+    detectionCoverage
   };
 }
 function collectProviderDefinitions(registry) {
@@ -47397,9 +48468,7 @@ function collectSdkPatterns(registry) {
 }
 var WRAPPER_MARKER_PREFIX = "// flagshark-internal: transitively reaches";
 var WRAPPER_MARKER_PREFIX_PYTHON = "# flagshark-internal: transitively reaches";
-function augmentForWrapperDetection(files, tsJsSdkPatterns, logger, cwd) {
-  if (tsJsSdkPatterns.length === 0)
-    return files;
+function buildWrapperGraph(files, tsJsSdkPatterns, logger, cwd) {
   const aliases = loadTsconfigAliases(cwd);
   if (aliases) {
     logger.debug("tsconfig path aliases loaded", {
@@ -47409,15 +48478,18 @@ function augmentForWrapperDetection(files, tsJsSdkPatterns, logger, cwd) {
   }
   const graph = buildImportGraph(files, {
     seedSdkPatterns: tsJsSdkPatterns,
-    // Polyglot scope — graph now walks TS/JS *and* Python wrappers so a
-    // Python consumer file that does `from .feature_flags import is_enabled`
-    // (where feature_flags.py imports `posthog`) is in scope. The option
-    // name is legacy from when TS/JS was the only surface; the helper
-    // returns true for .py files too. See B4 in the bug inventory.
+    // Polyglot scope — the graph walks TS/JS *and* Python wrappers so a Python
+    // consumer file that does `from .feature_flags import is_enabled` (where
+    // feature_flags.py imports `posthog`) is in scope. The option name is legacy
+    // from when TS/JS was the only surface; the helper returns true for .py
+    // files too. See B4 in the bug inventory.
     isTsJs: isScannedSourceFile,
     aliases: aliases ?? void 0
   });
   logger.debug("Import graph built", graph.stats);
+  return { graph, aliases };
+}
+function augmentForWrapperDetection(files, graph, logger) {
   if (graph.stats.inScopeFiles === 0) {
     return files;
   }
@@ -47438,6 +48510,51 @@ ${prefix} ${sdkList}
   }
   logger.debug(`Wrapper-aware detection augmented ${augmentedCount} files`);
   return augmented;
+}
+async function analyzeDetectionCoverage(options) {
+  const { wrapperGraph, registry } = options;
+  const analysis = await analyzeWrapperEvaluations({
+    files: options.files,
+    transitiveSdks: wrapperGraph.graph.transitiveSdks,
+    providers: collectTsJsProviders(registry),
+    aliases: wrapperGraph.aliases ?? void 0,
+    languageForFile: (filePath) => registry.getDetectorForFile(filePath).language()
+  });
+  const detectedFlags = [];
+  for (const occurrences of options.totalFlags.values())
+    detectedFlags.push(...occurrences);
+  const { coverage, flags: flags2 } = summarizeDetectionCoverage(analysis, {
+    root: options.root,
+    detectedFlags
+  });
+  for (const flag of flags2) {
+    const existing = options.totalFlags.get(flag.name) ?? [];
+    existing.push(flag);
+    options.totalFlags.set(flag.name, existing);
+  }
+  options.logger.debug("Detection coverage measured", {
+    filesInScope: coverage.filesInScope,
+    sites: coverage.sites,
+    flagsNamed: coverage.flagsNamed,
+    delegated: coverage.delegated,
+    unnamed: coverage.unnamed,
+    wrappers: coverage.wrappers.length,
+    refusedForRewrite: coverage.refusedForRewrite,
+    callShaped: coverage.evaluationSurface.callShaped,
+    accountedFor: coverage.evaluationSurface.accountedFor,
+    wrapperFlags: flags2.length
+  });
+  return coverage;
+}
+function collectTsJsProviders(registry) {
+  const providers = [];
+  for (const lang of [Languages.TypeScript, Languages.JavaScript]) {
+    const detector = registry.getDetector(lang);
+    if (!detector)
+      continue;
+    providers.push(...detector.getProviders());
+  }
+  return providers;
 }
 var LANGUAGE_EXTENSIONS = {
   go: [".go"],
@@ -47549,6 +48666,41 @@ var LANGUAGE_LABELS = {
 function languageLabel(language) {
   return LANGUAGE_LABELS[language] ?? language;
 }
+var DETECTION_COVERAGE_HEADING = "Detection coverage (local; call-shaped evaluation sites counted from the parsed tree)";
+var MAX_DETECTION_COVERAGE_LINES = 5;
+function plural2(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+function truncate(items, render, noun) {
+  const lines = items.slice(0, MAX_DETECTION_COVERAGE_LINES).map(render);
+  const remaining = items.length - MAX_DETECTION_COVERAGE_LINES;
+  if (remaining > 0)
+    lines.push(`\u2026 and ${plural2(remaining, noun)} (see --format json)`);
+  return lines;
+}
+function describeDetectionCoverage(coverage) {
+  if (coverage.sites === 0 && coverage.evaluationSurface.callShaped === 0)
+    return null;
+  const parts2 = [`${coverage.flagsNamed} of ${plural2(coverage.sites, "site")} named`];
+  if (coverage.delegated > 0) {
+    parts2.push(`${coverage.delegated} forwarded by ${plural2(coverage.wrappers.length, "wrapper")}`);
+  }
+  parts2.push(`${coverage.unnamed} not named`);
+  const surface = coverage.evaluationSurface;
+  if (surface.accountedFor !== surface.callShaped) {
+    parts2.push(`FS-069 cross-check ${surface.callShaped - surface.accountedFor} of ${plural2(surface.callShaped, "member-form evaluation call")} unexplained`);
+  }
+  if (coverage.refusedForRewrite > 0) {
+    parts2.push(`${plural2(coverage.refusedForRewrite, "site")} the hosted migration refuses to rewrite`);
+  }
+  return {
+    headline: parts2.join(" \xB7 "),
+    wrappers: truncate(coverage.wrappers, (wrapper) => `${wrapper.label} forwards argument ${wrapper.keyParameterIndex + 1} to ${wrapper.forwardsTo} \xB7 ${wrapper.declaredAt} \xB7 ${plural2(wrapper.callers, "caller")} (${wrapper.resolvedCallers} named \xB7 ${wrapper.unresolvedCallers} runtime-only \xB7 ${wrapper.forwardingCallers} forwarded on)`, "more wrapper"),
+    refusals: truncate(coverage.rewriteRefusals, (refusal) => `${refusal.reason}  ${plural2(refusal.count, "site")} (first at ${refusal.sample}) \u2014 ${refusal.detail}`, "more refusal"),
+    gaps: truncate(coverage.gaps, (gap) => `${gap.reason}  ${plural2(gap.count, "site")} (first at ${gap.sample}) \u2014 ${gap.detail}`, "more refusal reason"),
+    hasShortfall: coverage.unnamed > 0 || surface.accountedFor !== surface.callShaped
+  };
+}
 
 // ../core/dist/output/markdown.js
 var DEFAULT_MAX_STALE = 20;
@@ -47571,7 +48723,28 @@ function buildAdmissionSection(entry) {
   }
   return body2 + "\n";
 }
-function buildLockInSection(lockIn) {
+function buildDetectionCoverageSection(coverage) {
+  if (!coverage)
+    return "";
+  const described = describeDetectionCoverage(coverage);
+  if (!described)
+    return "";
+  let body2 = `**${DETECTION_COVERAGE_HEADING}:** ${described.headline}.
+
+`;
+  for (const wrapper of described.wrappers)
+    body2 += `- Wrapper: ${wrapper}
+`;
+  for (const refusal of described.refusals)
+    body2 += `- Hosted migration refuses: ${refusal}
+`;
+  for (const gap of described.gaps)
+    body2 += `- Not named: ${gap}
+`;
+  return `${body2}
+`;
+}
+function buildLockInSection(lockIn, coverage) {
   if (lockIn.callSites === 0)
     return "";
   const sdkCount = lockIn.providers.filter((p) => p.classification !== "already-openfeature").length;
@@ -47594,6 +48767,7 @@ function buildLockInSection(lockIn) {
   for (const entry of lockIn.hostedAdmission) {
     body2 += buildAdmissionSection(entry);
   }
+  body2 += buildDetectionCoverageSection(coverage);
   body2 += "_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n";
   return body2;
 }
@@ -47622,7 +48796,7 @@ function formatMarkdown(result, options) {
 
 `;
   if (result.lockIn) {
-    body2 += buildLockInSection(result.lockIn);
+    body2 += buildLockInSection(result.lockIn, result.detectionCoverage);
   }
   const parseErrorCount = result.parseErrorCount ?? 0;
   if (parseErrorCount > 0 && result.filesScanned > 0) {
@@ -47898,8 +49072,8 @@ async function run2(deps) {
     if (sarifPath) {
       const actionVersion = process.env.GITHUB_ACTION_REF || "unknown";
       const sarifJson = formatSarif(result, { version: actionVersion });
-      const absolutePath = (0, import_node_path7.resolve)(cwd, sarifPath);
-      (0, import_node_fs7.mkdirSync)((0, import_node_path7.dirname)(absolutePath), { recursive: true });
+      const absolutePath = (0, import_node_path8.resolve)(cwd, sarifPath);
+      (0, import_node_fs7.mkdirSync)((0, import_node_path8.dirname)(absolutePath), { recursive: true });
       (0, import_node_fs7.writeFileSync)(absolutePath, sarifJson);
       core2.info(`Wrote SARIF to ${absolutePath}`);
       core2.setOutput("sarif-path", absolutePath);
@@ -47993,8 +49167,8 @@ async function postComment(opts) {
 }
 
 // src/index.ts
-process.env.FLAGSHARK_WASM_DIR = (0, import_node_path8.join)(__dirname, "grammars");
-process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path8.join)(__dirname, "queries");
+process.env.FLAGSHARK_WASM_DIR = (0, import_node_path9.join)(__dirname, "grammars");
+process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path9.join)(__dirname, "queries");
 run2({ core, github, cwd: process.cwd() });
 /*! Bundled license information:
 

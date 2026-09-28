@@ -109,7 +109,7 @@ describe('preflightNodeServerAdmission — invariants', () => {
     expect(result.gates.map((g) => g.id)).toEqual([
       'tree-size', 'tree-paths', 'content-budget', 'single-manifest', 'package-manager-markers', 'npmrc',
       'workspaces', 'lockfile', 'npm-pin', 'dev-engines', 'dependencies', 'launchdarkly-sdk', 'typecheck',
-      'test-script', 'node-runtime', 'sdk-api-surface', ...UNKNOWN_ALWAYS,
+      'test-script', 'node-runtime', 'sdk-api-surface', 'evaluation-method', ...UNKNOWN_ALWAYS,
     ])
   })
 
@@ -231,7 +231,10 @@ describe('tree gates', () => {
     }
     expect(gateOf(result.gates, 'test-script')).toMatchObject({ status: 'unknown', detail: 'not checked: requires exactly one readable package.json' })
     expect(gateOf(result.gates, 'sdk-api-surface').status).toBe('pass')
-    expect(result.gates.filter((g) => g.status === 'pass').map((g) => g.id)).toEqual(['sdk-api-surface'])
+    expect(result.gates.filter((g) => g.status === 'pass').map((g) => g.id)).toEqual([
+      'sdk-api-surface',
+      'evaluation-method',
+    ])
     expect(result.gates.map((g) => g.id)).toEqual(run(admissibleSpec()).gates.map((g) => g.id))
   })
 

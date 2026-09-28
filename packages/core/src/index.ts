@@ -51,3 +51,47 @@ export * from './output/index.js'
 
 // Platform integration providers
 export * from './providers/index.js'
+
+// Wrapper-mediated evaluations + detection coverage (local; no account, no network)
+export {
+  analyzeWrapperEvaluations,
+  callerCount,
+  rewriteRefusalFor,
+  wrapperLabel,
+  EVALUATION_GAP_DETAILS,
+} from './detection/wrapper-evaluations.js'
+export {
+  isLaunchDarklyNodePackage,
+  launchDarklyNodeMethod,
+  LAUNCHDARKLY_DETAIL_METHOD_NAMES,
+  LAUNCHDARKLY_NODE_CLIENT_METHODS,
+  LAUNCHDARKLY_NODE_EVALUATION_METHODS,
+  LAUNCHDARKLY_NODE_LIFECYCLE_METHODS,
+  LAUNCHDARKLY_NODE_PACKAGES,
+  LAUNCHDARKLY_UNTYPED_METHOD_NAMES,
+} from './detection/launchdarkly-node-methods.js'
+export type {
+  LaunchDarklyEvaluationMethod,
+  LaunchDarklyValueType,
+} from './detection/launchdarkly-node-methods.js'
+export type {
+  WrapperDeclaration,
+  WrapperEvaluationOptions,
+  WrapperEvaluationResult,
+  WrapperKind,
+  WrapperRewriteBlocker,
+  WrapperRewriteBlockerReason,
+  EvaluationGapReason,
+  EvaluationSite,
+  EvaluationSiteStatus,
+  EvaluationSurfaceCoverage,
+  EvaluationPosition,
+} from './detection/wrapper-evaluations.js'
+export { summarizeDetectionCoverage } from './detection/detection-coverage.js'
+export type {
+  DetectionCoverage,
+  DetectionCoverageGap,
+  DetectionCoverageRewriteRefusal,
+  DetectionCoverageWrapper,
+  SummarizeDetectionCoverageOptions,
+} from './detection/detection-coverage.js'

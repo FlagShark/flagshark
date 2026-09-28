@@ -13,8 +13,17 @@ import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag } from '../staleness.js'
 
 import { LOCK_IN_CLASSIFICATIONS, LOCK_IN_LABELS } from '../migration/lock-in.js'
-import { uniqueStaleCount, healthEmoji, languageLabel, tallyAdmissionGates, ADMISSION_PREFLIGHT_HEADING } from './shared.js'
+import {
+  uniqueStaleCount,
+  healthEmoji,
+  languageLabel,
+  tallyAdmissionGates,
+  describeDetectionCoverage,
+  ADMISSION_PREFLIGHT_HEADING,
+  DETECTION_COVERAGE_HEADING,
+} from './shared.js'
 
+import type { DetectionCoverage } from '../detection/detection-coverage.js'
 import type { LockInHostedAdmission, LockInSummary } from '../migration/lock-in.js'
 
 export interface MarkdownFormatOptions {
@@ -55,7 +64,22 @@ function buildAdmissionSection(entry: LockInHostedAdmission): string {
  * provider table. Same classification wording as the text output. Empty
  * when there are no call sites.
  */
-function buildLockInSection(lockIn: LockInSummary): string {
+/**
+ * The detection-coverage metric, next to the lock-in table so the call-site
+ * count is never read without the surface it was measured over.
+ */
+function buildDetectionCoverageSection(coverage: DetectionCoverage | undefined): string {
+  if (!coverage) return ''
+  const described = describeDetectionCoverage(coverage)
+  if (!described) return ''
+  let body = `**${DETECTION_COVERAGE_HEADING}:** ${described.headline}.\n\n`
+  for (const wrapper of described.wrappers) body += `- Wrapper: ${wrapper}\n`
+  for (const refusal of described.refusals) body += `- Hosted migration refuses: ${refusal}\n`
+  for (const gap of described.gaps) body += `- Not named: ${gap}\n`
+  return `${body}\n`
+}
+
+function buildLockInSection(lockIn: LockInSummary, coverage: DetectionCoverage | undefined): string {
   if (lockIn.callSites === 0) return ''
 
   const sdkCount = lockIn.providers.filter((p) => p.classification !== 'already-openfeature').length
@@ -76,6 +100,7 @@ function buildLockInSection(lockIn: LockInSummary): string {
   for (const entry of lockIn.hostedAdmission) {
     body += buildAdmissionSection(entry)
   }
+  body += buildDetectionCoverageSection(coverage)
   body += '_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n'
   return body
 }
@@ -111,7 +136,7 @@ export function formatMarkdown(result: ScanRepoResult, options: MarkdownFormatOp
 
   // Lock-in summary — the migration-assessment wedge, right under the header.
   if (result.lockIn) {
-    body += buildLockInSection(result.lockIn)
+    body += buildLockInSection(result.lockIn, result.detectionCoverage)
   }
 
   // Parse-error surfacing — mirrors text output. When a non-trivial slice of

@@ -314,7 +314,7 @@ describe('formatJson — lockIn', () => {
     expect(Object.keys(json)).toEqual([
       'version', 'totalFlags', 'staleFlags', 'errorCount', 'parseErrorCount', 'excludedPermanent',
       'permanentByPlatform', 'healthScore', 'detectedProviders', 'languages', 'flags', 'excludedPaths',
-      'scanDuration', 'lockIn', 'links',
+      'scanDuration', 'lockIn', 'detectionCoverage', 'links',
     ])
   })
 
