@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { summarizeEvaluationSurface } from '../../src/detection/evaluation-surface.js'
+import { summarizeDetectionCoverage } from '../../src/detection/detection-coverage.js'
 import { EVALUATION_GAP_DETAILS } from '../../src/detection/wrapper-evaluations.js'
 
 import type { FeatureFlag } from '../../src/detection/feature-flag.js'
@@ -37,19 +37,28 @@ function wrapper(partial: Partial<WrapperDeclaration> = {}): WrapperDeclaration 
     resolvedCallers: 1,
     unresolvedCallers: 0,
     forwardingCallers: 0,
+    rewriteBlocker: null,
     ...partial,
   }
 }
 
 function analysis(partial: Partial<WrapperEvaluationResult> = {}): WrapperEvaluationResult {
-  return { wrappers: [], flags: [], sites: [], filesInScope: 0, ...partial }
+  return {
+    wrappers: [],
+    flags: [],
+    sites: [],
+    filesInScope: 0,
+    evaluationSurface: { callShaped: 0, accountedFor: 0 },
+    ...partial,
+  }
 }
 
-describe('summarizeEvaluationSurface', () => {
+describe('summarizeDetectionCoverage', () => {
   it('splits sites into accounted-for, delegated and unaccounted-for', () => {
-    const { surface } = summarizeEvaluationSurface(
+    const { coverage } = summarizeDetectionCoverage(
       analysis({
         filesInScope: 7,
+        evaluationSurface: { callShaped: 3, accountedFor: 3 },
         sites: [
           site({ status: { kind: 'accounted', flagKey: 'a' } }),
           site({ status: { kind: 'accounted', flagKey: 'b' }, lineNumber: 2 }),
@@ -60,19 +69,21 @@ describe('summarizeEvaluationSurface', () => {
       { root: ROOT, detectedFlags: [] },
     )
 
-    expect(surface).toMatchObject({
+    expect(coverage).toMatchObject({
       schemaVersion: 1,
       filesInScope: 7,
       sites: 4,
-      accountedFor: 2,
+      flagsNamed: 2,
       delegated: 1,
-      unaccountedFor: 1,
+      unnamed: 1,
+      refusedForRewrite: 0,
+      evaluationSurface: { callShaped: 3, accountedFor: 3 },
     })
-    expect(surface.accountedFor + surface.delegated + surface.unaccountedFor).toBe(surface.sites)
+    expect(coverage.flagsNamed + coverage.delegated + coverage.unnamed).toBe(coverage.sites)
   })
 
   it('aggregates gaps by reason, most frequent first, with the first location as the sample', () => {
-    const { surface } = summarizeEvaluationSurface(
+    const { coverage } = summarizeDetectionCoverage(
       analysis({
         sites: [
           site({ status: { kind: 'gap', reason: 'unprovable-key' }, lineNumber: 11 }),
@@ -84,7 +95,7 @@ describe('summarizeEvaluationSurface', () => {
       { root: ROOT, detectedFlags: [] },
     )
 
-    expect(surface.gaps).toEqual([
+    expect(coverage.gaps).toEqual([
       {
         reason: 'computed-key',
         count: 2,
@@ -107,7 +118,7 @@ describe('summarizeEvaluationSurface', () => {
   })
 
   it('reports each wrapper with its caller breakdown and a repository-relative location', () => {
-    const { surface } = summarizeEvaluationSurface(
+    const { coverage } = summarizeDetectionCoverage(
       analysis({
         wrappers: [
           wrapper({ resolvedCallers: 6, unresolvedCallers: 1, forwardingCallers: 2 }),
@@ -126,7 +137,7 @@ describe('summarizeEvaluationSurface', () => {
       { root: ROOT, detectedFlags: [] },
     )
 
-    expect(surface.wrappers).toEqual([
+    expect(coverage.wrappers).toEqual([
       {
         label: 'getFlag()',
         declaredAt: 'src/flags.ts:4',
@@ -139,6 +150,7 @@ describe('summarizeEvaluationSurface', () => {
         resolvedCallers: 6,
         unresolvedCallers: 1,
         forwardingCallers: 2,
+        rewriteBlocker: null,
       },
       {
         label: 'LaunchDarklyService.getVariation()',
@@ -152,6 +164,7 @@ describe('summarizeEvaluationSurface', () => {
         resolvedCallers: 1,
         unresolvedCallers: 0,
         forwardingCallers: 0,
+        rewriteBlocker: null,
       },
     ])
   })
@@ -165,7 +178,7 @@ describe('summarizeEvaluationSurface', () => {
       provider: '@launchdarkly/node-server-sdk',
       confidence: 'medium',
     })
-    const { flags } = summarizeEvaluationSurface(
+    const { flags } = summarizeDetectionCoverage(
       analysis({ flags: [flag('already-known', 3), flag('new-one', 4), flag('new-one', 4)] }),
       {
         root: ROOT,
@@ -181,26 +194,47 @@ describe('summarizeEvaluationSurface', () => {
   })
 
   it('falls back to the absolute path when a location is outside the scan root', () => {
-    const { surface } = summarizeEvaluationSurface(
+    const { coverage } = summarizeDetectionCoverage(
       analysis({
         sites: [site({ filePath: ROOT, lineNumber: 1, status: { kind: 'gap', reason: 'computed-key' } })],
       }),
       { root: ROOT, detectedFlags: [] },
     )
-    expect(surface.gaps[0].sample).toBe('/repo:1')
+    expect(coverage.gaps[0].sample).toBe('/repo:1')
+  })
+
+  it('counts every caller of a wrapper the hosted migration refuses to rewrite', () => {
+    const blocker = {
+      reason: 'generic-variation' as const,
+      sdkMethod: 'variation',
+      detail: 'the body evaluates with variation()…',
+    }
+    const { coverage } = summarizeDetectionCoverage(
+      analysis({
+        wrappers: [
+          wrapper({ resolvedCallers: 70, rewriteBlocker: blocker }),
+          wrapper({ lineNumber: 20, name: 'typed', resolvedCallers: 3 }),
+        ],
+      }),
+      { root: ROOT, detectedFlags: [] },
+    )
+    expect(coverage.refusedForRewrite).toBe(70)
+    expect(coverage.wrappers.map((entry) => entry.rewriteBlocker)).toEqual([blocker, null])
   })
 
   it('is empty for a repository with no evaluation sites at all', () => {
-    const { surface, flags } = summarizeEvaluationSurface(analysis(), { root: ROOT, detectedFlags: [] })
-    expect(surface).toEqual({
+    const { coverage, flags } = summarizeDetectionCoverage(analysis(), { root: ROOT, detectedFlags: [] })
+    expect(coverage).toEqual({
       schemaVersion: 1,
       filesInScope: 0,
       sites: 0,
-      accountedFor: 0,
+      flagsNamed: 0,
       delegated: 0,
-      unaccountedFor: 0,
+      unnamed: 0,
       gaps: [],
       wrappers: [],
+      refusedForRewrite: 0,
+      evaluationSurface: { callShaped: 0, accountedFor: 0 },
     })
     expect(flags).toEqual([])
   })

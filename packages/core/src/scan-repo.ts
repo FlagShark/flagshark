@@ -6,7 +6,7 @@
 import { collectFiles } from './scanner.js'
 import { createDefaultRegistry, createRegistryWithEngine } from './detection/index.js'
 import { buildImportGraph, isScannedSourceFile, loadTsconfigAliases } from './detection/import-graph.js'
-import { summarizeEvaluationSurface } from './detection/evaluation-surface.js'
+import { summarizeDetectionCoverage } from './detection/detection-coverage.js'
 import { analyzeWrapperEvaluations } from './detection/wrapper-evaluations.js'
 import { Languages, getImportPattern } from './detection/interface.js'
 import { PolyglotAnalyzer } from './detection/polyglot-analyzer.js'
@@ -26,7 +26,7 @@ import type { StaleFlag } from './staleness.js'
 import type { FlagsharkConfig } from './config/schema.js'
 import type { EffectiveRules } from './config/excluder.js'
 import type { ImportGraphResult, PathAliases } from './detection/import-graph.js'
-import type { EvaluationSurface } from './detection/evaluation-surface.js'
+import type { DetectionCoverage } from './detection/detection-coverage.js'
 import type { AdmissionTreeView } from './migration/hosted-admission.js'
 import type { LockInSummary } from './migration/lock-in.js'
 
@@ -180,14 +180,17 @@ export interface ScanRepoResult {
   lockIn?: LockInSummary
 
   /**
-   * Detection coverage over the TypeScript/JavaScript evaluation surface: how
-   * many call-shaped evaluation sites the parsed trees contain, how many the
-   * scan named a flag for, how many it delegates to a wrapper's callers, and
-   * what it refused to guess about — plus the wrappers it identified. Always
-   * populated by `scanRepo`; optional on the type for the same reason as
-   * `lockIn`. Formatters omit the block when it is absent or empty.
+   * Detection coverage over the TypeScript/JavaScript evaluation surface: how many
+   * call-shaped evaluation sites the parsed trees contain, how many the scan named
+   * a flag for, how many it delegates to a wrapper's callers, what it refused to
+   * guess about, the wrappers it identified and which of those the hosted
+   * migration refuses to rewrite — plus FS-069's `evaluationSurface` cross-check
+   * under its own name and semantics. Always populated by `scanRepo`; optional on
+   * the type for the same reason as `lockIn`. Formatters omit the block when it is
+   * absent or empty. Absent under the internal `engine: 'regex'` escape hatch,
+   * which deliberately measures regex-only detection.
    */
-  evaluationSurface?: EvaluationSurface
+  detectionCoverage?: DetectionCoverage
 }
 
 const NOOP: (...args: unknown[]) => void = () => {}
@@ -266,10 +269,10 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   // Skipped under the internal `engine: 'regex'` escape hatch: that flag exists
   // so the two detection engines can be compared, and an AST-derived pass
   // feeding flags into the regex run would destroy the comparison.
-  const evaluationSurface =
+  const detectionCoverage =
     opts.engine === 'regex'
       ? undefined
-      : await analyzeEvaluationSurface({
+      : await analyzeDetectionCoverage({
           files,
           wrapperGraph,
           registry,
@@ -408,7 +411,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
     lockIn,
-    evaluationSurface,
+    detectionCoverage,
   }
 }
 
@@ -571,7 +574,7 @@ function augmentForWrapperDetection(
   return augmented
 }
 
-interface AnalyzeEvaluationSurfaceOptions {
+interface AnalyzeDetectionCoverageOptions {
   files: Map<string, string>
   wrapperGraph: WrapperGraph
   registry: LanguageRegistry
@@ -588,9 +591,9 @@ interface AnalyzeEvaluationSurfaceOptions {
  * Local only: a pure function of the already-read file contents. No account, no
  * token, no network.
  */
-async function analyzeEvaluationSurface(
-  options: AnalyzeEvaluationSurfaceOptions,
-): Promise<EvaluationSurface> {
+async function analyzeDetectionCoverage(
+  options: AnalyzeDetectionCoverageOptions,
+): Promise<DetectionCoverage> {
   const { wrapperGraph, registry } = options
   const analysis = await analyzeWrapperEvaluations({
     files: options.files,
@@ -603,7 +606,7 @@ async function analyzeEvaluationSurface(
   const detectedFlags: FeatureFlag[] = []
   for (const occurrences of options.totalFlags.values()) detectedFlags.push(...occurrences)
 
-  const { surface, flags } = summarizeEvaluationSurface(analysis, {
+  const { coverage, flags } = summarizeDetectionCoverage(analysis, {
     root: options.root,
     detectedFlags,
   })
@@ -614,17 +617,20 @@ async function analyzeEvaluationSurface(
     options.totalFlags.set(flag.name, existing)
   }
 
-  options.logger.debug('Evaluation surface measured', {
-    filesInScope: surface.filesInScope,
-    sites: surface.sites,
-    accountedFor: surface.accountedFor,
-    delegated: surface.delegated,
-    unaccountedFor: surface.unaccountedFor,
-    wrappers: surface.wrappers.length,
+  options.logger.debug('Detection coverage measured', {
+    filesInScope: coverage.filesInScope,
+    sites: coverage.sites,
+    flagsNamed: coverage.flagsNamed,
+    delegated: coverage.delegated,
+    unnamed: coverage.unnamed,
+    wrappers: coverage.wrappers.length,
+    refusedForRewrite: coverage.refusedForRewrite,
+    callShaped: coverage.evaluationSurface.callShaped,
+    accountedFor: coverage.evaluationSurface.accountedFor,
     wrapperFlags: flags.length,
   })
 
-  return surface
+  return coverage
 }
 
 /**

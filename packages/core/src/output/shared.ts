@@ -1,4 +1,4 @@
-import type { EvaluationSurface } from '../detection/evaluation-surface.js'
+import type { DetectionCoverage } from '../detection/detection-coverage.js'
 import type { AdmissionGate, HostedAdmissionPreflight } from '../migration/hosted-admission.js'
 import type { StaleFlag } from '../staleness.js'
 
@@ -72,18 +72,24 @@ export function languageLabel(language: string): string {
  * metric. Names what is counted and where the count comes from; it never claims
  * the scan saw everything.
  */
-export const EVALUATION_SURFACE_HEADING =
+export const DETECTION_COVERAGE_HEADING =
   'Detection coverage (local; call-shaped evaluation sites counted from the parsed tree)'
 
-/** Cap on how many wrapper and gap lines the human-readable renderings print. */
-export const MAX_EVALUATION_SURFACE_LINES = 5
+/** Cap on how many wrapper, refusal and gap lines the human-readable renderings print. */
+export const MAX_DETECTION_COVERAGE_LINES = 5
 
-export interface EvaluationSurfaceDescription {
-  /** One line: how many sites were accounted for, forwarded, and not accounted for. */
+export interface DetectionCoverageDescription {
+  /** One line: how many sites were named, forwarded, and not named. */
   headline: string
   /** One line per identified wrapper, with the callers found for it. */
   wrappers: string[]
-  /** One line per refusal reason behind `unaccountedFor`. */
+  /**
+   * One line per wrapper the hosted migration refuses to rewrite (FS-069). Detection
+   * is not migratability, and these lines are what stops the flag count reading as a
+   * migration promise.
+   */
+  refusals: string[]
+  /** One line per refusal reason behind `unnamed`. */
   gaps: string[]
   /** True when at least one site has no flag name the scan is willing to claim. */
   hasShortfall: boolean
@@ -94,30 +100,46 @@ function plural(count: number, noun: string): string {
 }
 
 function truncate<T>(items: T[], render: (item: T) => string, noun: string): string[] {
-  const lines = items.slice(0, MAX_EVALUATION_SURFACE_LINES).map(render)
-  const remaining = items.length - MAX_EVALUATION_SURFACE_LINES
+  const lines = items.slice(0, MAX_DETECTION_COVERAGE_LINES).map(render)
+  const remaining = items.length - MAX_DETECTION_COVERAGE_LINES
   if (remaining > 0) lines.push(`… and ${plural(remaining, noun)} (see --format json)`)
   return lines
 }
 
 /**
- * Renders the detection-coverage metric into the lines both human-readable
+ * Renders the detection-coverage metrics into the lines both human-readable
  * formatters print. Returns null when the parsed trees held no evaluation-shaped
  * call at all — there is nothing to be honest about in that case.
+ *
+ * The headline carries three things at once: the scanner's own key-resolution split,
+ * FS-069's `callShaped`/`accountedFor` cross-check when it disagrees, and how much of
+ * the reported surface the hosted migration refuses to rewrite.
  */
-export function describeEvaluationSurface(
-  surface: EvaluationSurface,
-): EvaluationSurfaceDescription | null {
-  if (surface.sites === 0) return null
-  const parts = [`${surface.accountedFor} of ${plural(surface.sites, 'site')} accounted for`]
-  if (surface.delegated > 0) {
-    parts.push(`${surface.delegated} forwarded by ${plural(surface.wrappers.length, 'wrapper')}`)
+export function describeDetectionCoverage(
+  coverage: DetectionCoverage,
+): DetectionCoverageDescription | null {
+  if (coverage.sites === 0 && coverage.evaluationSurface.callShaped === 0) return null
+  const parts = [`${coverage.flagsNamed} of ${plural(coverage.sites, 'site')} named`]
+  if (coverage.delegated > 0) {
+    parts.push(`${coverage.delegated} forwarded by ${plural(coverage.wrappers.length, 'wrapper')}`)
   }
-  parts.push(`${surface.unaccountedFor} not accounted for`)
+  parts.push(`${coverage.unnamed} not named`)
+  const surface = coverage.evaluationSurface
+  // The cross-check only earns a place in the headline when it disagrees: equal
+  // numbers mean every evaluation-shaped call was explained, which is the
+  // expected state and is already implied by the split above.
+  if (surface.accountedFor !== surface.callShaped) {
+    parts.push(
+      `${surface.callShaped - surface.accountedFor} of ${plural(surface.callShaped, 'evaluation-shaped call')} unexplained`,
+    )
+  }
+  if (coverage.refusedForRewrite > 0) {
+    parts.push(`${plural(coverage.refusedForRewrite, 'site')} the hosted migration refuses to rewrite`)
+  }
   return {
     headline: parts.join(' · '),
     wrappers: truncate(
-      surface.wrappers,
+      coverage.wrappers,
       (wrapper) =>
         `${wrapper.label} forwards argument ${wrapper.keyParameterIndex + 1} to ${wrapper.forwardsTo} · ` +
         `${wrapper.declaredAt} · ${plural(wrapper.callers, 'caller')} ` +
@@ -125,11 +147,18 @@ export function describeEvaluationSurface(
         `${wrapper.forwardingCallers} forwarded on)`,
       'more wrapper',
     ),
+    refusals: truncate(
+      coverage.wrappers.filter((wrapper) => wrapper.rewriteBlocker !== null),
+      (wrapper) =>
+        `${wrapper.rewriteBlocker!.reason}  ${wrapper.label} at ${wrapper.declaredAt} — ` +
+        `${wrapper.rewriteBlocker!.detail}`,
+      'more refused wrapper',
+    ),
     gaps: truncate(
-      surface.gaps,
+      coverage.gaps,
       (gap) => `${gap.reason}  ${plural(gap.count, 'site')} (first at ${gap.sample}) — ${gap.detail}`,
       'more refusal reason',
     ),
-    hasShortfall: surface.unaccountedFor > 0,
+    hasShortfall: coverage.unnamed > 0 || surface.accountedFor !== surface.callShaped,
   }
 }

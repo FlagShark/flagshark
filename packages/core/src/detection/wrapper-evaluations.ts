@@ -90,6 +90,28 @@ export interface WrapperDeclaration {
   unresolvedCallers: number
   /** Call sites found that forward a parameter of their own, deferring the key again. */
   forwardingCallers: number
+  /**
+   * Set when the hosted migration refuses to rewrite this wrapper whatever its
+   * callers pass (FS-069). Null means the scan makes no such claim — never that
+   * the wrapper is migratable.
+   */
+  rewriteBlocker: WrapperRewriteBlocker | null
+}
+
+/**
+ * Why the hosted migration refuses to rewrite a wrapper, independently of whether
+ * the scan could name its flags. Detection and rewritability are different axes:
+ * the scanner may legitimately detect more than the migrator can rewrite, and it
+ * must not present the two as the same thing.
+ */
+export type WrapperRewriteBlockerReason = 'generic-variation'
+
+export interface WrapperRewriteBlocker {
+  reason: WrapperRewriteBlockerReason
+  /** The SDK method the wrapper body evaluates with. */
+  sdkMethod: string
+  /** One line: what cannot be proven, and what would change the answer. */
+  detail: string
 }
 
 /**
@@ -101,9 +123,10 @@ export type EvaluationGapReason =
   | 'computed-key'
   | 'unprovable-key'
   | 'unusable-literal-key'
+  | 'spread-caller'
   | 'destructured-parameter'
   | 'unnamed-wrapper'
-  | 'unproven-wrapper'
+  | 'ambiguous-client-provenance'
   | 'wrapper-without-callers'
 
 /** One line per refusal reason, printed next to its count. */
@@ -116,10 +139,12 @@ export const EVALUATION_GAP_DETAILS: Record<EvaluationGapReason, string> = {
     'the flag key is a literal FlagShark will not accept as a key (a URL, a path, or a string with whitespace), so the call is probably not an evaluation',
   'destructured-parameter':
     'the flag key arrives through a destructured parameter, so it has no fixed argument position to read at the callers',
+  'spread-caller':
+    'an argument at or before the key position is spread, so no argument position is provable (FS-069 refuses this shape for rewriting too)',
   'unnamed-wrapper':
     'the function forwarding the key has no name call sites can be bound to (an inline callback, an IIFE, or an anonymous default export)',
-  'unproven-wrapper':
-    'a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client — the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows',
+  'ambiguous-client-provenance':
+    'a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client — the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows (FS-069 uses this name for the same refusal)',
   'wrapper-without-callers':
     'a wrapper forwards the key to the SDK but the scan found no call site for it, so its flag keys are somewhere the scan cannot see',
 }
@@ -148,6 +173,31 @@ export interface EvaluationSite {
   status: EvaluationSiteStatus
 }
 
+/**
+ * FS-069's detection-coverage cross-check, kept under its own name and its own
+ * semantics so the public number and the hosted one mean the same thing.
+ *
+ * - `callShaped` — every `<expression>.<name>(…)` in a parsed file that can see a
+ *   provider package whose `<name>` is a catalogued evaluation method of a provider
+ *   that file reaches. Counted from the tree, **without consulting provenance**, so
+ *   the metric cannot be biased by the gap it measures, and without looking at the
+ *   argument list, so it over-approximates on purpose: an unrelated
+ *   `list.variation()` counts and is never accounted for, which errs toward
+ *   reporting a shortfall rather than hiding a real miss.
+ * - `accountedFor` — those the scan then explained: a named flag, a delegation to an
+ *   identified wrapper, or a named refusal.
+ *
+ * A shortfall means an evaluation-shaped call was neither named nor explained.
+ *
+ * One deliberate widening over FS-069, which is LaunchDarkly-only: the public
+ * scanner counts every provider SDK it detects, so the method-name set is the union
+ * over the providers each file reaches rather than LaunchDarkly's alone.
+ */
+export interface EvaluationSurfaceCoverage {
+  callShaped: number
+  accountedFor: number
+}
+
 export interface WrapperEvaluationResult {
   /** Wrappers identified, sorted by file then line. */
   wrappers: WrapperDeclaration[]
@@ -163,6 +213,8 @@ export interface WrapperEvaluationResult {
   sites: EvaluationSite[]
   /** TS/JS files in SDK scope the pass parsed and walked. */
   filesInScope: number
+  /** FS-069's two-number cross-check over the same files. */
+  evaluationSurface: EvaluationSurfaceCoverage
 }
 
 export interface WrapperEvaluationOptions {
@@ -183,6 +235,34 @@ export interface WrapperEvaluationOptions {
   /** Rounds of wrapper-forwards-into-wrapper chaining. Default 3. */
   maxWrapperDepth?: number
 }
+
+/**
+ * FS-069 B1 — the LaunchDarkly evaluation methods LaunchDarkly itself does **not**
+ * type-check. `LDClientImpl.variation` (and `jsonVariation`, and the `…Detail`
+ * forms) resolve `detail.value` raw, while the typed methods go through
+ * `LDClientImpl._typedEval` with a type checker. The OpenFeature provider's typed
+ * resolvers return `wrongTypeResult(defaultValue)` on a mismatch, so a flag
+ * serving `'variant-b'` read through `variation(key, ctx, false)` returns
+ * `'variant-b'` today and `false` after a rewrite to `getBooleanValue`.
+ *
+ * For a *wrapper* this cannot be rescued by a flag inventory, because that needs
+ * the wrapper's key set to be closed and a wrapper's key set includes every key
+ * its callers compute at run time and every key a caller outside the repository
+ * passes. FS-069 therefore refuses such a wrapper by name, and three of its four
+ * surveyed real-repository shapes refuse for exactly this reason.
+ *
+ * A *direct* call with a literal key is not affected: its key set is closed, so
+ * the rule is deliberately scoped to wrappers.
+ */
+const LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS: ReadonlySet<string> = new Set([
+  'variation',
+  'variationDetail',
+  'jsonVariation',
+  'jsonVariationDetail',
+])
+
+/** Substring that marks a provider package as a LaunchDarkly SDK. */
+const LAUNCHDARKLY_PACKAGE_MARKER = 'launchdarkly'
 
 const DEFAULT_MAX_WRAPPER_DEPTH = 3
 
@@ -391,6 +471,8 @@ interface ReExport {
 }
 
 interface RawCall {
+  /** tree-sitter node id of the call, so two independent passes can be intersected. */
+  id: number
   callee: string
   receiver: Node | null
   args: Node
@@ -608,7 +690,7 @@ function collectCall(node: Node, into: RawCall[]): void {
   if (!fn || !args || args.type !== 'arguments') return
   const lineNumber = node.startPosition.row + 1
   if (fn.type === 'identifier') {
-    into.push({ callee: fn.text, receiver: null, args, lineNumber })
+    into.push({ id: node.id, callee: fn.text, receiver: null, args, lineNumber })
     return
   }
   if (fn.type !== 'member_expression') return
@@ -617,7 +699,7 @@ function collectCall(node: Node, into: RawCall[]): void {
   /* v8 ignore next -- a parsed member expression always has an object and a property */
   if (!property || !receiver) return
   if (property.type !== 'property_identifier') return
-  into.push({ callee: property.text, receiver, args, lineNumber })
+  into.push({ id: node.id, callee: property.text, receiver, args, lineNumber })
 }
 
 // ── Provider catalogue ───────────────────────────────────────────
@@ -774,6 +856,27 @@ function matchesAccepted(call: RawCall, accepted: AcceptedCall): boolean {
   return key !== null && accepted.receivers.has(key)
 }
 
+/**
+ * FS-069's `callShaped` side: member-form calls naming a catalogued evaluation
+ * method of a provider the file reaches. No provenance, no argument inspection.
+ */
+function callShapedIds(file: ParsedFile, catalogue: Map<string, Map<string, SdkMethod>>): Set<number> {
+  const ids = new Set<number>()
+  for (const call of file.calls) {
+    // FS-069 counts `<expression>.<name>(…)`; a bare call is not counted there,
+    // and a destructured or aliased evaluation method is not a property access at
+    // all, so the metric does not cross-check it either.
+    if (call.receiver === null) continue
+    for (const sdk of file.reachableSdks) {
+      if (catalogue.get(sdk)?.has(call.callee)) {
+        ids.add(call.id)
+        break
+      }
+    }
+  }
+  return ids
+}
+
 /** The SDK method a call names, when the file reaches that SDK. */
 function sdkTargetFor(
   call: RawCall,
@@ -828,6 +931,16 @@ function findParameterBinder(node: Node, name: string): KeyResolution | null {
     fn = enclosingFunction(fn)
   }
   return null
+}
+
+/**
+ * True when an argument at or before the key position is spread, so no argument
+ * position is provable. FS-069 refuses this shape for rewriting under the same
+ * name; here it means the key cannot be read positionally either.
+ */
+function hasSpreadBeforeKey(args: Node, keyIndex: number): boolean {
+  const positional = namedChildren(args).filter((child) => child.type !== 'comment')
+  return positional.slice(0, keyIndex + 1).some((child) => child.type === 'spread_element')
 }
 
 /** Resolve a site's key argument to a flag name, a forwarded parameter, or a refusal. */
@@ -953,6 +1066,25 @@ function ownerOfObject(object: Node, file: ParsedFile): { name: string; exported
   return { name: name.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name.text) }
 }
 
+/**
+ * FS-069's rewrite refusal for a wrapper, from the evaluation method its body
+ * calls. Only the methods FS-069 names are claimed about; anything else yields
+ * null, which means "no claim", not "migratable".
+ */
+function rewriteBlockerFor(provider: string, sdkMethod: string): WrapperRewriteBlocker | null {
+  if (!provider.toLowerCase().includes(LAUNCHDARKLY_PACKAGE_MARKER)) return null
+  if (!LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS.has(sdkMethod)) return null
+  return {
+    reason: 'generic-variation',
+    sdkMethod,
+    detail:
+      `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, ` +
+      `while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so ` +
+      `no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to ` +
+      `boolVariation, stringVariation or numberVariation first, or rewrite it by hand.`,
+  }
+}
+
 /** Every call site found for a wrapper, however its key resolved. */
 export function callerCount(wrapper: WrapperDeclaration): number {
   return wrapper.resolvedCallers + wrapper.unresolvedCallers + wrapper.forwardingCallers
@@ -982,7 +1114,13 @@ export async function analyzeWrapperEvaluations(
   }
   const inScopePaths = [...fileSet].filter((filePath) => options.transitiveSdks.has(filePath)).sort()
   if (inScopePaths.length === 0) {
-    return { wrappers: [], flags: [], sites: [], filesInScope: 0 }
+    return {
+      wrappers: [],
+      flags: [],
+      sites: [],
+      filesInScope: 0,
+      evaluationSurface: { callShaped: 0, accountedFor: 0 },
+    }
   }
 
   const parser = await getParser('typescript')
@@ -1038,7 +1176,18 @@ export async function analyzeWrapperEvaluations(
     if (!grew) break
   }
 
-  const { sites, flags } = classifySites(analyzer, inScopeFiles, catalogue, wrappers)
+  const { sites, flags, explainedIds } = classifySites(analyzer, inScopeFiles, catalogue, wrappers)
+
+  // The cross-check: count the evaluation-shaped calls independently of the
+  // classification above, then see how many of those same nodes it explained.
+  let callShaped = 0
+  let accountedFor = 0
+  for (const file of inScopeFiles) {
+    for (const id of callShapedIds(file, catalogue)) {
+      callShaped += 1
+      if (explainedIds.has(id)) accountedFor += 1
+    }
+  }
 
   wrappers.sort(
     (a, b) =>
@@ -1049,7 +1198,13 @@ export async function analyzeWrapperEvaluations(
       a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.callee.localeCompare(b.callee),
   )
 
-  return { wrappers, flags, sites, filesInScope: inScopeFiles.length }
+  return {
+    wrappers,
+    flags,
+    sites,
+    filesInScope: inScopeFiles.length,
+    evaluationSurface: { callShaped, accountedFor },
+  }
 }
 
 /** One round of wrapper identification. */
@@ -1075,18 +1230,23 @@ function identifyWrappers(
       let keyIndex: number
       let provider: string
       let forwardsTo: string
+      let rewriteBlocker: WrapperRewriteBlocker | null
       if (depth === 1) {
         const target = sdkTargetFor(call, file, catalogue)
         if (!target || !file.directSdks.has(target.provider)) continue
         keyIndex = target.keyIndex
         provider = target.provider
         forwardsTo = call.callee
+        rewriteBlocker = rewriteBlockerFor(provider, call.callee)
       } else {
         const match = accepted.find((candidate) => matchesAccepted(call, candidate))
         if (!match) continue
         keyIndex = match.wrapper.keyParameterIndex
         provider = match.wrapper.provider
         forwardsTo = wrapperLabel(match.wrapper)
+        // A chained wrapper is upstream of the same body, so it inherits the
+        // refusal rather than looking migratable on its own.
+        rewriteBlocker = match.wrapper.rewriteBlocker
       }
       const argument = getArgument(call.args, keyIndex)
       if (!argument || argument.type !== 'identifier') continue
@@ -1108,6 +1268,7 @@ function identifyWrappers(
         resolvedCallers: 0,
         unresolvedCallers: 0,
         forwardingCallers: 0,
+        rewriteBlocker,
       })
     }
   }
@@ -1128,7 +1289,7 @@ function classifySites(
   inScopeFiles: ParsedFile[],
   catalogue: Map<string, Map<string, SdkMethod>>,
   wrappers: WrapperDeclaration[],
-): { sites: EvaluationSite[]; flags: FeatureFlag[] } {
+): { sites: EvaluationSite[]; flags: FeatureFlag[]; explainedIds: Set<number> } {
   const byDeclaration = new Map<string, WrapperDeclaration>()
   for (const wrapper of wrappers) {
     byDeclaration.set(`${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`, wrapper)
@@ -1144,10 +1305,15 @@ function classifySites(
       if (!sdkTarget && !wrapperMatch) continue
       const keyIndex = sdkTarget ? sdkTarget.keyIndex : wrapperMatch!.wrapper.keyParameterIndex
       const provider = sdkTarget ? sdkTarget.provider : wrapperMatch!.wrapper.provider
+      // A spread at or before the key position is checked first: it makes the key
+      // unreadable whether or not something happens to sit at that index.
+      const spread = hasSpreadBeforeKey(call.args, keyIndex)
       const argument = getArgument(call.args, keyIndex)
       // A call with no argument at the key position is not an evaluation.
-      if (!argument) continue
-      const resolution = resolveKeyArgument(analyzer, file, argument)
+      if (!spread && !argument) continue
+      const resolution: KeyResolution = spread
+        ? { kind: 'gap', reason: 'spread-caller' }
+        : resolveKeyArgument(analyzer, file, argument!)
       if (wrapperMatch) {
         if (resolution.kind === 'key') wrapperMatch.wrapper.resolvedCallers += 1
         else if (resolution.kind === 'gap') wrapperMatch.wrapper.unresolvedCallers += 1
@@ -1162,6 +1328,7 @@ function classifySites(
   // callers, or no name, is a gap — those flag keys are somewhere we cannot see.
   const sites: EvaluationSite[] = []
   const flags: FeatureFlag[] = []
+  const explainedIds = new Set<number>(pending.map((entry) => entry.call.id))
   for (const entry of pending) {
     const base = {
       filePath: entry.file.filePath,
@@ -1194,7 +1361,7 @@ function classifySites(
       `${entry.file.filePath}:${named.declaration.startPosition.row + 1}:${named.name}`,
     )
     if (!wrapper) {
-      sites.push({ ...base, status: { kind: 'gap', reason: 'unproven-wrapper' } })
+      sites.push({ ...base, status: { kind: 'gap', reason: 'ambiguous-client-provenance' } })
       continue
     }
     if (callerCount(wrapper) > 0) {
@@ -1204,5 +1371,5 @@ function classifySites(
     sites.push({ ...base, status: { kind: 'gap', reason: 'wrapper-without-callers' } })
   }
 
-  return { sites, flags }
+  return { sites, flags, explainedIds }
 }

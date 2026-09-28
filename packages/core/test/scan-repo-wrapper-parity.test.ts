@@ -30,7 +30,9 @@ const LOCKFILE = JSON.stringify({ name: 'wrapper-parity-fixture', lockfileVersio
 
 /** Every wrapper shape the survey found, in one repository. */
 const WRAPPER_SOURCES: Record<string, string> = {
-  // 1. plain function wrapper
+  // 1. plain function wrapper — deliberately over the *generic* `variation`, the
+  // shape three of FS-069's four surveyed repositories use, so the rewrite refusal
+  // is exercised alongside the typed wrappers below.
   'src/featureFlags.ts': `
 import * as LaunchDarkly from '${SDK}'
 let ldClient: LaunchDarkly.LDClient | null = null
@@ -115,8 +117,8 @@ describe('scanRepo — wrapper-mediated evaluations', () => {
     expect(result.totalFlags).toBe(5)
     expect(result.detectedProviders).toEqual([SDK])
 
-    const surface = result.evaluationSurface!
-    expect(surface.wrappers.map((wrapper) => wrapper.label).sort()).toEqual([
+    const coverage = result.detectionCoverage!
+    expect(coverage.wrappers.map((wrapper) => wrapper.label).sort()).toEqual([
       'LaunchDarklyService.getBooleanValue()',
       'Toggles.on()',
       'getFlag()',
@@ -124,9 +126,26 @@ describe('scanRepo — wrapper-mediated evaluations', () => {
     ])
     // Four wrapper bodies forward a parameter (delegated); five callers name a
     // flag; nothing is left unexplained.
-    expect(surface).toMatchObject({ sites: 9, accountedFor: 5, delegated: 4, unaccountedFor: 0 })
-    expect(surface.gaps).toEqual([])
-    expect(surface.sites).toBe(surface.accountedFor + surface.delegated + surface.unaccountedFor)
+    expect(coverage).toMatchObject({ sites: 9, flagsNamed: 5, delegated: 4, unnamed: 0 })
+    expect(coverage.gaps).toEqual([])
+    expect(coverage.sites).toBe(coverage.flagsNamed + coverage.delegated + coverage.unnamed)
+    // FS-069's cross-check over the same files: the four wrapper bodies are the only
+    // member-form evaluation calls, and all four were explained.
+    expect(coverage.evaluationSurface).toEqual({ callShaped: 4, accountedFor: 4 })
+    // `getFlag()` evaluates with the generic `variation`, which LaunchDarkly does
+    // not type-check, so FS-069 refuses to rewrite it however its callers look. The
+    // three typed wrappers carry no claim either way. Detection is not
+    // migratability, and the two are reported separately.
+    expect(
+      coverage.wrappers.map((wrapper) => [wrapper.label, wrapper.rewriteBlocker?.reason ?? null]),
+    ).toEqual([
+      ['getFlag()', 'generic-variation'],
+      ['LaunchDarklyService.getBooleanValue()', null],
+      ['Toggles.on()', null],
+      ['toggles.variant()', null],
+    ])
+    // Both of `getFlag()`'s call sites sit behind that refusal.
+    expect(coverage.refusedForRewrite).toBe(2)
   })
 
   it('flows wrapper-mediated flags into the lock-in summary as a weaker detection', async () => {
@@ -159,7 +178,7 @@ describe('scanRepo — wrapper-mediated evaluations', () => {
   it('leaves the regex engine measuring regex-only detection', async () => {
     const result = await scanRepo({ cwd: repoDir, noConfig: true, noIgnoreFile: true, engine: 'regex' })
     expect(result.totalFlags).toBe(0)
-    expect(result.evaluationSurface).toBeUndefined()
+    expect(result.detectionCoverage).toBeUndefined()
   })
 })
 
@@ -233,9 +252,9 @@ export function evaluate(team: string, feature: string) {
 
     const result = await scanRepo({ cwd: repoDir, noConfig: true, noIgnoreFile: true })
     expect(result.totalFlags).toBe(0)
-    const surface = result.evaluationSurface!
-    expect(surface).toMatchObject({ sites: 1, accountedFor: 0, delegated: 0, unaccountedFor: 1 })
-    expect(surface.gaps).toEqual([
+    const coverage = result.detectionCoverage!
+    expect(coverage).toMatchObject({ sites: 1, flagsNamed: 0, delegated: 0, unnamed: 1 })
+    expect(coverage.gaps).toEqual([
       expect.objectContaining({ reason: 'computed-key', count: 1, sample: 'src/flags.ts:5' }),
     ])
   })

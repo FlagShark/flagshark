@@ -6,12 +6,12 @@ import { LOCK_IN_LABELS } from '../migration/lock-in.js'
 import {
   languageLabel,
   tallyAdmissionGates,
-  describeEvaluationSurface,
+  describeDetectionCoverage,
   ADMISSION_PREFLIGHT_HEADING,
-  EVALUATION_SURFACE_HEADING,
+  DETECTION_COVERAGE_HEADING,
 } from './shared.js'
 
-import type { EvaluationSurface } from '../detection/evaluation-surface.js'
+import type { DetectionCoverage } from '../detection/detection-coverage.js'
 import type { LockInHostedAdmission, LockInSummary } from '../migration/lock-in.js'
 import type { ScanRepoResult } from '../scan-repo.js'
 import type { StaleFlag, StalenessSignal } from '../staleness.js'
@@ -169,7 +169,7 @@ function buildAdmissionLines(entry: LockInHostedAdmission): string[] {
  * Wording says what is provable (draft PR, preview, assessment), never how
  * fast it is. Empty when there are no call sites.
  */
-function buildLockInBlock(lockIn: LockInSummary, surface: EvaluationSurface | undefined): string[] {
+function buildLockInBlock(lockIn: LockInSummary, coverage: DetectionCoverage | undefined): string[] {
   if (lockIn.callSites === 0) return []
 
   const sdkRows = lockIn.providers.filter((p) => p.classification !== 'already-openfeature')
@@ -194,26 +194,29 @@ function buildLockInBlock(lockIn: LockInSummary, surface: EvaluationSurface | un
   for (const entry of lockIn.hostedAdmission) {
     lines.push(...buildAdmissionLines(entry))
   }
-  lines.push(...buildEvaluationSurfaceLines(surface, '  '))
+  lines.push(...buildDetectionCoverageLines(coverage, '  '))
   lines.push('  Next: npx flagshark assess   (private assessment; invite-only today)')
   return lines
 }
 
 /**
- * The detection-coverage metric: how many call-shaped evaluation sites the
- * parsed trees held, how many the scan named a flag for, which wrappers carry
- * the rest, and what it refused to guess about. Printed wherever a flag count
- * is printed, so the count is never read without the surface it came from.
+ * The detection-coverage metrics: how many call-shaped evaluation sites the parsed
+ * trees held, how many the scan named a flag for, which wrappers carry the rest,
+ * which of those wrappers the hosted migration refuses to rewrite, and what the
+ * scan refused to guess about. Printed wherever a flag count is printed, so the
+ * count is never read without the surface it came from — and a wrapper the hosted
+ * product refuses is never presented as detected-and-therefore-migratable.
  */
-function buildEvaluationSurfaceLines(
-  surface: EvaluationSurface | undefined,
+function buildDetectionCoverageLines(
+  coverage: DetectionCoverage | undefined,
   indent: string,
 ): string[] {
-  if (!surface) return []
-  const described = describeEvaluationSurface(surface)
+  if (!coverage) return []
+  const described = describeDetectionCoverage(coverage)
   if (!described) return []
-  const lines = [`${indent}${EVALUATION_SURFACE_HEADING}: ${described.headline}`]
+  const lines = [`${indent}${DETECTION_COVERAGE_HEADING}: ${described.headline}`]
   for (const wrapper of described.wrappers) lines.push(`${indent}  → ${wrapper}`)
+  for (const refusal of described.refusals) lines.push(`${indent}  ⛔ ${refusal}`)
   for (const gap of described.gaps) lines.push(`${indent}  ✗ ${gap}`)
   return lines
 }
@@ -267,11 +270,11 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
     // A zero is only trustworthy next to the surface it was measured over. When
     // the parsed trees did hold evaluation-shaped calls the scan could not
     // attribute, say so here rather than letting the zero read as certainty.
-    const surfaceLines = buildEvaluationSurfaceLines(result.evaluationSurface, '')
-    if (surfaceLines.length > 0 && result.evaluationSurface!.unaccountedFor > 0) {
+    const coverageLines = buildDetectionCoverageLines(result.detectionCoverage, '')
+    if (coverageLines.length > 0 && describeDetectionCoverage(result.detectionCoverage!)!.hasShortfall) {
       lines.push('')
       lines.push('⚠ This is not a confident zero.')
-      lines.push(...surfaceLines)
+      lines.push(...coverageLines)
     }
     lines.push('')
     lines.push('Supported providers: LaunchDarkly, Unleash, Flipt, Split.io, PostHog, and more.')
@@ -304,7 +307,7 @@ export function formatText(result: ScanRepoResult, options: TextFormatOptions): 
   }
 
   if (result.lockIn) {
-    const block = buildLockInBlock(result.lockIn, result.evaluationSurface)
+    const block = buildLockInBlock(result.lockIn, result.detectionCoverage)
     if (block.length > 0) {
       lines.push('')
       lines.push(...block)

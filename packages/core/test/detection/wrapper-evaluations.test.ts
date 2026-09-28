@@ -610,7 +610,7 @@ export const guard = requireFlag('enable-stripe-checkout', true)
     // proven rather than silently dropped.
     expect(result.sites.map((site) => site.status)).toEqual([
       { kind: 'delegated', wrapper: 'getFlag()' },
-      { kind: 'gap', reason: 'unproven-wrapper' },
+      { kind: 'gap', reason: 'ambiguous-client-provenance' },
     ])
   })
 })
@@ -736,6 +736,28 @@ export function getFlag(key: string) {
     expect(result.flags).toEqual([])
   })
 
+  it('refuses a caller whose argument at or before the key position is spread', async () => {
+    const result = await analyze({
+      'src/flags.ts': `
+import { init } from '${SDK}'
+const client = init('sdk-key')
+export const getFlag = (req: unknown, key: string) =>
+  client.boolVariation(key, { key: 'anonymous' }, false)
+`,
+      'src/app.ts': `
+import { getFlag } from './flags'
+export function run(args: [unknown, string], one: [unknown]) {
+  // Nothing at the key index, and something at the key index: a spread before it
+  // makes both unreadable.
+  return [getFlag(...args), getFlag(...one, 'looks-like-a-key')]
+}
+`,
+    })
+    expect(result.flags).toEqual([])
+    expect(gapReasons(result)).toEqual(['spread-caller', 'spread-caller'])
+    expect(result.wrappers[0]).toMatchObject({ unresolvedCallers: 2 })
+  })
+
   it('every refusal reason carries a one-line explanation', () => {
     for (const [reason, detail] of Object.entries(EVALUATION_GAP_DETAILS)) {
       expect(detail.length, reason).toBeGreaterThan(20)
@@ -751,7 +773,13 @@ describe('analyzeWrapperEvaluations — scope', () => {
       'src/app.ts': `export const run = () => 'no flags here'`,
       'README.md': '# not a source file',
     })
-    expect(result).toEqual({ wrappers: [], flags: [], sites: [], filesInScope: 0 })
+    expect(result).toEqual({
+      wrappers: [],
+      flags: [],
+      sites: [],
+      filesInScope: 0,
+      evaluationSurface: { callShaped: 0, accountedFor: 0 },
+    })
   })
 
   it('a wrapper must live in a file that imports the SDK itself', async () => {
@@ -770,7 +798,7 @@ export function getFlag(key: string) {
 `,
     })
     expect(result.wrappers).toEqual([])
-    expect(gapReasons(result)).toEqual(['unproven-wrapper'])
+    expect(gapReasons(result)).toEqual(['ambiguous-client-provenance'])
   })
 
   it('a call with no argument at the key position is not an evaluation site', async () => {

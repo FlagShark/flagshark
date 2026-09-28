@@ -43,10 +43,12 @@ are named with what would change the answer. Only the hosted planner decides.
 The scan also finds flags evaluated through a TypeScript/JavaScript wrapper (a
 feature-flag helper, a service method, a singleton) by locating the wrapper's
 callers, and reports detection coverage: how many call-shaped evaluation sites
-the parsed tree held, how many were accounted for, and a named reason for each
-one that was not. Wrapper-mediated flags are reported as a weaker detection.
+the parsed tree held, how many it named a flag for, and a named reason for each
+one it would not. Wrapper-mediated flags are reported as a weaker detection, and
+a wrapper the hosted migration refuses to rewrite (an untyped LaunchDarkly
+evaluation method) is named as refused so a detection never reads as a promise.
 Full numbers, wrappers and refusals are in --format json under
-evaluationSurface.
+detectionCoverage.
 
 Scan options:
 

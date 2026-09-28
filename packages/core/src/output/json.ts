@@ -114,11 +114,12 @@ export function formatJson(result: ScanRepoResult, options: JsonFormatOptions): 
     // hosted migration-support snapshot). Additive; null when the result was
     // built without one.
     lockIn: result.lockIn ?? null,
-    // Detection coverage over the TypeScript/JavaScript evaluation surface
-    // (call-shaped sites counted from the parsed tree, what the scan accounted
-    // for, the wrappers it identified, and the refusals behind the rest).
-    // Additive; null when the result was built without one.
-    evaluationSurface: result.evaluationSurface ?? null,
+    // Detection coverage over the TypeScript/JavaScript evaluation surface: the
+    // scanner's key-resolution split, the wrappers it identified and which of them
+    // the hosted migration refuses to rewrite, plus FS-069's `evaluationSurface`
+    // cross-check nested under its own name and semantics. Additive; null when the
+    // result was built without one.
+    detectionCoverage: result.detectionCoverage ?? null,
     links: {
       dashboard: 'https://flagshark.com',
       cli: 'https://github.com/FlagShark/flagshark',

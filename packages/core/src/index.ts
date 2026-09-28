@@ -64,14 +64,17 @@ export type {
   WrapperEvaluationOptions,
   WrapperEvaluationResult,
   WrapperKind,
+  WrapperRewriteBlocker,
+  WrapperRewriteBlockerReason,
   EvaluationGapReason,
   EvaluationSite,
   EvaluationSiteStatus,
+  EvaluationSurfaceCoverage,
 } from './detection/wrapper-evaluations.js'
-export { summarizeEvaluationSurface } from './detection/evaluation-surface.js'
+export { summarizeDetectionCoverage } from './detection/detection-coverage.js'
 export type {
-  EvaluationSurface,
-  EvaluationSurfaceGap,
-  EvaluationSurfaceWrapper,
-  SummarizeEvaluationSurfaceOptions,
-} from './detection/evaluation-surface.js'
+  DetectionCoverage,
+  DetectionCoverageGap,
+  DetectionCoverageWrapper,
+  SummarizeDetectionCoverageOptions,
+} from './detection/detection-coverage.js'

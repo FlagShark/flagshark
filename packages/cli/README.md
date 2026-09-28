@@ -21,8 +21,9 @@ Lock-in: 21 flag call sites · 3 provider SDKs
   Hosted draft PR preflight (local; no account, no network; the hosted planner decides): 2 gates refuse · 14 pass · 4 not checkable locally (analyzer-budget, transformation-blockers, dependency-closure, sandbox-validation)
     ✗ npm-pin      package.json declares packageManager "yarn@4.18.0"; the hosted planner admits only an exact npm pin and its sandbox runs npm 10.9.8. Set "packageManager": "npm@10.9.8", or remove it and commit a lockfileVersion 3 package-lock.json.
     ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
-  Detection coverage (local; call-shaped evaluation sites counted from the parsed tree): 19 of 23 sites accounted for · 2 forwarded by 2 wrappers · 2 not accounted for
+  Detection coverage (local; call-shaped evaluation sites counted from the parsed tree): 19 of 23 sites named · 2 forwarded by 2 wrappers · 2 not named · 8 sites the hosted migration refuses to rewrite
     → getLaunchDarklyFlag() forwards argument 2 to variation · src/utils/getLaunchDarklyFlag.ts:9 · 8 callers (7 named · 1 runtime-only · 0 forwarded on)
+    ⛔ generic-variation  getLaunchDarklyFlag() at src/utils/getLaunchDarklyFlag.ts:9 — the body evaluates with variation(), which LaunchDarkly does not type-check … Migrate the body to boolVariation, stringVariation or numberVariation first, or rewrite it by hand.
     ✗ computed-key  2 sites (first at src/gates.ts:31) — the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source
   Next: npx flagshark assess   (private assessment; invite-only today)
 
@@ -65,20 +66,31 @@ by name plus a provable import binding, and reports their literal and
 proven-const keys as flags (`confidence: medium`, so the lock-in summary calls
 them `needs review (weaker detection)`).
 
-The `Detection coverage:` line is the honesty check on that: every call-shaped
+Detecting a wrapper is not the same as being able to migrate it. A wrapper whose
+body evaluates with LaunchDarkly's generic `variation`, `variationDetail`,
+`jsonVariation` or `jsonVariationDetail` is refused for rewriting: LaunchDarkly
+does not type-check those, so they return whatever type the flag serves while a
+typed OpenFeature accessor substitutes the default, and a wrapper's key set cannot
+be closed. The scan prints that refusal per wrapper (`⛔ generic-variation`) and
+counts the call sites behind it, so a flag count never reads as a migration
+promise.
+
+The `Detection coverage:` line is the honesty check on all of it: every call-shaped
 evaluation site in the parsed tree, counted independently of whether a flag key
-could be attributed, split into accounted for / forwarded by a wrapper / not
-accounted for, with a named reason and a sample location per refusal. A zero flag
-count with unaccounted-for sites behind it prints `⚠ This is not a confident
-zero.` instead of reading as certainty. The full numbers, the wrappers and their
-caller counts, and every refusal are in `--json` output under
-`evaluationSurface`.
+could be attributed, split into named / forwarded by a wrapper / not named, with a
+named reason and a sample location per refusal, plus an independent cross-check
+that counts `<expression>.<name>(…)` evaluation calls without consulting
+provenance and reports how many the scan explained. A zero flag count with
+unexplained sites behind it prints `⚠ This is not a confident zero.` instead of
+reading as certainty. The full numbers, the wrappers with their caller counts and
+rewrite refusals, and the cross-check are in `--json` output under
+`detectionCoverage`.
 
 ## Why FlagShark
 
 - **Zero install, zero config.** `npx flagshark scan` works on any repo today.
 - **Lock-in summary.** Flag call sites per provider SDK, classified against the hosted migration registry snapshot shipped with the CLI. Provable, not promised.
-- **Wrapper-aware, and honest about the rest.** Finds flags evaluated through a feature-flag helper, service or singleton, and reports the evaluation sites it could not account for instead of printing a confident zero.
+- **Wrapper-aware, and honest about the rest.** Finds flags evaluated through a feature-flag helper, service or singleton, names the wrappers the hosted migration refuses to rewrite, and reports the evaluation sites it could not explain instead of printing a confident zero.
 - **Polyglot.** TypeScript, JavaScript, Go, Python, Java, Kotlin, Swift, Ruby, C#, PHP, Rust, C/C++, Objective-C.
 - **Provider-aware.** Auto-detects 13 flag SDKs — no custom rules to maintain.
 - **AST-based detection** for TS/JS/Go/Python via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, and unrelated calls aren't false positives.

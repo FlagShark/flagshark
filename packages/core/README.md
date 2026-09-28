@@ -109,7 +109,7 @@ interface ScanRepoResult {
   excludedPaths?: string[]         // set when collectExcludedPaths: true
   effectiveExcludes?: EffectiveRules  // for debug/verbose output
   lockIn?: LockInSummary           // call sites per provider SDK + hosted-admission preflight
-  evaluationSurface?: EvaluationSurface  // detection coverage + identified wrappers
+  detectionCoverage?: DetectionCoverage  // coverage, wrappers, rewrite refusals, FS-069 cross-check
 }
 ```
 
@@ -243,28 +243,45 @@ its callers through their import bindings, and reports the literal and proven-co
 keys at those callers as flags with `confidence: 'medium'`.
 
 The same pass counts every call-shaped evaluation site the parsed trees hold,
-independently of provenance, and `summarizeEvaluationSurface` turns that into
-`ScanRepoResult.evaluationSurface`:
+independently of provenance, and `summarizeDetectionCoverage` turns that into
+`ScanRepoResult.detectionCoverage`:
 
 ```ts
-import { analyzeWrapperEvaluations, summarizeEvaluationSurface } from '@flagshark/core'
+import { analyzeWrapperEvaluations, summarizeDetectionCoverage } from '@flagshark/core'
 
-interface EvaluationSurface {
+interface DetectionCoverage {
   schemaVersion: 1
-  filesInScope: number     // TS/JS files reaching a provider SDK that were parsed
-  sites: number            // call-shaped evaluation sites found
-  accountedFor: number     // sites a flag is reported for
-  delegated: number        // sites whose key is forwarded by an identified wrapper
-  unaccountedFor: number   // sites with no flag name the scan will claim
-  gaps: EvaluationSurfaceGap[]          // one entry per refusal reason, with a sample
-  wrappers: EvaluationSurfaceWrapper[]  // identified wrappers and their caller counts
+  filesInScope: number   // TS/JS files reaching a provider SDK that were parsed
+  sites: number          // evaluation sites the scanner classified
+  flagsNamed: number     // sites a flag is reported for
+  delegated: number      // sites whose key is forwarded by an identified wrapper
+  unnamed: number        // sites with no flag name the scan will claim
+  gaps: DetectionCoverageGap[]          // one entry per refusal reason, with a sample
+  wrappers: DetectionCoverageWrapper[]  // wrappers, caller counts, rewrite refusals
+  refusedForRewrite: number             // call sites behind a wrapper the hosted migration refuses
+  evaluationSurface: EvaluationSurfaceCoverage  // { callShaped, accountedFor }
 }
 ```
 
-`sites` always equals `accountedFor + delegated + unaccountedFor`, and every site
-counted as `accountedFor` has a flag in the result at the same file and line — so
-the number cannot flatter the scan. The pass is pure and local: no account, no
-token, no network.
+`sites` always equals `flagsNamed + delegated + unnamed`, and every site counted as
+`flagsNamed` has a flag in the result at the same file and line — so the number
+cannot flatter the scan.
+
+`evaluationSurface` is a second, independent metric kept under FS-069's name and
+semantics so it can be joined against the hosted product's number: `callShaped`
+counts `<expression>.<name>(…)` calls naming a catalogued evaluation method, from
+the tree, **without consulting provenance**, and `accountedFor` counts those the
+scan then explained (a named flag, a delegation, or a named refusal). A shortfall
+means an evaluation-shaped call was neither named nor explained.
+
+`DetectionCoverageWrapper.rewriteBlocker` carries the one rewrite refusal the
+scanner can derive locally: a wrapper over an untyped LaunchDarkly evaluation
+method (`variation`, `variationDetail`, `jsonVariation`, `jsonVariationDetail`)
+cannot be rewritten to a typed OpenFeature accessor without changing observable
+values, and a wrapper's key set cannot be closed. `null` means the scanner makes
+no claim, never that the wrapper is migratable.
+
+The pass is pure and local: no account, no token, no network.
 
 ## How staleness works
 

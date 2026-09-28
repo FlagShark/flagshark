@@ -44577,7 +44577,7 @@ function isTsJsFile(filePath) {
   return TS_JS_EXTENSIONS.includes(ext);
 }
 
-// ../core/dist/detection/evaluation-surface.js
+// ../core/dist/detection/detection-coverage.js
 var import_node_path3 = require("node:path");
 
 // ../core/dist/detection/wrapper-evaluations.js
@@ -44586,10 +44586,18 @@ var EVALUATION_GAP_DETAILS = {
   "unprovable-key": "the flag key is an identifier the scan cannot prove: a local variable, a re-assigned binding, or a const in a module it did not read",
   "unusable-literal-key": "the flag key is a literal FlagShark will not accept as a key (a URL, a path, or a string with whitespace), so the call is probably not an evaluation",
   "destructured-parameter": "the flag key arrives through a destructured parameter, so it has no fixed argument position to read at the callers",
+  "spread-caller": "an argument at or before the key position is spread, so no argument position is provable (FS-069 refuses this shape for rewriting too)",
   "unnamed-wrapper": "the function forwarding the key has no name call sites can be bound to (an inline callback, an IIFE, or an anonymous default export)",
-  "unproven-wrapper": "a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client \u2014 the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows",
+  "ambiguous-client-provenance": "a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client \u2014 the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows (FS-069 uses this name for the same refusal)",
   "wrapper-without-callers": "a wrapper forwards the key to the SDK but the scan found no call site for it, so its flag keys are somewhere the scan cannot see"
 };
+var LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS = /* @__PURE__ */ new Set([
+  "variation",
+  "variationDetail",
+  "jsonVariation",
+  "jsonVariationDetail"
+]);
+var LAUNCHDARKLY_PACKAGE_MARKER = "launchdarkly";
 var DEFAULT_MAX_WRAPPER_DEPTH = 3;
 var MAX_RE_EXPORT_HOPS = 4;
 var FUNCTION_NODES = /* @__PURE__ */ new Set([
@@ -44938,7 +44946,7 @@ function collectCall(node, into) {
     return;
   const lineNumber = node.startPosition.row + 1;
   if (fn.type === "identifier") {
-    into.push({ callee: fn.text, receiver: null, args: args2, lineNumber });
+    into.push({ id: node.id, callee: fn.text, receiver: null, args: args2, lineNumber });
     return;
   }
   if (fn.type !== "member_expression")
@@ -44949,7 +44957,7 @@ function collectCall(node, into) {
     return;
   if (property.type !== "property_identifier")
     return;
-  into.push({ callee: property.text, receiver, args: args2, lineNumber });
+  into.push({ id: node.id, callee: property.text, receiver, args: args2, lineNumber });
 }
 function buildSdkCatalogue(providers) {
   const catalogue = /* @__PURE__ */ new Map();
@@ -45065,6 +45073,20 @@ function matchesAccepted(call, accepted) {
   const key = receiverKey(call.receiver);
   return key !== null && accepted.receivers.has(key);
 }
+function callShapedIds(file, catalogue) {
+  const ids = /* @__PURE__ */ new Set();
+  for (const call of file.calls) {
+    if (call.receiver === null)
+      continue;
+    for (const sdk of file.reachableSdks) {
+      if (catalogue.get(sdk)?.has(call.callee)) {
+        ids.add(call.id);
+        break;
+      }
+    }
+  }
+  return ids;
+}
 function sdkTargetFor(call, file, catalogue) {
   for (const sdk of file.reachableSdks) {
     const method = catalogue.get(sdk)?.get(call.callee);
@@ -45107,6 +45129,10 @@ function findParameterBinder(node, name2) {
     fn = enclosingFunction(fn);
   }
   return null;
+}
+function hasSpreadBeforeKey(args2, keyIndex) {
+  const positional = namedChildren(args2).filter((child) => child.type !== "comment");
+  return positional.slice(0, keyIndex + 1).some((child) => child.type === "spread_element");
 }
 function resolveKeyArgument(analyzer, file, argument) {
   const literal = literalString(argument);
@@ -45216,6 +45242,17 @@ function ownerOfObject(object, file) {
     return null;
   return { name: name2.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text) };
 }
+function rewriteBlockerFor(provider, sdkMethod) {
+  if (!provider.toLowerCase().includes(LAUNCHDARKLY_PACKAGE_MARKER))
+    return null;
+  if (!LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS.has(sdkMethod))
+    return null;
+  return {
+    reason: "generic-variation",
+    sdkMethod,
+    detail: `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to boolVariation, stringVariation or numberVariation first, or rewrite it by hand.`
+  };
+}
 function callerCount(wrapper) {
   return wrapper.resolvedCallers + wrapper.unresolvedCallers + wrapper.forwardingCallers;
 }
@@ -45233,7 +45270,13 @@ async function analyzeWrapperEvaluations(options) {
   }
   const inScopePaths = [...fileSet].filter((filePath) => options.transitiveSdks.has(filePath)).sort();
   if (inScopePaths.length === 0) {
-    return { wrappers: [], flags: [], sites: [], filesInScope: 0 };
+    return {
+      wrappers: [],
+      flags: [],
+      sites: [],
+      filesInScope: 0,
+      evaluationSurface: { callShaped: 0, accountedFor: 0 }
+    };
   }
   const parser = await getParser("typescript");
   const parsed = /* @__PURE__ */ new Map();
@@ -45282,10 +45325,25 @@ async function analyzeWrapperEvaluations(options) {
     if (!grew)
       break;
   }
-  const { sites, flags: flags2 } = classifySites(analyzer, inScopeFiles, catalogue, wrappers);
+  const { sites, flags: flags2, explainedIds } = classifySites(analyzer, inScopeFiles, catalogue, wrappers);
+  let callShaped = 0;
+  let accountedFor = 0;
+  for (const file of inScopeFiles) {
+    for (const id of callShapedIds(file, catalogue)) {
+      callShaped += 1;
+      if (explainedIds.has(id))
+        accountedFor += 1;
+    }
+  }
   wrappers.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.name.localeCompare(b.name));
   sites.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.callee.localeCompare(b.callee));
-  return { wrappers, flags: flags2, sites, filesInScope: inScopeFiles.length };
+  return {
+    wrappers,
+    flags: flags2,
+    sites,
+    filesInScope: inScopeFiles.length,
+    evaluationSurface: { callShaped, accountedFor }
+  };
 }
 function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
   const found = [];
@@ -45297,6 +45355,7 @@ function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
       let keyIndex;
       let provider;
       let forwardsTo;
+      let rewriteBlocker;
       if (depth === 1) {
         const target = sdkTargetFor(call, file, catalogue);
         if (!target || !file.directSdks.has(target.provider))
@@ -45304,6 +45363,7 @@ function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
         keyIndex = target.keyIndex;
         provider = target.provider;
         forwardsTo = call.callee;
+        rewriteBlocker = rewriteBlockerFor(provider, call.callee);
       } else {
         const match = accepted.find((candidate) => matchesAccepted(call, candidate));
         if (!match)
@@ -45311,6 +45371,7 @@ function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
         keyIndex = match.wrapper.keyParameterIndex;
         provider = match.wrapper.provider;
         forwardsTo = wrapperLabel(match.wrapper);
+        rewriteBlocker = match.wrapper.rewriteBlocker;
       }
       const argument = getArgument(call.args, keyIndex);
       if (!argument || argument.type !== "identifier")
@@ -45334,7 +45395,8 @@ function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
         exported: named.exported,
         resolvedCallers: 0,
         unresolvedCallers: 0,
-        forwardingCallers: 0
+        forwardingCallers: 0,
+        rewriteBlocker
       });
     }
   }
@@ -45355,10 +45417,11 @@ function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
         continue;
       const keyIndex = sdkTarget ? sdkTarget.keyIndex : wrapperMatch.wrapper.keyParameterIndex;
       const provider = sdkTarget ? sdkTarget.provider : wrapperMatch.wrapper.provider;
+      const spread = hasSpreadBeforeKey(call.args, keyIndex);
       const argument = getArgument(call.args, keyIndex);
-      if (!argument)
+      if (!spread && !argument)
         continue;
-      const resolution = resolveKeyArgument(analyzer, file, argument);
+      const resolution = spread ? { kind: "gap", reason: "spread-caller" } : resolveKeyArgument(analyzer, file, argument);
       if (wrapperMatch) {
         if (resolution.kind === "key")
           wrapperMatch.wrapper.resolvedCallers += 1;
@@ -45372,6 +45435,7 @@ function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
   }
   const sites = [];
   const flags2 = [];
+  const explainedIds = new Set(pending.map((entry) => entry.call.id));
   for (const entry of pending) {
     const base = {
       filePath: entry.file.filePath,
@@ -45402,7 +45466,7 @@ function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
     }
     const wrapper = byDeclaration.get(`${entry.file.filePath}:${named.declaration.startPosition.row + 1}:${named.name}`);
     if (!wrapper) {
-      sites.push({ ...base, status: { kind: "gap", reason: "unproven-wrapper" } });
+      sites.push({ ...base, status: { kind: "gap", reason: "ambiguous-client-provenance" } });
       continue;
     }
     if (callerCount(wrapper) > 0) {
@@ -45411,18 +45475,18 @@ function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
     }
     sites.push({ ...base, status: { kind: "gap", reason: "wrapper-without-callers" } });
   }
-  return { sites, flags: flags2 };
+  return { sites, flags: flags2, explainedIds };
 }
 
-// ../core/dist/detection/evaluation-surface.js
-function summarizeEvaluationSurface(analysis, options) {
+// ../core/dist/detection/detection-coverage.js
+function summarizeDetectionCoverage(analysis, options) {
   const location = (filePath, lineNumber) => `${(0, import_node_path3.relative)(options.root, filePath) || filePath}:${lineNumber}`;
-  let accountedFor = 0;
+  let flagsNamed = 0;
   let delegated = 0;
   const gapCounts = /* @__PURE__ */ new Map();
   for (const site of analysis.sites) {
     if (site.status.kind === "accounted") {
-      accountedFor += 1;
+      flagsNamed += 1;
       continue;
     }
     if (site.status.kind === "delegated") {
@@ -45441,19 +45505,25 @@ function summarizeEvaluationSurface(analysis, options) {
     sample: sample2,
     detail: EVALUATION_GAP_DETAILS[reason]
   })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
-  const wrappers = analysis.wrappers.map((wrapper) => ({
-    label: wrapperLabel(wrapper),
-    declaredAt: location(wrapper.filePath, wrapper.lineNumber),
-    kind: wrapper.kind,
-    keyParameterIndex: wrapper.keyParameterIndex,
-    provider: wrapper.provider,
-    forwardsTo: wrapper.forwardsTo,
-    depth: wrapper.depth,
-    callers: callerCount(wrapper),
-    resolvedCallers: wrapper.resolvedCallers,
-    unresolvedCallers: wrapper.unresolvedCallers,
-    forwardingCallers: wrapper.forwardingCallers
-  }));
+  let refusedForRewrite = 0;
+  const wrappers = analysis.wrappers.map((wrapper) => {
+    if (wrapper.rewriteBlocker !== null)
+      refusedForRewrite += callerCount(wrapper);
+    return {
+      label: wrapperLabel(wrapper),
+      declaredAt: location(wrapper.filePath, wrapper.lineNumber),
+      kind: wrapper.kind,
+      keyParameterIndex: wrapper.keyParameterIndex,
+      provider: wrapper.provider,
+      forwardsTo: wrapper.forwardsTo,
+      depth: wrapper.depth,
+      callers: callerCount(wrapper),
+      resolvedCallers: wrapper.resolvedCallers,
+      unresolvedCallers: wrapper.unresolvedCallers,
+      forwardingCallers: wrapper.forwardingCallers,
+      rewriteBlocker: wrapper.rewriteBlocker
+    };
+  });
   const reported = /* @__PURE__ */ new Set();
   for (const flag of options.detectedFlags) {
     reported.add(`${flag.filePath}:${flag.lineNumber}:${flag.name}`);
@@ -45467,15 +45537,17 @@ function summarizeEvaluationSurface(analysis, options) {
     flags2.push(flag);
   }
   return {
-    surface: {
+    coverage: {
       schemaVersion: 1,
       filesInScope: analysis.filesInScope,
       sites: analysis.sites.length,
-      accountedFor,
+      flagsNamed,
       delegated,
-      unaccountedFor: analysis.sites.length - accountedFor - delegated,
+      unnamed: analysis.sites.length - flagsNamed - delegated,
       gaps,
-      wrappers
+      wrappers,
+      refusedForRewrite,
+      evaluationSurface: analysis.evaluationSurface
     },
     flags: flags2
   };
@@ -48194,7 +48266,7 @@ async function scanRepo(opts) {
   const wrapperGraph = buildWrapperGraph(files, tsJsSdkPatterns, logger, opts.cwd);
   const filesForAnalysis = augmentForWrapperDetection(files, wrapperGraph.graph, logger);
   const analysisResult = await analyzer.analyzeFiles(filesForAnalysis, opts.signal);
-  const evaluationSurface = opts.engine === "regex" ? void 0 : await analyzeEvaluationSurface({
+  const detectionCoverage = opts.engine === "regex" ? void 0 : await analyzeDetectionCoverage({
     files,
     wrapperGraph,
     registry,
@@ -48287,7 +48359,7 @@ async function scanRepo(opts) {
     permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
     lockIn,
-    evaluationSurface
+    detectionCoverage
   };
 }
 function collectProviderDefinitions(registry) {
@@ -48356,7 +48428,7 @@ ${prefix} ${sdkList}
   logger.debug(`Wrapper-aware detection augmented ${augmentedCount} files`);
   return augmented;
 }
-async function analyzeEvaluationSurface(options) {
+async function analyzeDetectionCoverage(options) {
   const { wrapperGraph, registry } = options;
   const analysis = await analyzeWrapperEvaluations({
     files: options.files,
@@ -48368,7 +48440,7 @@ async function analyzeEvaluationSurface(options) {
   const detectedFlags = [];
   for (const occurrences of options.totalFlags.values())
     detectedFlags.push(...occurrences);
-  const { surface, flags: flags2 } = summarizeEvaluationSurface(analysis, {
+  const { coverage, flags: flags2 } = summarizeDetectionCoverage(analysis, {
     root: options.root,
     detectedFlags
   });
@@ -48377,16 +48449,19 @@ async function analyzeEvaluationSurface(options) {
     existing.push(flag);
     options.totalFlags.set(flag.name, existing);
   }
-  options.logger.debug("Evaluation surface measured", {
-    filesInScope: surface.filesInScope,
-    sites: surface.sites,
-    accountedFor: surface.accountedFor,
-    delegated: surface.delegated,
-    unaccountedFor: surface.unaccountedFor,
-    wrappers: surface.wrappers.length,
+  options.logger.debug("Detection coverage measured", {
+    filesInScope: coverage.filesInScope,
+    sites: coverage.sites,
+    flagsNamed: coverage.flagsNamed,
+    delegated: coverage.delegated,
+    unnamed: coverage.unnamed,
+    wrappers: coverage.wrappers.length,
+    refusedForRewrite: coverage.refusedForRewrite,
+    callShaped: coverage.evaluationSurface.callShaped,
+    accountedFor: coverage.evaluationSurface.accountedFor,
     wrapperFlags: flags2.length
   });
-  return surface;
+  return coverage;
 }
 function collectTsJsProviders(registry) {
   const providers = [];
@@ -48508,31 +48583,39 @@ var LANGUAGE_LABELS = {
 function languageLabel(language) {
   return LANGUAGE_LABELS[language] ?? language;
 }
-var EVALUATION_SURFACE_HEADING = "Detection coverage (local; call-shaped evaluation sites counted from the parsed tree)";
-var MAX_EVALUATION_SURFACE_LINES = 5;
+var DETECTION_COVERAGE_HEADING = "Detection coverage (local; call-shaped evaluation sites counted from the parsed tree)";
+var MAX_DETECTION_COVERAGE_LINES = 5;
 function plural2(count, noun) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 function truncate(items, render, noun) {
-  const lines = items.slice(0, MAX_EVALUATION_SURFACE_LINES).map(render);
-  const remaining = items.length - MAX_EVALUATION_SURFACE_LINES;
+  const lines = items.slice(0, MAX_DETECTION_COVERAGE_LINES).map(render);
+  const remaining = items.length - MAX_DETECTION_COVERAGE_LINES;
   if (remaining > 0)
     lines.push(`\u2026 and ${plural2(remaining, noun)} (see --format json)`);
   return lines;
 }
-function describeEvaluationSurface(surface) {
-  if (surface.sites === 0)
+function describeDetectionCoverage(coverage) {
+  if (coverage.sites === 0 && coverage.evaluationSurface.callShaped === 0)
     return null;
-  const parts2 = [`${surface.accountedFor} of ${plural2(surface.sites, "site")} accounted for`];
-  if (surface.delegated > 0) {
-    parts2.push(`${surface.delegated} forwarded by ${plural2(surface.wrappers.length, "wrapper")}`);
+  const parts2 = [`${coverage.flagsNamed} of ${plural2(coverage.sites, "site")} named`];
+  if (coverage.delegated > 0) {
+    parts2.push(`${coverage.delegated} forwarded by ${plural2(coverage.wrappers.length, "wrapper")}`);
   }
-  parts2.push(`${surface.unaccountedFor} not accounted for`);
+  parts2.push(`${coverage.unnamed} not named`);
+  const surface = coverage.evaluationSurface;
+  if (surface.accountedFor !== surface.callShaped) {
+    parts2.push(`${surface.callShaped - surface.accountedFor} of ${plural2(surface.callShaped, "evaluation-shaped call")} unexplained`);
+  }
+  if (coverage.refusedForRewrite > 0) {
+    parts2.push(`${plural2(coverage.refusedForRewrite, "site")} the hosted migration refuses to rewrite`);
+  }
   return {
     headline: parts2.join(" \xB7 "),
-    wrappers: truncate(surface.wrappers, (wrapper) => `${wrapper.label} forwards argument ${wrapper.keyParameterIndex + 1} to ${wrapper.forwardsTo} \xB7 ${wrapper.declaredAt} \xB7 ${plural2(wrapper.callers, "caller")} (${wrapper.resolvedCallers} named \xB7 ${wrapper.unresolvedCallers} runtime-only \xB7 ${wrapper.forwardingCallers} forwarded on)`, "more wrapper"),
-    gaps: truncate(surface.gaps, (gap) => `${gap.reason}  ${plural2(gap.count, "site")} (first at ${gap.sample}) \u2014 ${gap.detail}`, "more refusal reason"),
-    hasShortfall: surface.unaccountedFor > 0
+    wrappers: truncate(coverage.wrappers, (wrapper) => `${wrapper.label} forwards argument ${wrapper.keyParameterIndex + 1} to ${wrapper.forwardsTo} \xB7 ${wrapper.declaredAt} \xB7 ${plural2(wrapper.callers, "caller")} (${wrapper.resolvedCallers} named \xB7 ${wrapper.unresolvedCallers} runtime-only \xB7 ${wrapper.forwardingCallers} forwarded on)`, "more wrapper"),
+    refusals: truncate(coverage.wrappers.filter((wrapper) => wrapper.rewriteBlocker !== null), (wrapper) => `${wrapper.rewriteBlocker.reason}  ${wrapper.label} at ${wrapper.declaredAt} \u2014 ${wrapper.rewriteBlocker.detail}`, "more refused wrapper"),
+    gaps: truncate(coverage.gaps, (gap) => `${gap.reason}  ${plural2(gap.count, "site")} (first at ${gap.sample}) \u2014 ${gap.detail}`, "more refusal reason"),
+    hasShortfall: coverage.unnamed > 0 || surface.accountedFor !== surface.callShaped
   };
 }
 
@@ -48557,25 +48640,28 @@ function buildAdmissionSection(entry) {
   }
   return body2 + "\n";
 }
-function buildEvaluationSurfaceSection(surface) {
-  if (!surface)
+function buildDetectionCoverageSection(coverage) {
+  if (!coverage)
     return "";
-  const described = describeEvaluationSurface(surface);
+  const described = describeDetectionCoverage(coverage);
   if (!described)
     return "";
-  let body2 = `**${EVALUATION_SURFACE_HEADING}:** ${described.headline}.
+  let body2 = `**${DETECTION_COVERAGE_HEADING}:** ${described.headline}.
 
 `;
   for (const wrapper of described.wrappers)
     body2 += `- Wrapper: ${wrapper}
 `;
+  for (const refusal of described.refusals)
+    body2 += `- Hosted migration refuses: ${refusal}
+`;
   for (const gap of described.gaps)
-    body2 += `- Not accounted for: ${gap}
+    body2 += `- Not named: ${gap}
 `;
   return `${body2}
 `;
 }
-function buildLockInSection(lockIn, surface) {
+function buildLockInSection(lockIn, coverage) {
   if (lockIn.callSites === 0)
     return "";
   const sdkCount = lockIn.providers.filter((p) => p.classification !== "already-openfeature").length;
@@ -48598,7 +48684,7 @@ function buildLockInSection(lockIn, surface) {
   for (const entry of lockIn.hostedAdmission) {
     body2 += buildAdmissionSection(entry);
   }
-  body2 += buildEvaluationSurfaceSection(surface);
+  body2 += buildDetectionCoverageSection(coverage);
   body2 += "_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n";
   return body2;
 }
@@ -48627,7 +48713,7 @@ function formatMarkdown(result, options) {
 
 `;
   if (result.lockIn) {
-    body2 += buildLockInSection(result.lockIn, result.evaluationSurface);
+    body2 += buildLockInSection(result.lockIn, result.detectionCoverage);
   }
   const parseErrorCount = result.parseErrorCount ?? 0;
   if (parseErrorCount > 0 && result.filesScanned > 0) {

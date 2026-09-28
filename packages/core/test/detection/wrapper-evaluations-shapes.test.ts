@@ -498,6 +498,132 @@ export const run = () => getFlag(DEEP)
   })
 })
 
+describe('wrapper pass — FS-069 rewrite blockers', () => {
+  const body = (method: string): string => `
+import { init } from '${SDK}'
+const client = init('sdk-key')
+export function getFlag(key: string, fallback: boolean) {
+  return client.${method}(key, { key: 'anonymous' }, fallback)
+}
+`
+  const caller = `
+import { getFlag } from './flags'
+export const run = () => getFlag('some-gate', false)
+`
+
+  it.each(['variation', 'variationDetail', 'jsonVariation'])(
+    'refuses a wrapper over the untyped %s() for rewriting while still naming its flags',
+    async (method) => {
+      const result = await analyze({ 'src/flags.ts': body(method), 'src/app.ts': caller })
+      expect(names(result)).toEqual(['some-gate'])
+      expect(result.wrappers[0].rewriteBlocker).toEqual({
+        reason: 'generic-variation',
+        sdkMethod: method,
+        detail: expect.stringContaining('LaunchDarkly does not type-check'),
+      })
+    },
+  )
+
+  it.each(['boolVariation', 'stringVariation'])(
+    'makes no rewrite claim about a wrapper over the typed %s()',
+    async (method) => {
+      const result = await analyze({ 'src/flags.ts': body(method), 'src/app.ts': caller })
+      expect(result.wrappers[0].rewriteBlocker).toBeNull()
+    },
+  )
+
+  it('propagates the refusal up a wrapper chain', async () => {
+    const result = await analyze({
+      'src/flags.ts': body('variation'),
+      'src/middleware.ts': `
+import { getFlag } from './flags'
+export function requireFlag(key: string) {
+  return async () => getFlag(key, false)
+}
+`,
+      'src/routes.ts': `
+import { requireFlag } from './middleware'
+export const guard = requireFlag('chained-gate')
+`,
+    })
+    expect(
+      result.wrappers.map((entry) => [entry.name, entry.rewriteBlocker?.reason ?? null]),
+    ).toEqual([
+      ['getFlag', 'generic-variation'],
+      ['requireFlag', 'generic-variation'],
+    ])
+    expect(names(result)).toEqual(['chained-gate'])
+  })
+
+  it('makes no rewrite claim for a non-LaunchDarkly provider that happens to share a method name', async () => {
+    const other: FeatureFlagProvider[] = [
+      {
+        name: 'Other SDK',
+        importPattern: 'other-flags-sdk',
+        description: 'another provider',
+        enabled: true,
+        methods: [{ name: 'variation', flagKeyIndex: 0 }],
+      },
+    ]
+    const result = await analyze(
+      {
+        'src/flags.ts': `
+import { init } from 'other-flags-sdk'
+const client = init('sdk-key')
+export function getFlag(key: string) {
+  return client.variation(key)
+}
+`,
+        'src/app.ts': `
+import { getFlag } from './flags'
+export const run = () => getFlag('other-gate')
+`,
+      },
+      other,
+    )
+    expect(names(result)).toEqual(['other-gate'])
+    expect(result.wrappers[0].rewriteBlocker).toBeNull()
+  })
+})
+
+describe('wrapper pass — the FS-069 evaluation-surface cross-check', () => {
+  it('counts evaluation-shaped member calls without provenance and reports a shortfall', async () => {
+    const result = await analyze({
+      'src/flags.ts': `
+import { init } from '${SDK}'
+const client = init('sdk-key')
+const list = ['a']
+export const ok = () => client.boolVariation('named-gate', { key: 'a' }, false)
+export const degenerate = () => client.boolVariation()
+export const unrelated = () => list.variation()
+`,
+    })
+    // Three member-form calls name a catalogued evaluation method. Only the first
+    // has an argument at the key position, so only it is classified — the other two
+    // are the shortfall the cross-check exists to expose.
+    expect(result.evaluationSurface).toEqual({ callShaped: 3, accountedFor: 1 })
+    expect(result.sites).toHaveLength(1)
+  })
+
+  it('does not count a bare wrapper call, which is not a member expression', async () => {
+    const result = await analyze({
+      'src/flags.ts': `
+import { init } from '${SDK}'
+const client = init('sdk-key')
+export const getFlag = (key: string) => client.boolVariation(key, { key: 'a' }, false)
+`,
+      'src/app.ts': `
+import { getFlag } from './flags'
+export const run = () => getFlag('bare-gate')
+`,
+    })
+    // The wrapper body is the only member-form evaluation call; the caller is a bare
+    // call, so the scanner classifies two sites while the cross-check sees one.
+    expect(result.evaluationSurface).toEqual({ callShaped: 1, accountedFor: 1 })
+    expect(result.sites).toHaveLength(2)
+  })
+})
+
 describe('wrapper pass — provider catalogue', () => {
   it('skips a disabled provider entirely', async () => {
     const disabled: FeatureFlagProvider[] = [
