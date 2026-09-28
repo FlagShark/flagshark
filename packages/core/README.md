@@ -108,6 +108,8 @@ interface ScanRepoResult {
   excludedCount?: number           // files skipped by config + .flagsharkignore
   excludedPaths?: string[]         // set when collectExcludedPaths: true
   effectiveExcludes?: EffectiveRules  // for debug/verbose output
+  lockIn?: LockInSummary           // call sites per provider SDK + hosted-admission preflight
+  evaluationSurface?: EvaluationSurface  // detection coverage + identified wrappers
 }
 ```
 
@@ -230,6 +232,39 @@ LaunchDarkly · Unleash · Flipt · Split.io · PostHog · Flagsmith · ConfigCa
 FlagShark only scans files that actually import a flag SDK. A function called `isEnabled()` in a file that doesn't import LaunchDarkly/Unleash/etc. won't be flagged — this prevents false positives from generic identifier names.
 
 Once a file qualifies, the engine (tree-sitter for tier-1, regex for the rest) walks call expressions and extracts the flag-key argument at the configured position for each provider's method signatures. Provider attribution and source location come along automatically.
+
+### Wrapper-mediated evaluations and detection coverage
+
+Most real repositories do not call the SDK at the point of use; they call a
+wrapper. `scanRepo` runs a repository-level TypeScript/JavaScript pass
+(`analyzeWrapperEvaluations`) that identifies a function or method forwarding one
+of its own parameters as the flag key of a catalogued provider method, resolves
+its callers through their import bindings, and reports the literal and proven-const
+keys at those callers as flags with `confidence: 'medium'`.
+
+The same pass counts every call-shaped evaluation site the parsed trees hold,
+independently of provenance, and `summarizeEvaluationSurface` turns that into
+`ScanRepoResult.evaluationSurface`:
+
+```ts
+import { analyzeWrapperEvaluations, summarizeEvaluationSurface } from '@flagshark/core'
+
+interface EvaluationSurface {
+  schemaVersion: 1
+  filesInScope: number     // TS/JS files reaching a provider SDK that were parsed
+  sites: number            // call-shaped evaluation sites found
+  accountedFor: number     // sites a flag is reported for
+  delegated: number        // sites whose key is forwarded by an identified wrapper
+  unaccountedFor: number   // sites with no flag name the scan will claim
+  gaps: EvaluationSurfaceGap[]          // one entry per refusal reason, with a sample
+  wrappers: EvaluationSurfaceWrapper[]  // identified wrappers and their caller counts
+}
+```
+
+`sites` always equals `accountedFor + delegated + unaccountedFor`, and every site
+counted as `accountedFor` has a flag in the result at the same file and line — so
+the number cannot flatter the scan. The pass is pure and local: no account, no
+token, no network.
 
 ## How staleness works
 

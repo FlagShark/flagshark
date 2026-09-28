@@ -21,6 +21,9 @@ Lock-in: 21 flag call sites · 3 provider SDKs
   Hosted draft PR preflight (local; no account, no network; the hosted planner decides): 2 gates refuse · 14 pass · 4 not checkable locally (analyzer-budget, transformation-blockers, dependency-closure, sandbox-validation)
     ✗ npm-pin      package.json declares packageManager "yarn@4.18.0"; the hosted planner admits only an exact npm pin and its sandbox runs npm 10.9.8. Set "packageManager": "npm@10.9.8", or remove it and commit a lockfileVersion 3 package-lock.json.
     ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
+  Detection coverage (local; call-shaped evaluation sites counted from the parsed tree): 19 of 23 sites accounted for · 2 forwarded by 2 wrappers · 2 not accounted for
+    → getLaunchDarklyFlag() forwards argument 2 to variation · src/utils/getLaunchDarklyFlag.ts:9 · 8 callers (7 named · 1 runtime-only · 0 forwarded on)
+    ✗ computed-key  2 sites (first at src/gates.ts:31) — the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source
   Next: npx flagshark assess   (private assessment; invite-only today)
 
 Found 23 feature flags · 7 stale · health 70/100 ⚠️
@@ -54,10 +57,28 @@ the hosted analyzer or sandbox can decide are reported as *not checkable
 locally*, never as passed. The full gate list is in `--json` output under
 `lockIn.hostedAdmission`.
 
+Most repositories reach the SDK through a wrapper rather than calling it
+directly — 13 of 15 surveyed public LaunchDarkly TypeScript repositories do. The
+scan identifies a TypeScript/JavaScript function or method that forwards one of
+its parameters as the flag key of a catalogued provider method, finds its callers
+by name plus a provable import binding, and reports their literal and
+proven-const keys as flags (`confidence: medium`, so the lock-in summary calls
+them `needs review (weaker detection)`).
+
+The `Detection coverage:` line is the honesty check on that: every call-shaped
+evaluation site in the parsed tree, counted independently of whether a flag key
+could be attributed, split into accounted for / forwarded by a wrapper / not
+accounted for, with a named reason and a sample location per refusal. A zero flag
+count with unaccounted-for sites behind it prints `⚠ This is not a confident
+zero.` instead of reading as certainty. The full numbers, the wrappers and their
+caller counts, and every refusal are in `--json` output under
+`evaluationSurface`.
+
 ## Why FlagShark
 
 - **Zero install, zero config.** `npx flagshark scan` works on any repo today.
 - **Lock-in summary.** Flag call sites per provider SDK, classified against the hosted migration registry snapshot shipped with the CLI. Provable, not promised.
+- **Wrapper-aware, and honest about the rest.** Finds flags evaluated through a feature-flag helper, service or singleton, and reports the evaluation sites it could not account for instead of printing a confident zero.
 - **Polyglot.** TypeScript, JavaScript, Go, Python, Java, Kotlin, Swift, Ruby, C#, PHP, Rust, C/C++, Objective-C.
 - **Provider-aware.** Auto-detects 13 flag SDKs — no custom rules to maintain.
 - **AST-based detection** for TS/JS/Go/Python via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, and unrelated calls aren't false positives.

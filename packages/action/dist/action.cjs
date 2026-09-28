@@ -4266,8 +4266,8 @@ var require_webidl = __commonJS({
       return new TypeError(`${message.header}: ${message.message}`);
     };
     webidl.errors.conversionFailed = function(context) {
-      const plural2 = context.types.length === 1 ? "" : " one of";
-      const message = `${context.argument} could not be converted to${plural2}: ${context.types.join(", ")}.`;
+      const plural3 = context.types.length === 1 ? "" : " one of";
+      const message = `${context.argument} could not be converted to${plural3}: ${context.types.join(", ")}.`;
       return webidl.errors.exception({
         header: context.prefix,
         message
@@ -10869,9 +10869,9 @@ var require_pluralizer = __commonJS({
       this: "these"
     };
     module2.exports = class Pluralizer {
-      constructor(singular, plural2) {
+      constructor(singular, plural3) {
         this.singular = singular;
-        this.plural = plural2;
+        this.plural = plural3;
       }
       pluralize(count) {
         const one = count === 1;
@@ -31596,13 +31596,13 @@ var require_dist = __commonJS({
 });
 
 // src/index.ts
-var import_node_path8 = require("node:path");
+var import_node_path9 = require("node:path");
 var core = __toESM(require_core(), 1);
 var github = __toESM(require_github(), 1);
 
 // src/run.ts
 var import_node_fs7 = require("node:fs");
-var import_node_path7 = require("node:path");
+var import_node_path8 = require("node:path");
 
 // ../core/dist/detection/interface.js
 var Languages = {
@@ -44217,6 +44217,7 @@ var fs2 = __toESM(require("node:fs"), 1);
 var import_node_path2 = __toESM(require("node:path"), 1);
 var ESM_IMPORT_RE = /^[ \t]*import\s*(?:\s+type)?\s*(?:[^'"`;\n]*?\s+from\s+)?['"`]([^'"`]+)['"`]/gm;
 var REQUIRE_RE = /(?<![.\w$])require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+var ESM_EXPORT_FROM_RE = /^[ \t]*export\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s+from\s+['"`]([^'"`]+)['"`]/gm;
 var DYNAMIC_IMPORT_RE = /(?<![.\w$])import\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
 var PY_FROM_IMPORT_RE = /^[ \t]*from\s+(\.*[\w.]+)\s+import\s+/gm;
 var PY_IMPORT_RE = /^[ \t]*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/gm;
@@ -44235,6 +44236,7 @@ function extractImports(content) {
     }
   };
   collect(ESM_IMPORT_RE);
+  collect(ESM_EXPORT_FROM_RE);
   collect(REQUIRE_RE);
   collect(DYNAMIC_IMPORT_RE);
   return out2;
@@ -44575,6 +44577,910 @@ function isTsJsFile(filePath) {
   return TS_JS_EXTENSIONS.includes(ext);
 }
 
+// ../core/dist/detection/evaluation-surface.js
+var import_node_path3 = require("node:path");
+
+// ../core/dist/detection/wrapper-evaluations.js
+var EVALUATION_GAP_DETAILS = {
+  "computed-key": "the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source",
+  "unprovable-key": "the flag key is an identifier the scan cannot prove: a local variable, a re-assigned binding, or a const in a module it did not read",
+  "unusable-literal-key": "the flag key is a literal FlagShark will not accept as a key (a URL, a path, or a string with whitespace), so the call is probably not an evaluation",
+  "destructured-parameter": "the flag key arrives through a destructured parameter, so it has no fixed argument position to read at the callers",
+  "unnamed-wrapper": "the function forwarding the key has no name call sites can be bound to (an inline callback, an IIFE, or an anonymous default export)",
+  "unproven-wrapper": "a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client \u2014 the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows",
+  "wrapper-without-callers": "a wrapper forwards the key to the SDK but the scan found no call site for it, so its flag keys are somewhere the scan cannot see"
+};
+var DEFAULT_MAX_WRAPPER_DEPTH = 3;
+var MAX_RE_EXPORT_HOPS = 4;
+var FUNCTION_NODES = /* @__PURE__ */ new Set([
+  "function_declaration",
+  "generator_function_declaration",
+  "function_expression",
+  "generator_function",
+  "arrow_function",
+  "method_definition"
+]);
+function namedChildren(node) {
+  return node.namedChildren.filter((child) => child !== null);
+}
+function* walk(node) {
+  yield node;
+  for (const child of namedChildren(node))
+    yield* walk(child);
+}
+function enclosingFunction(node) {
+  let current = node.parent;
+  while (current) {
+    if (FUNCTION_NODES.has(current.type))
+      return current;
+    current = current.parent;
+  }
+  return null;
+}
+function isExportedDeclaration(node) {
+  return node.parent?.type === "export_statement";
+}
+function receiverKey(node) {
+  switch (node.type) {
+    case "identifier":
+      return node.text;
+    case "this":
+      return "this";
+    case "member_expression": {
+      const object = node.childForFieldName("object");
+      return object.type === "this" ? `this.${node.childForFieldName("property").text}` : receiverKey(object);
+    }
+    case "subscript_expression":
+      return receiverKey(node.childForFieldName("object"));
+    case "call_expression":
+      return receiverKey(node.childForFieldName("function"));
+    case "new_expression":
+      return receiverKey(node.childForFieldName("constructor"));
+    case "await_expression":
+    case "parenthesized_expression":
+    case "non_null_expression":
+      return receiverKey(namedChildren(node)[0]);
+    default:
+      return null;
+  }
+}
+function annotatedTypeName(annotation) {
+  for (const node of walk(annotation)) {
+    if (node.type === "type_identifier")
+      return node.text;
+  }
+  return null;
+}
+function parameterSlots(fn) {
+  const single = fn.childForFieldName("parameter");
+  if (single)
+    return [{ kind: "identifier", name: single.text }];
+  const list = fn.childForFieldName("parameters");
+  if (!list)
+    return [];
+  const slots = [];
+  for (const parameter of namedChildren(list)) {
+    if (parameter.type !== "required_parameter" && parameter.type !== "optional_parameter")
+      continue;
+    const pattern = parameter.childForFieldName("pattern");
+    if (!pattern)
+      continue;
+    if (pattern.type === "identifier") {
+      slots.push({ kind: "identifier", name: pattern.text });
+      continue;
+    }
+    const names = [];
+    for (const node of walk(pattern)) {
+      if (node.type === "shorthand_property_identifier_pattern" || node.type === "identifier") {
+        names.push(node.text);
+      }
+    }
+    slots.push({ kind: "pattern", names });
+  }
+  return slots;
+}
+function declaresLocal(fn, name2) {
+  for (const node of walk(fn)) {
+    if (node.type !== "variable_declarator")
+      continue;
+    if (node.childForFieldName("name")?.text === name2)
+      return true;
+  }
+  return false;
+}
+function literalString(node) {
+  if (node.type === "template_string" && namedChildren(node).some((child) => child.type === "template_substitution")) {
+    return null;
+  }
+  return extractStringLiteral(node);
+}
+function* fileScopeDeclarators(root) {
+  for (const child of namedChildren(root)) {
+    const declaration = child.type === "export_statement" ? child.childForFieldName("declaration") : child;
+    if (!declaration || declaration.type !== "lexical_declaration")
+      continue;
+    if (declaration.children[0]?.type !== "const")
+      continue;
+    for (const declarator of namedChildren(declaration)) {
+      if (declarator.type === "variable_declarator")
+        yield declarator;
+    }
+  }
+}
+function constStringInModule(root, name2) {
+  for (const declarator of fileScopeDeclarators(root)) {
+    if (declarator.childForFieldName("name")?.text !== name2)
+      continue;
+    const value = declarator.childForFieldName("value");
+    if (!value)
+      continue;
+    const literal = literalString(value);
+    if (literal !== null)
+      return literal;
+  }
+  return null;
+}
+function constObjectPropertyInModule(root, name2, property) {
+  for (const declarator of fileScopeDeclarators(root)) {
+    if (declarator.childForFieldName("name")?.text !== name2)
+      continue;
+    const value = declarator.childForFieldName("value");
+    if (!value || value.type !== "object")
+      continue;
+    for (const pair of namedChildren(value)) {
+      if (pair.type !== "pair")
+        continue;
+      const key = pair.childForFieldName("key");
+      if (!key)
+        continue;
+      const keyName = key.type === "string" ? extractStringLiteral(key) : key.text;
+      if (keyName !== property)
+        continue;
+      const pairValue = pair.childForFieldName("value");
+      if (!pairValue)
+        continue;
+      const literal = literalString(pairValue);
+      if (literal !== null)
+        return literal;
+    }
+  }
+  return null;
+}
+function collectFileFacts(root, filePath, fileSet, aliases) {
+  const facts = {
+    bindings: [],
+    exportListNames: /* @__PURE__ */ new Set(),
+    reExports: [],
+    injectedTypes: /* @__PURE__ */ new Map(),
+    localInstances: /* @__PURE__ */ new Map(),
+    calls: []
+  };
+  const resolve4 = (specifier) => resolveImportPath(filePath, specifier, fileSet, aliases);
+  const bind = (local, imported, resolved) => {
+    if (resolved !== null)
+      facts.bindings.push({ local, imported, resolved });
+  };
+  for (const node of walk(root)) {
+    switch (node.type) {
+      case "import_statement":
+        collectImport(node, resolve4, bind);
+        break;
+      case "export_statement":
+        collectExport(node, resolve4, facts);
+        break;
+      case "variable_declarator":
+        collectDeclarator(node, resolve4, bind, facts);
+        break;
+      case "public_field_definition":
+        collectAnnotatedMember(node, facts.injectedTypes);
+        break;
+      case "method_definition":
+        if (node.childForFieldName("name")?.text === "constructor") {
+          collectConstructorInjection(node, facts.injectedTypes);
+        }
+        break;
+      case "call_expression":
+        collectCall(node, facts.calls);
+        break;
+      default:
+        break;
+    }
+  }
+  return facts;
+}
+function specifierOf(node) {
+  const source = node.childForFieldName("source");
+  if (!source)
+    return null;
+  return extractStringLiteral(source);
+}
+function collectImport(node, resolve4, bind) {
+  const specifier = specifierOf(node);
+  if (specifier === null)
+    return;
+  const resolved = resolve4(specifier);
+  for (const clause of namedChildren(node)) {
+    if (clause.type !== "import_clause")
+      continue;
+    for (const part of namedChildren(clause)) {
+      if (part.type === "identifier") {
+        bind(part.text, "default", resolved);
+      } else if (part.type === "namespace_import") {
+        const alias = namedChildren(part).find((child) => child.type === "identifier");
+        if (alias)
+          bind(alias.text, "*", resolved);
+      } else if (part.type === "named_imports") {
+        for (const specifierNode of namedChildren(part)) {
+          if (specifierNode.type !== "import_specifier")
+            continue;
+          const name2 = specifierNode.childForFieldName("name");
+          if (!name2)
+            continue;
+          bind((specifierNode.childForFieldName("alias") ?? name2).text, name2.text, resolved);
+        }
+      }
+    }
+  }
+}
+function collectExport(node, resolve4, facts) {
+  const specifier = specifierOf(node);
+  const clause = namedChildren(node).find((child) => child.type === "export_clause");
+  if (specifier === null) {
+    if (!clause)
+      return;
+    for (const exportSpecifier of namedChildren(clause)) {
+      if (exportSpecifier.type !== "export_specifier")
+        continue;
+      const name2 = exportSpecifier.childForFieldName("name");
+      if (!name2)
+        continue;
+      facts.exportListNames.add((exportSpecifier.childForFieldName("alias") ?? name2).text);
+    }
+    return;
+  }
+  const target = resolve4(specifier);
+  if (target === null)
+    return;
+  if (!clause) {
+    facts.reExports.push({ exported: null, source: null, target });
+    return;
+  }
+  for (const exportSpecifier of namedChildren(clause)) {
+    if (exportSpecifier.type !== "export_specifier")
+      continue;
+    const name2 = exportSpecifier.childForFieldName("name");
+    if (!name2)
+      continue;
+    facts.reExports.push({
+      exported: (exportSpecifier.childForFieldName("alias") ?? name2).text,
+      source: name2.text,
+      target
+    });
+  }
+}
+function collectDeclarator(node, resolve4, bind, facts) {
+  const name2 = node.childForFieldName("name");
+  if (!name2)
+    return;
+  const value = node.childForFieldName("value");
+  if (name2.type === "identifier") {
+    const annotation = node.childForFieldName("type");
+    const annotated = annotation === null ? null : annotatedTypeName(annotation);
+    if (annotated !== null) {
+      facts.localInstances.set(name2.text, annotated);
+    } else if (value?.type === "new_expression") {
+      const constructed = value.childForFieldName("constructor");
+      if (constructed?.type === "identifier")
+        facts.localInstances.set(name2.text, constructed.text);
+    }
+  }
+  if (!value || value.type !== "call_expression")
+    return;
+  if (value.childForFieldName("function")?.text !== "require")
+    return;
+  const args2 = value.childForFieldName("arguments");
+  if (!args2)
+    return;
+  const first = getArgument(args2, 0);
+  if (!first)
+    return;
+  const specifier = extractStringLiteral(first);
+  if (specifier === null)
+    return;
+  const resolved = resolve4(specifier);
+  if (name2.type === "identifier") {
+    bind(name2.text, "*", resolved);
+    bind(name2.text, "default", resolved);
+    return;
+  }
+  if (name2.type !== "object_pattern")
+    return;
+  for (const part of namedChildren(name2)) {
+    if (part.type === "shorthand_property_identifier_pattern") {
+      bind(part.text, part.text, resolved);
+    } else if (part.type === "pair_pattern") {
+      const key = part.childForFieldName("key");
+      const local = part.childForFieldName("value");
+      if (key && local)
+        bind(local.text, key.text, resolved);
+    }
+  }
+}
+function collectAnnotatedMember(node, into) {
+  const name2 = node.childForFieldName("name");
+  const annotation = node.childForFieldName("type");
+  if (!name2 || !annotation)
+    return;
+  const typeName = annotatedTypeName(annotation);
+  if (typeName)
+    into.set(name2.text, typeName);
+}
+function collectConstructorInjection(node, into) {
+  const parameters = node.childForFieldName("parameters");
+  if (!parameters)
+    return;
+  for (const parameter of namedChildren(parameters)) {
+    if (parameter.type !== "required_parameter" && parameter.type !== "optional_parameter")
+      continue;
+    const pattern = parameter.childForFieldName("pattern");
+    const annotation = parameter.childForFieldName("type");
+    if (!pattern || pattern.type !== "identifier" || !annotation)
+      continue;
+    const typeName = annotatedTypeName(annotation);
+    if (typeName)
+      into.set(pattern.text, typeName);
+  }
+}
+function collectCall(node, into) {
+  const fn = node.childForFieldName("function");
+  const args2 = node.childForFieldName("arguments");
+  if (!fn || !args2 || args2.type !== "arguments")
+    return;
+  const lineNumber = node.startPosition.row + 1;
+  if (fn.type === "identifier") {
+    into.push({ callee: fn.text, receiver: null, args: args2, lineNumber });
+    return;
+  }
+  if (fn.type !== "member_expression")
+    return;
+  const property = fn.childForFieldName("property");
+  const receiver = fn.childForFieldName("object");
+  if (!property || !receiver)
+    return;
+  if (property.type !== "property_identifier")
+    return;
+  into.push({ callee: property.text, receiver, args: args2, lineNumber });
+}
+function buildSdkCatalogue(providers) {
+  const catalogue = /* @__PURE__ */ new Map();
+  for (const provider of providers) {
+    if (!provider.enabled)
+      continue;
+    const pattern = getImportPattern(provider);
+    if (!pattern)
+      continue;
+    let methods = catalogue.get(pattern);
+    if (!methods) {
+      methods = /* @__PURE__ */ new Map();
+      catalogue.set(pattern, methods);
+    }
+    for (const method of provider.methods) {
+      if (method.flagKeyIndex < 0)
+        continue;
+      if (!methods.has(method.name)) {
+        methods.set(method.name, { keyIndex: method.flagKeyIndex, provider: pattern });
+      }
+    }
+  }
+  return catalogue;
+}
+function providerPackages(providers) {
+  const packages = /* @__PURE__ */ new Map();
+  for (const provider of providers) {
+    const pattern = getImportPattern(provider);
+    if (!pattern)
+      continue;
+    const existing = packages.get(pattern) ?? [pattern];
+    packages.set(pattern, [.../* @__PURE__ */ new Set([...existing, ...provider.importAliases ?? []])]);
+  }
+  return packages;
+}
+function originModules(analyzer, start2, name2) {
+  const origins = /* @__PURE__ */ new Set([start2]);
+  let frontier = [{ file: start2, name: name2 }];
+  for (let hop = 0; hop < MAX_RE_EXPORT_HOPS && frontier.length > 0; hop++) {
+    const next = [];
+    for (const entry of frontier) {
+      const file = analyzer.parsed.get(entry.file);
+      if (!file)
+        continue;
+      for (const reExport of file.reExports) {
+        if (reExport.exported !== null && reExport.exported !== entry.name)
+          continue;
+        if (origins.has(reExport.target))
+          continue;
+        origins.add(reExport.target);
+        next.push({ file: reExport.target, name: reExport.source ?? entry.name });
+      }
+    }
+    frontier = next;
+  }
+  return origins;
+}
+function acceptedCallsFor(analyzer, file, wrapper) {
+  const accepted = [];
+  const sameFile = file.filePath === wrapper.filePath;
+  const reaches = (binding) => originModules(analyzer, binding.resolved, binding.imported).has(wrapper.filePath);
+  if (wrapper.kind === "function") {
+    if (sameFile)
+      accepted.push({ callee: wrapper.name, receivers: null, wrapper });
+    if (wrapper.exported) {
+      for (const binding of file.bindings) {
+        if (!reaches(binding))
+          continue;
+        if (binding.imported === wrapper.name || binding.imported === "default") {
+          accepted.push({ callee: binding.local, receivers: null, wrapper });
+        } else if (binding.imported === "*") {
+          accepted.push({ callee: wrapper.name, receivers: /* @__PURE__ */ new Set([binding.local]), wrapper });
+        }
+      }
+    }
+    return accepted;
+  }
+  const handles = (owner) => {
+    const receivers = /* @__PURE__ */ new Set([owner]);
+    for (const [property, typeName] of file.injectedTypes) {
+      if (typeName === owner)
+        receivers.add(`this.${property}`);
+    }
+    for (const [variable, typeName] of file.localInstances) {
+      if (typeName === owner)
+        receivers.add(variable);
+    }
+    return receivers;
+  };
+  if (sameFile) {
+    const receivers = handles(wrapper.owner);
+    receivers.add("this");
+    accepted.push({ callee: wrapper.name, receivers, wrapper });
+  }
+  if (wrapper.exported) {
+    for (const binding of file.bindings) {
+      if (!reaches(binding))
+        continue;
+      if (binding.imported !== wrapper.owner && binding.imported !== "default" && binding.imported !== "*")
+        continue;
+      accepted.push({ callee: wrapper.name, receivers: handles(binding.local), wrapper });
+    }
+  }
+  return accepted;
+}
+function matchesAccepted(call, accepted) {
+  if (call.callee !== accepted.callee)
+    return false;
+  if (accepted.receivers === null)
+    return call.receiver === null;
+  if (call.receiver === null)
+    return false;
+  const key = receiverKey(call.receiver);
+  return key !== null && accepted.receivers.has(key);
+}
+function sdkTargetFor(call, file, catalogue) {
+  for (const sdk of file.reachableSdks) {
+    const method = catalogue.get(sdk)?.get(call.callee);
+    if (method)
+      return method;
+  }
+  return null;
+}
+function importedConst(analyzer, file, name2, property) {
+  for (const binding of file.bindings) {
+    if (binding.local !== name2)
+      continue;
+    const namespaced = binding.imported === "*";
+    if (namespaced && property === null)
+      continue;
+    const wanted = namespaced ? property : binding.imported;
+    for (const origin of originModules(analyzer, binding.resolved, wanted)) {
+      const module2 = analyzer.parsed.get(origin);
+      if (!module2)
+        continue;
+      const value = namespaced || property === null ? constStringInModule(module2.root, wanted) : constObjectPropertyInModule(module2.root, wanted, property);
+      if (value !== null)
+        return value;
+    }
+  }
+  return null;
+}
+function findParameterBinder(node, name2) {
+  let fn = enclosingFunction(node);
+  while (fn) {
+    if (declaresLocal(fn, name2))
+      return { kind: "gap", reason: "unprovable-key" };
+    const slots = parameterSlots(fn);
+    const index = slots.findIndex((slot) => slot.kind === "identifier" && slot.name === name2);
+    if (index >= 0)
+      return { kind: "parameter", fn, index };
+    if (slots.some((slot) => slot.kind === "pattern" && slot.names.includes(name2))) {
+      return { kind: "gap", reason: "destructured-parameter" };
+    }
+    fn = enclosingFunction(fn);
+  }
+  return null;
+}
+function resolveKeyArgument(analyzer, file, argument) {
+  const literal = literalString(argument);
+  if (literal !== null) {
+    return isValidFlagKey(literal) ? { kind: "key", flagKey: literal } : { kind: "gap", reason: "unusable-literal-key" };
+  }
+  if (argument.type === "identifier") {
+    const name2 = argument.text;
+    for (const candidate of [constStringInModule(file.root, name2), importedConst(analyzer, file, name2, null)]) {
+      if (candidate !== null && isValidFlagKey(candidate))
+        return { kind: "key", flagKey: candidate };
+    }
+    return findParameterBinder(argument, name2) ?? { kind: "gap", reason: "unprovable-key" };
+  }
+  if (argument.type === "member_expression") {
+    const object = argument.childForFieldName("object");
+    const property = argument.childForFieldName("property");
+    if (object?.type === "identifier" && property?.type === "property_identifier") {
+      const candidates = [
+        constObjectPropertyInModule(file.root, object.text, property.text),
+        importedConst(analyzer, file, object.text, property.text)
+      ];
+      for (const candidate of candidates) {
+        if (candidate !== null && isValidFlagKey(candidate))
+          return { kind: "key", flagKey: candidate };
+      }
+    }
+    return { kind: "gap", reason: "unprovable-key" };
+  }
+  return { kind: "gap", reason: "computed-key" };
+}
+function nameWrapper(fn, file) {
+  if (fn.type === "function_declaration" || fn.type === "generator_function_declaration") {
+    const name2 = fn.childForFieldName("name");
+    if (!name2)
+      return null;
+    return {
+      kind: "function",
+      name: name2.text,
+      owner: null,
+      exported: isExportedDeclaration(fn) || file.exportListNames.has(name2.text),
+      declaration: fn
+    };
+  }
+  if (fn.type === "method_definition") {
+    const name2 = fn.childForFieldName("name");
+    if (!name2)
+      return null;
+    const container = fn.parent;
+    if (!container)
+      return null;
+    const owner = container.type === "class_body" ? ownerOfClass(container, file) : ownerOfObject(container, file);
+    if (!owner)
+      return null;
+    return { kind: "method", name: name2.text, owner: owner.name, exported: owner.exported, declaration: fn };
+  }
+  const parent = fn.parent;
+  if (!parent)
+    return null;
+  if (parent.type === "variable_declarator") {
+    const name2 = parent.childForFieldName("name");
+    if (!name2 || name2.type !== "identifier")
+      return null;
+    const declaration = parent.parent;
+    if (!declaration)
+      return null;
+    return {
+      kind: "function",
+      name: name2.text,
+      owner: null,
+      exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text),
+      declaration: parent
+    };
+  }
+  if (parent.type === "pair" && parent.parent?.type === "object") {
+    const key = parent.childForFieldName("key");
+    if (!key)
+      return null;
+    const keyName = key.type === "string" ? extractStringLiteral(key) : key.text;
+    if (keyName === null)
+      return null;
+    const owner = ownerOfObject(parent.parent, file);
+    if (!owner)
+      return null;
+    return { kind: "method", name: keyName, owner: owner.name, exported: owner.exported, declaration: parent };
+  }
+  return null;
+}
+function ownerOfClass(classBody, file) {
+  const declaration = classBody.parent;
+  if (!declaration)
+    return null;
+  const name2 = declaration.childForFieldName("name");
+  if (!name2)
+    return null;
+  return { name: name2.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text) };
+}
+function ownerOfObject(object, file) {
+  const declarator = object.parent;
+  if (!declarator || declarator.type !== "variable_declarator")
+    return null;
+  const name2 = declarator.childForFieldName("name");
+  if (!name2 || name2.type !== "identifier")
+    return null;
+  const declaration = declarator.parent;
+  if (!declaration)
+    return null;
+  return { name: name2.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text) };
+}
+function callerCount(wrapper) {
+  return wrapper.resolvedCallers + wrapper.unresolvedCallers + wrapper.forwardingCallers;
+}
+function wrapperLabel(wrapper) {
+  return `${wrapper.owner === null ? "" : `${wrapper.owner}.`}${wrapper.name}()`;
+}
+async function analyzeWrapperEvaluations(options) {
+  const catalogue = buildSdkCatalogue(options.providers);
+  const packages = providerPackages(options.providers);
+  const maxDepth = options.maxWrapperDepth ?? DEFAULT_MAX_WRAPPER_DEPTH;
+  const fileSet = /* @__PURE__ */ new Set();
+  for (const filePath of options.files.keys()) {
+    if (isTsJsFile(filePath))
+      fileSet.add(filePath);
+  }
+  const inScopePaths = [...fileSet].filter((filePath) => options.transitiveSdks.has(filePath)).sort();
+  if (inScopePaths.length === 0) {
+    return { wrappers: [], flags: [], sites: [], filesInScope: 0 };
+  }
+  const parser = await getParser("typescript");
+  const parsed = /* @__PURE__ */ new Map();
+  const analyzer = { parsed };
+  const parseFile = (filePath) => {
+    const content = options.files.get(filePath);
+    const root = parser.parse(content).rootNode;
+    const directSdks = /* @__PURE__ */ new Set();
+    for (const [pattern, names] of packages) {
+      if (names.some((name2) => content.includes(name2)))
+        directSdks.add(pattern);
+    }
+    parsed.set(filePath, {
+      ...collectFileFacts(root, filePath, fileSet, options.aliases),
+      filePath,
+      root,
+      language: options.languageForFile(filePath),
+      directSdks,
+      reachableSdks: options.transitiveSdks.get(filePath) ?? /* @__PURE__ */ new Set()
+    });
+  };
+  for (const filePath of inScopePaths)
+    parseFile(filePath);
+  const oneHop = /* @__PURE__ */ new Set();
+  for (const filePath of inScopePaths) {
+    for (const binding of parsed.get(filePath).bindings) {
+      if (!parsed.has(binding.resolved))
+        oneHop.add(binding.resolved);
+    }
+  }
+  for (const filePath of [...oneHop].sort())
+    parseFile(filePath);
+  const inScopeFiles = inScopePaths.map((filePath) => parsed.get(filePath));
+  const wrappers = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let grew = false;
+    for (const wrapper of identifyWrappers(analyzer, inScopeFiles, catalogue, wrappers, depth)) {
+      const key = `${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`;
+      if (seen.has(key))
+        continue;
+      seen.add(key);
+      wrappers.push(wrapper);
+      grew = true;
+    }
+    if (!grew)
+      break;
+  }
+  const { sites, flags: flags2 } = classifySites(analyzer, inScopeFiles, catalogue, wrappers);
+  wrappers.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.name.localeCompare(b.name));
+  sites.sort((a, b) => a.filePath.localeCompare(b.filePath) || a.lineNumber - b.lineNumber || a.callee.localeCompare(b.callee));
+  return { wrappers, flags: flags2, sites, filesInScope: inScopeFiles.length };
+}
+function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
+  const found = [];
+  for (const file of inScopeFiles) {
+    if (depth === 1 && file.directSdks.size === 0)
+      continue;
+    const accepted = depth === 1 ? [] : known.filter((wrapper) => wrapper.depth === depth - 1).flatMap((wrapper) => acceptedCallsFor(analyzer, file, wrapper));
+    for (const call of file.calls) {
+      let keyIndex;
+      let provider;
+      let forwardsTo;
+      if (depth === 1) {
+        const target = sdkTargetFor(call, file, catalogue);
+        if (!target || !file.directSdks.has(target.provider))
+          continue;
+        keyIndex = target.keyIndex;
+        provider = target.provider;
+        forwardsTo = call.callee;
+      } else {
+        const match = accepted.find((candidate) => matchesAccepted(call, candidate));
+        if (!match)
+          continue;
+        keyIndex = match.wrapper.keyParameterIndex;
+        provider = match.wrapper.provider;
+        forwardsTo = wrapperLabel(match.wrapper);
+      }
+      const argument = getArgument(call.args, keyIndex);
+      if (!argument || argument.type !== "identifier")
+        continue;
+      const binder = findParameterBinder(argument, argument.text);
+      if (!binder || binder.kind !== "parameter")
+        continue;
+      const named = nameWrapper(binder.fn, file);
+      if (!named)
+        continue;
+      found.push({
+        filePath: file.filePath,
+        lineNumber: named.declaration.startPosition.row + 1,
+        kind: named.kind,
+        name: named.name,
+        owner: named.owner,
+        keyParameterIndex: binder.index,
+        provider,
+        forwardsTo,
+        depth,
+        exported: named.exported,
+        resolvedCallers: 0,
+        unresolvedCallers: 0,
+        forwardingCallers: 0
+      });
+    }
+  }
+  return found;
+}
+function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
+  const byDeclaration = /* @__PURE__ */ new Map();
+  for (const wrapper of wrappers) {
+    byDeclaration.set(`${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`, wrapper);
+  }
+  const pending = [];
+  for (const file of inScopeFiles) {
+    const accepted = wrappers.flatMap((wrapper) => acceptedCallsFor(analyzer, file, wrapper));
+    for (const call of file.calls) {
+      const sdkTarget = sdkTargetFor(call, file, catalogue);
+      const wrapperMatch = sdkTarget ? void 0 : accepted.find((candidate) => matchesAccepted(call, candidate));
+      if (!sdkTarget && !wrapperMatch)
+        continue;
+      const keyIndex = sdkTarget ? sdkTarget.keyIndex : wrapperMatch.wrapper.keyParameterIndex;
+      const provider = sdkTarget ? sdkTarget.provider : wrapperMatch.wrapper.provider;
+      const argument = getArgument(call.args, keyIndex);
+      if (!argument)
+        continue;
+      const resolution = resolveKeyArgument(analyzer, file, argument);
+      if (wrapperMatch) {
+        if (resolution.kind === "key")
+          wrapperMatch.wrapper.resolvedCallers += 1;
+        else if (resolution.kind === "gap")
+          wrapperMatch.wrapper.unresolvedCallers += 1;
+        else
+          wrapperMatch.wrapper.forwardingCallers += 1;
+      }
+      pending.push({ file, call, via: sdkTarget ? "sdk" : "wrapper", provider, resolution });
+    }
+  }
+  const sites = [];
+  const flags2 = [];
+  for (const entry of pending) {
+    const base = {
+      filePath: entry.file.filePath,
+      lineNumber: entry.call.lineNumber,
+      callee: entry.call.callee,
+      via: entry.via
+    };
+    if (entry.resolution.kind === "key") {
+      sites.push({ ...base, status: { kind: "accounted", flagKey: entry.resolution.flagKey } });
+      flags2.push({
+        name: entry.resolution.flagKey,
+        filePath: entry.file.filePath,
+        lineNumber: entry.call.lineNumber,
+        language: entry.file.language,
+        provider: entry.provider,
+        confidence: "medium"
+      });
+      continue;
+    }
+    if (entry.resolution.kind === "gap") {
+      sites.push({ ...base, status: { kind: "gap", reason: entry.resolution.reason } });
+      continue;
+    }
+    const named = nameWrapper(entry.resolution.fn, entry.file);
+    if (!named) {
+      sites.push({ ...base, status: { kind: "gap", reason: "unnamed-wrapper" } });
+      continue;
+    }
+    const wrapper = byDeclaration.get(`${entry.file.filePath}:${named.declaration.startPosition.row + 1}:${named.name}`);
+    if (!wrapper) {
+      sites.push({ ...base, status: { kind: "gap", reason: "unproven-wrapper" } });
+      continue;
+    }
+    if (callerCount(wrapper) > 0) {
+      sites.push({ ...base, status: { kind: "delegated", wrapper: wrapperLabel(wrapper) } });
+      continue;
+    }
+    sites.push({ ...base, status: { kind: "gap", reason: "wrapper-without-callers" } });
+  }
+  return { sites, flags: flags2 };
+}
+
+// ../core/dist/detection/evaluation-surface.js
+function summarizeEvaluationSurface(analysis, options) {
+  const location = (filePath, lineNumber) => `${(0, import_node_path3.relative)(options.root, filePath) || filePath}:${lineNumber}`;
+  let accountedFor = 0;
+  let delegated = 0;
+  const gapCounts = /* @__PURE__ */ new Map();
+  for (const site of analysis.sites) {
+    if (site.status.kind === "accounted") {
+      accountedFor += 1;
+      continue;
+    }
+    if (site.status.kind === "delegated") {
+      delegated += 1;
+      continue;
+    }
+    const existing = gapCounts.get(site.status.reason);
+    if (existing)
+      existing.count += 1;
+    else
+      gapCounts.set(site.status.reason, { count: 1, sample: location(site.filePath, site.lineNumber) });
+  }
+  const gaps = [...gapCounts].map(([reason, { count, sample: sample2 }]) => ({
+    reason,
+    count,
+    sample: sample2,
+    detail: EVALUATION_GAP_DETAILS[reason]
+  })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+  const wrappers = analysis.wrappers.map((wrapper) => ({
+    label: wrapperLabel(wrapper),
+    declaredAt: location(wrapper.filePath, wrapper.lineNumber),
+    kind: wrapper.kind,
+    keyParameterIndex: wrapper.keyParameterIndex,
+    provider: wrapper.provider,
+    forwardsTo: wrapper.forwardsTo,
+    depth: wrapper.depth,
+    callers: callerCount(wrapper),
+    resolvedCallers: wrapper.resolvedCallers,
+    unresolvedCallers: wrapper.unresolvedCallers,
+    forwardingCallers: wrapper.forwardingCallers
+  }));
+  const reported = /* @__PURE__ */ new Set();
+  for (const flag of options.detectedFlags) {
+    reported.add(`${flag.filePath}:${flag.lineNumber}:${flag.name}`);
+  }
+  const flags2 = [];
+  for (const flag of analysis.flags) {
+    const key = `${flag.filePath}:${flag.lineNumber}:${flag.name}`;
+    if (reported.has(key))
+      continue;
+    reported.add(key);
+    flags2.push(flag);
+  }
+  return {
+    surface: {
+      schemaVersion: 1,
+      filesInScope: analysis.filesInScope,
+      sites: analysis.sites.length,
+      accountedFor,
+      delegated,
+      unaccountedFor: analysis.sites.length - accountedFor - delegated,
+      gaps,
+      wrappers
+    },
+    flags: flags2
+  };
+}
+
 // ../core/dist/config/schema.js
 var PRESET_NAMES = [
   "test-files",
@@ -44822,20 +45728,20 @@ function buildExcluder(input) {
 // ../core/dist/config/loader.js
 var import_node_fs3 = require("node:fs");
 var import_node_os = require("node:os");
-var import_node_path3 = require("node:path");
+var import_node_path4 = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 var FILENAMES = [".flagshark.yml", ".flagshark.yaml"];
 async function loadConfigFile(startDir) {
   const home = (0, import_node_os.homedir)();
-  let dir = (0, import_node_path3.resolve)(startDir);
+  let dir = (0, import_node_path4.resolve)(startDir);
   for (; ; ) {
     for (const name2 of FILENAMES) {
-      const candidate = (0, import_node_path3.join)(dir, name2);
+      const candidate = (0, import_node_path4.join)(dir, name2);
       if ((0, import_node_fs3.existsSync)(candidate)) {
         return readAndValidate(candidate);
       }
     }
-    const parent = (0, import_node_path3.dirname)(dir);
+    const parent = (0, import_node_path4.dirname)(dir);
     if (parent === dir || dir === home || dir === "/")
       return null;
     dir = parent;
@@ -44866,18 +45772,18 @@ function readAndValidate(path2) {
 // ../core/dist/config/ignore-file.js
 var import_node_fs4 = require("node:fs");
 var import_node_os2 = require("node:os");
-var import_node_path4 = require("node:path");
+var import_node_path5 = require("node:path");
 async function loadIgnoreFile(startDir) {
   const home = (0, import_node_os2.homedir)();
-  let dir = (0, import_node_path4.resolve)(startDir);
+  let dir = (0, import_node_path5.resolve)(startDir);
   for (; ; ) {
-    const candidate = (0, import_node_path4.join)(dir, ".flagsharkignore");
+    const candidate = (0, import_node_path5.join)(dir, ".flagsharkignore");
     if ((0, import_node_fs4.existsSync)(candidate)) {
       const raw = (0, import_node_fs4.readFileSync)(candidate, "utf-8");
       const patterns = raw.split("\n").map((line) => line.trim()).filter((line) => line.length > 0 && !line.startsWith("#"));
       return { patterns, path: candidate };
     }
-    const parent = (0, import_node_path4.dirname)(dir);
+    const parent = (0, import_node_path5.dirname)(dir);
     if (parent === dir || dir === home || dir === "/")
       return null;
     dir = parent;
@@ -45465,14 +46371,14 @@ function mergePlatformSignals(into, source) {
 var import_node_crypto = require("node:crypto");
 var import_node_fs5 = require("node:fs");
 var import_node_os3 = require("node:os");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var DEFAULT_TTL_MS = 24 * 60 * 60 * 1e3;
 function resolveCacheDir(override) {
   if (override)
     return override;
   const xdg = process.env.XDG_CACHE_HOME;
-  const base = xdg && xdg.length > 0 ? xdg : (0, import_node_path5.join)((0, import_node_os3.homedir)(), ".cache");
-  return (0, import_node_path5.join)(base, "flagshark");
+  const base = xdg && xdg.length > 0 ? xdg : (0, import_node_path6.join)((0, import_node_os3.homedir)(), ".cache");
+  return (0, import_node_path6.join)(base, "flagshark");
 }
 function computeCacheKey(platformName, config, token) {
   const tokenHash = (0, import_node_crypto.createHash)("sha256").update(token).digest("hex").slice(0, 8);
@@ -45481,7 +46387,7 @@ function computeCacheKey(platformName, config, token) {
 }
 function readCache(key, opts = {}) {
   const dir = resolveCacheDir(opts.cacheDir);
-  const path2 = (0, import_node_path5.join)(dir, `${key}.json`);
+  const path2 = (0, import_node_path6.join)(dir, `${key}.json`);
   let raw;
   try {
     raw = (0, import_node_fs5.readFileSync)(path2, "utf-8");
@@ -45529,7 +46435,7 @@ function writeCache(key, flags2, opts = {}) {
         lastModified: f.lastModified ? f.lastModified.toISOString() : null
       }))
     };
-    (0, import_node_fs5.writeFileSync)((0, import_node_path5.join)(dir, `${key}.json`), JSON.stringify(body2));
+    (0, import_node_fs5.writeFileSync)((0, import_node_path6.join)(dir, `${key}.json`), JSON.stringify(body2));
   } catch {
   }
 }
@@ -45666,7 +46572,7 @@ async function orchestratePlatforms(opts) {
 // ../core/dist/migration/admission-tree.js
 var import_node_child_process2 = require("node:child_process");
 var import_node_fs6 = require("node:fs");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 
 // ../core/dist/migration/hosted-admission.js
 var NODE_SERVER_CELL_ID = "adopt-openfeature/launchdarkly-node-server/ecmascript/server";
@@ -46317,7 +47223,7 @@ var HOSTED_ADMISSION_PREFLIGHTS = Object.freeze({
 var NPM_LOCKFILE2 = /^(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
 var WALK_SKIP = /* @__PURE__ */ new Set([".git", "node_modules"]);
 function toPosix(path2) {
-  return path2.split(import_node_path6.sep).join("/");
+  return path2.split(import_node_path7.sep).join("/");
 }
 function readCap(base) {
   if (NPM_LOCKFILE2.test(base))
@@ -46363,48 +47269,48 @@ function listGitIndex(root) {
     else if (mode === "160000")
       entries.push({ path: path2, kind: "submodule" });
     else
-      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path6.join)(toplevel, path2)) });
+      entries.push({ path: path2, kind: "file", size: sizeOf((0, import_node_path7.join)(toplevel, path2)) });
   }
   return entries.length > 0 ? { toplevel, entries } : null;
 }
 function walkFilesystem(root) {
-  const walk = { entries: [], unreadable: [] };
+  const walk2 = { entries: [], unreadable: [] };
   const visit = (dir) => {
     let dirents;
     try {
       dirents = (0, import_node_fs6.readdirSync)(dir, { withFileTypes: true });
     } catch {
-      walk.unreadable.push(toPosix((0, import_node_path6.relative)(root, dir)) || ".");
+      walk2.unreadable.push(toPosix((0, import_node_path7.relative)(root, dir)) || ".");
       return;
     }
     for (const dirent of dirents) {
       if (WALK_SKIP.has(dirent.name))
         continue;
-      const absolute = (0, import_node_path6.join)(dir, dirent.name);
-      const path2 = toPosix((0, import_node_path6.relative)(root, absolute));
+      const absolute = (0, import_node_path7.join)(dir, dirent.name);
+      const path2 = toPosix((0, import_node_path7.relative)(root, absolute));
       if (dirent.isSymbolicLink()) {
-        walk.entries.push({ path: path2, kind: "symlink" });
+        walk2.entries.push({ path: path2, kind: "symlink" });
       } else if (dirent.isDirectory()) {
-        if ((0, import_node_fs6.existsSync)((0, import_node_path6.join)(absolute, ".git"))) {
-          walk.entries.push({ path: path2, kind: "submodule" });
+        if ((0, import_node_fs6.existsSync)((0, import_node_path7.join)(absolute, ".git"))) {
+          walk2.entries.push({ path: path2, kind: "submodule" });
         } else {
-          walk.entries.push({ path: path2, kind: "directory" });
+          walk2.entries.push({ path: path2, kind: "directory" });
           visit(absolute);
         }
       } else if (dirent.isFile()) {
-        walk.entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
+        walk2.entries.push({ path: path2, kind: "file", size: sizeOf(absolute) });
       }
     }
   };
   visit(root);
-  return walk;
+  return walk2;
 }
 function collectAdmissionTree(options) {
   const { root } = options;
   const fromGit = listGitIndex(root);
   const enumeratedRoot = fromGit ? fromGit.toplevel : root;
-  const walk = fromGit ? void 0 : walkFilesystem(root);
-  const entries = fromGit ? fromGit.entries : walk.entries;
+  const walk2 = fromGit ? void 0 : walkFilesystem(root);
+  const entries = fromGit ? fromGit.entries : walk2.entries;
   const files = /* @__PURE__ */ new Map();
   for (const entry of entries) {
     if (entry.kind !== "file")
@@ -46413,16 +47319,16 @@ function collectAdmissionTree(options) {
     if (cap === void 0 || entry.size === void 0 || entry.size > cap)
       continue;
     try {
-      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path6.join)(enumeratedRoot, entry.path), "utf-8"));
+      files.set(entry.path, (0, import_node_fs6.readFileSync)((0, import_node_path7.join)(enumeratedRoot, entry.path), "utf-8"));
     } catch {
     }
   }
-  const scope = fromGit ? toPosix((0, import_node_path6.relative)(enumeratedRoot, (0, import_node_fs6.realpathSync)(root))) : "";
+  const scope = fromGit ? toPosix((0, import_node_path7.relative)(enumeratedRoot, (0, import_node_fs6.realpathSync)(root))) : "";
   for (const [absolute, content] of options.sourceFiles ?? []) {
-    const underScan = toPosix((0, import_node_path6.relative)(root, absolute));
+    const underScan = toPosix((0, import_node_path7.relative)(root, absolute));
     files.set(scope.length > 0 ? `${scope}/${underScan}` : underScan, content);
   }
-  const unreadable = walk?.unreadable ?? [];
+  const unreadable = walk2?.unreadable ?? [];
   return {
     entries,
     files,
@@ -47285,8 +48191,17 @@ async function scanRepo(opts) {
   logger.debug(`Detected ${files.size} candidate files (excluded ${excludedCount})`);
   const filesScanned = files.size;
   const tsJsSdkPatterns = collectSdkPatterns(registry);
-  const filesForAnalysis = augmentForWrapperDetection(files, tsJsSdkPatterns, logger, opts.cwd);
+  const wrapperGraph = buildWrapperGraph(files, tsJsSdkPatterns, logger, opts.cwd);
+  const filesForAnalysis = augmentForWrapperDetection(files, wrapperGraph.graph, logger);
   const analysisResult = await analyzer.analyzeFiles(filesForAnalysis, opts.signal);
+  const evaluationSurface = opts.engine === "regex" ? void 0 : await analyzeEvaluationSurface({
+    files,
+    wrapperGraph,
+    registry,
+    root: opts.cwd,
+    totalFlags: analysisResult.totalFlags,
+    logger
+  });
   if (config.custom_detectors && config.custom_detectors.length > 0) {
     applyCustomDetectors(files, config.custom_detectors, analysisResult.totalFlags, logger);
   }
@@ -47371,7 +48286,8 @@ async function scanRepo(opts) {
     excludedPermanent,
     permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
-    lockIn
+    lockIn,
+    evaluationSurface
   };
 }
 function collectProviderDefinitions(registry) {
@@ -47397,9 +48313,7 @@ function collectSdkPatterns(registry) {
 }
 var WRAPPER_MARKER_PREFIX = "// flagshark-internal: transitively reaches";
 var WRAPPER_MARKER_PREFIX_PYTHON = "# flagshark-internal: transitively reaches";
-function augmentForWrapperDetection(files, tsJsSdkPatterns, logger, cwd) {
-  if (tsJsSdkPatterns.length === 0)
-    return files;
+function buildWrapperGraph(files, tsJsSdkPatterns, logger, cwd) {
   const aliases = loadTsconfigAliases(cwd);
   if (aliases) {
     logger.debug("tsconfig path aliases loaded", {
@@ -47409,15 +48323,18 @@ function augmentForWrapperDetection(files, tsJsSdkPatterns, logger, cwd) {
   }
   const graph = buildImportGraph(files, {
     seedSdkPatterns: tsJsSdkPatterns,
-    // Polyglot scope — graph now walks TS/JS *and* Python wrappers so a
-    // Python consumer file that does `from .feature_flags import is_enabled`
-    // (where feature_flags.py imports `posthog`) is in scope. The option
-    // name is legacy from when TS/JS was the only surface; the helper
-    // returns true for .py files too. See B4 in the bug inventory.
+    // Polyglot scope — the graph walks TS/JS *and* Python wrappers so a Python
+    // consumer file that does `from .feature_flags import is_enabled` (where
+    // feature_flags.py imports `posthog`) is in scope. The option name is legacy
+    // from when TS/JS was the only surface; the helper returns true for .py
+    // files too. See B4 in the bug inventory.
     isTsJs: isScannedSourceFile,
     aliases: aliases ?? void 0
   });
   logger.debug("Import graph built", graph.stats);
+  return { graph, aliases };
+}
+function augmentForWrapperDetection(files, graph, logger) {
   if (graph.stats.inScopeFiles === 0) {
     return files;
   }
@@ -47438,6 +48355,48 @@ ${prefix} ${sdkList}
   }
   logger.debug(`Wrapper-aware detection augmented ${augmentedCount} files`);
   return augmented;
+}
+async function analyzeEvaluationSurface(options) {
+  const { wrapperGraph, registry } = options;
+  const analysis = await analyzeWrapperEvaluations({
+    files: options.files,
+    transitiveSdks: wrapperGraph.graph.transitiveSdks,
+    providers: collectTsJsProviders(registry),
+    aliases: wrapperGraph.aliases ?? void 0,
+    languageForFile: (filePath) => registry.getDetectorForFile(filePath).language()
+  });
+  const detectedFlags = [];
+  for (const occurrences of options.totalFlags.values())
+    detectedFlags.push(...occurrences);
+  const { surface, flags: flags2 } = summarizeEvaluationSurface(analysis, {
+    root: options.root,
+    detectedFlags
+  });
+  for (const flag of flags2) {
+    const existing = options.totalFlags.get(flag.name) ?? [];
+    existing.push(flag);
+    options.totalFlags.set(flag.name, existing);
+  }
+  options.logger.debug("Evaluation surface measured", {
+    filesInScope: surface.filesInScope,
+    sites: surface.sites,
+    accountedFor: surface.accountedFor,
+    delegated: surface.delegated,
+    unaccountedFor: surface.unaccountedFor,
+    wrappers: surface.wrappers.length,
+    wrapperFlags: flags2.length
+  });
+  return surface;
+}
+function collectTsJsProviders(registry) {
+  const providers = [];
+  for (const lang of [Languages.TypeScript, Languages.JavaScript]) {
+    const detector = registry.getDetector(lang);
+    if (!detector)
+      continue;
+    providers.push(...detector.getProviders());
+  }
+  return providers;
 }
 var LANGUAGE_EXTENSIONS = {
   go: [".go"],
@@ -47549,6 +48508,33 @@ var LANGUAGE_LABELS = {
 function languageLabel(language) {
   return LANGUAGE_LABELS[language] ?? language;
 }
+var EVALUATION_SURFACE_HEADING = "Detection coverage (local; call-shaped evaluation sites counted from the parsed tree)";
+var MAX_EVALUATION_SURFACE_LINES = 5;
+function plural2(count, noun) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+function truncate(items, render, noun) {
+  const lines = items.slice(0, MAX_EVALUATION_SURFACE_LINES).map(render);
+  const remaining = items.length - MAX_EVALUATION_SURFACE_LINES;
+  if (remaining > 0)
+    lines.push(`\u2026 and ${plural2(remaining, noun)} (see --format json)`);
+  return lines;
+}
+function describeEvaluationSurface(surface) {
+  if (surface.sites === 0)
+    return null;
+  const parts2 = [`${surface.accountedFor} of ${plural2(surface.sites, "site")} accounted for`];
+  if (surface.delegated > 0) {
+    parts2.push(`${surface.delegated} forwarded by ${plural2(surface.wrappers.length, "wrapper")}`);
+  }
+  parts2.push(`${surface.unaccountedFor} not accounted for`);
+  return {
+    headline: parts2.join(" \xB7 "),
+    wrappers: truncate(surface.wrappers, (wrapper) => `${wrapper.label} forwards argument ${wrapper.keyParameterIndex + 1} to ${wrapper.forwardsTo} \xB7 ${wrapper.declaredAt} \xB7 ${plural2(wrapper.callers, "caller")} (${wrapper.resolvedCallers} named \xB7 ${wrapper.unresolvedCallers} runtime-only \xB7 ${wrapper.forwardingCallers} forwarded on)`, "more wrapper"),
+    gaps: truncate(surface.gaps, (gap) => `${gap.reason}  ${plural2(gap.count, "site")} (first at ${gap.sample}) \u2014 ${gap.detail}`, "more refusal reason"),
+    hasShortfall: surface.unaccountedFor > 0
+  };
+}
 
 // ../core/dist/output/markdown.js
 var DEFAULT_MAX_STALE = 20;
@@ -47571,7 +48557,25 @@ function buildAdmissionSection(entry) {
   }
   return body2 + "\n";
 }
-function buildLockInSection(lockIn) {
+function buildEvaluationSurfaceSection(surface) {
+  if (!surface)
+    return "";
+  const described = describeEvaluationSurface(surface);
+  if (!described)
+    return "";
+  let body2 = `**${EVALUATION_SURFACE_HEADING}:** ${described.headline}.
+
+`;
+  for (const wrapper of described.wrappers)
+    body2 += `- Wrapper: ${wrapper}
+`;
+  for (const gap of described.gaps)
+    body2 += `- Not accounted for: ${gap}
+`;
+  return `${body2}
+`;
+}
+function buildLockInSection(lockIn, surface) {
   if (lockIn.callSites === 0)
     return "";
   const sdkCount = lockIn.providers.filter((p) => p.classification !== "already-openfeature").length;
@@ -47594,6 +48598,7 @@ function buildLockInSection(lockIn) {
   for (const entry of lockIn.hostedAdmission) {
     body2 += buildAdmissionSection(entry);
   }
+  body2 += buildEvaluationSurfaceSection(surface);
   body2 += "_Next: `npx flagshark assess` (private assessment; invite-only today)._\n\n";
   return body2;
 }
@@ -47622,7 +48627,7 @@ function formatMarkdown(result, options) {
 
 `;
   if (result.lockIn) {
-    body2 += buildLockInSection(result.lockIn);
+    body2 += buildLockInSection(result.lockIn, result.evaluationSurface);
   }
   const parseErrorCount = result.parseErrorCount ?? 0;
   if (parseErrorCount > 0 && result.filesScanned > 0) {
@@ -47898,8 +48903,8 @@ async function run2(deps) {
     if (sarifPath) {
       const actionVersion = process.env.GITHUB_ACTION_REF || "unknown";
       const sarifJson = formatSarif(result, { version: actionVersion });
-      const absolutePath = (0, import_node_path7.resolve)(cwd, sarifPath);
-      (0, import_node_fs7.mkdirSync)((0, import_node_path7.dirname)(absolutePath), { recursive: true });
+      const absolutePath = (0, import_node_path8.resolve)(cwd, sarifPath);
+      (0, import_node_fs7.mkdirSync)((0, import_node_path8.dirname)(absolutePath), { recursive: true });
       (0, import_node_fs7.writeFileSync)(absolutePath, sarifJson);
       core2.info(`Wrote SARIF to ${absolutePath}`);
       core2.setOutput("sarif-path", absolutePath);
@@ -47993,8 +48998,8 @@ async function postComment(opts) {
 }
 
 // src/index.ts
-process.env.FLAGSHARK_WASM_DIR = (0, import_node_path8.join)(__dirname, "grammars");
-process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path8.join)(__dirname, "queries");
+process.env.FLAGSHARK_WASM_DIR = (0, import_node_path9.join)(__dirname, "grammars");
+process.env.FLAGSHARK_QUERIES_DIR = (0, import_node_path9.join)(__dirname, "queries");
 run2({ core, github, cwd: process.cwd() });
 /*! Bundled license information:
 

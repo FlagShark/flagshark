@@ -51,3 +51,27 @@ export * from './output/index.js'
 
 // Platform integration providers
 export * from './providers/index.js'
+
+// Wrapper-mediated evaluations + detection coverage (local; no account, no network)
+export {
+  analyzeWrapperEvaluations,
+  callerCount,
+  wrapperLabel,
+  EVALUATION_GAP_DETAILS,
+} from './detection/wrapper-evaluations.js'
+export type {
+  WrapperDeclaration,
+  WrapperEvaluationOptions,
+  WrapperEvaluationResult,
+  WrapperKind,
+  EvaluationGapReason,
+  EvaluationSite,
+  EvaluationSiteStatus,
+} from './detection/wrapper-evaluations.js'
+export { summarizeEvaluationSurface } from './detection/evaluation-surface.js'
+export type {
+  EvaluationSurface,
+  EvaluationSurfaceGap,
+  EvaluationSurfaceWrapper,
+  SummarizeEvaluationSurfaceOptions,
+} from './detection/evaluation-surface.js'

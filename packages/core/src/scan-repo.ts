@@ -6,6 +6,8 @@
 import { collectFiles } from './scanner.js'
 import { createDefaultRegistry, createRegistryWithEngine } from './detection/index.js'
 import { buildImportGraph, isScannedSourceFile, loadTsconfigAliases } from './detection/import-graph.js'
+import { summarizeEvaluationSurface } from './detection/evaluation-surface.js'
+import { analyzeWrapperEvaluations } from './detection/wrapper-evaluations.js'
 import { Languages, getImportPattern } from './detection/interface.js'
 import { PolyglotAnalyzer } from './detection/polyglot-analyzer.js'
 import { analyzeStaleness } from './staleness.js'
@@ -23,6 +25,8 @@ import type { FeatureFlagProvider } from './detection/interface.js'
 import type { StaleFlag } from './staleness.js'
 import type { FlagsharkConfig } from './config/schema.js'
 import type { EffectiveRules } from './config/excluder.js'
+import type { ImportGraphResult, PathAliases } from './detection/import-graph.js'
+import type { EvaluationSurface } from './detection/evaluation-surface.js'
 import type { AdmissionTreeView } from './migration/hosted-admission.js'
 import type { LockInSummary } from './migration/lock-in.js'
 
@@ -174,6 +178,16 @@ export interface ScanRepoResult {
    * omit the block when it is absent.
    */
   lockIn?: LockInSummary
+
+  /**
+   * Detection coverage over the TypeScript/JavaScript evaluation surface: how
+   * many call-shaped evaluation sites the parsed trees contain, how many the
+   * scan named a flag for, how many it delegates to a wrapper's callers, and
+   * what it refused to guess about — plus the wrappers it identified. Always
+   * populated by `scanRepo`; optional on the type for the same reason as
+   * `lockIn`. Formatters omit the block when it is absent or empty.
+   */
+  evaluationSurface?: EvaluationSurface
 }
 
 const NOOP: (...args: unknown[]) => void = () => {}
@@ -238,9 +252,31 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
   // multi-language coordinator. The graph is TS/JS-only and SDK-aware; that
   // knowledge lives at the orchestrator layer where we also know the registry.
   const tsJsSdkPatterns = collectSdkPatterns(registry)
-  const filesForAnalysis = augmentForWrapperDetection(files, tsJsSdkPatterns, logger, opts.cwd)
+  const wrapperGraph = buildWrapperGraph(files, tsJsSdkPatterns, logger, opts.cwd)
+  const filesForAnalysis = augmentForWrapperDetection(files, wrapperGraph.graph, logger)
 
   const analysisResult = await analyzer.analyzeFiles(filesForAnalysis, opts.signal)
+
+  // FS-072 part 2 (parity): a repository-level pass that identifies the
+  // wrappers real codebases hide the SDK behind, counts their callers, and
+  // measures how much of the evaluation surface the scan accounted for. Pure
+  // and local — see src/detection/wrapper-evaluations.ts. Flags it resolves are
+  // merged into the same occurrence map the detectors fill, so staleness, the
+  // lock-in summary and every output formatter pick them up unchanged.
+  // Skipped under the internal `engine: 'regex'` escape hatch: that flag exists
+  // so the two detection engines can be compared, and an AST-derived pass
+  // feeding flags into the regex run would destroy the comparison.
+  const evaluationSurface =
+    opts.engine === 'regex'
+      ? undefined
+      : await analyzeEvaluationSurface({
+          files,
+          wrapperGraph,
+          registry,
+          root: opts.cwd,
+          totalFlags: analysisResult.totalFlags,
+          logger,
+        })
 
   // B3: user-configured custom detectors (struct-field-access only today).
   // Layered on top of the standard detection so it never reduces recall,
@@ -372,6 +408,7 @@ export async function scanRepo(opts: ScanRepoOptions): Promise<ScanRepoResult> {
     permanentByPlatform,
     effectiveExcludes: excluder.effectiveRules,
     lockIn,
+    evaluationSurface,
   }
 }
 
@@ -443,32 +480,29 @@ const WRAPPER_MARKER_PREFIX = '// flagshark-internal: transitively reaches'
  */
 const WRAPPER_MARKER_PREFIX_PYTHON = '# flagshark-internal: transitively reaches'
 
+/** The TS/JS import graph plus the tsconfig aliases it was built with. */
+interface WrapperGraph {
+  graph: ImportGraphResult
+  aliases: PathAliases | null
+}
+
 /**
- * Returns a new Map<filePath, content> where TS/JS files with transitive SDK
- * reach have a single comment line appended that mentions each reachable SDK
- * pattern. Returns the original Map unchanged if no SDK seeds exist (e.g.
- * registry was constructed without TS/JS detectors).
- *
- * Non-TS/JS files are passed through untouched.
+ * Builds the transitive SDK-reach graph the wrapper machinery runs on. A registry
+ * with no flag providers yields no seeds and therefore an empty graph, which
+ * makes both the gate lift and the wrapper pass no-ops.
  */
-function augmentForWrapperDetection(
+function buildWrapperGraph(
   files: Map<string, string>,
   tsJsSdkPatterns: string[],
   logger: ScanLogger,
   cwd: string,
-): Map<string, string> {
-  // Defensive early-return: every default registry contributes at least
-  // one SDK pattern, so this branch only fires for hand-built empty
-  // registries — not reachable from public scan paths.
-  /* v8 ignore next */
-  if (tsJsSdkPatterns.length === 0) return files
-
-  // Load tsconfig path aliases from the scan root, then pass them to the
-  // graph builder. Most TS monorepos use `@/foo`-style aliases; without
-  // this, the transitive wrapper detection stops at every aliased
-  // boundary and under-counts. Falls back gracefully — `loadTsconfigAliases`
-  // returns null when there's no tsconfig or no aliases declared, in which
-  // case the graph behaves exactly as before.
+): WrapperGraph {
+  // Load tsconfig path aliases from the scan root, then pass them to the graph
+  // builder. Most TS monorepos use `@/foo`-style aliases; without this, the
+  // transitive wrapper detection stops at every aliased boundary and
+  // under-counts. Falls back gracefully — `loadTsconfigAliases` returns null
+  // when there is no tsconfig or no aliases declared, in which case the graph
+  // behaves exactly as before.
   const aliases = loadTsconfigAliases(cwd)
   if (aliases) {
     logger.debug('tsconfig path aliases loaded', {
@@ -479,20 +513,34 @@ function augmentForWrapperDetection(
 
   const graph = buildImportGraph(files, {
     seedSdkPatterns: tsJsSdkPatterns,
-    // Polyglot scope — graph now walks TS/JS *and* Python wrappers so a
-    // Python consumer file that does `from .feature_flags import is_enabled`
-    // (where feature_flags.py imports `posthog`) is in scope. The option
-    // name is legacy from when TS/JS was the only surface; the helper
-    // returns true for .py files too. See B4 in the bug inventory.
+    // Polyglot scope — the graph walks TS/JS *and* Python wrappers so a Python
+    // consumer file that does `from .feature_flags import is_enabled` (where
+    // feature_flags.py imports `posthog`) is in scope. The option name is legacy
+    // from when TS/JS was the only surface; the helper returns true for .py
+    // files too. See B4 in the bug inventory.
     isTsJs: isScannedSourceFile,
     aliases: aliases ?? undefined,
   })
 
   logger.debug('Import graph built', graph.stats)
+  return { graph, aliases }
+}
 
-  // No transitive reach (seeds didn't propagate beyond themselves, or no seeds
-  // at all) -> return the original map. Avoids a wasted clone on repos that
-  // don't use any flag SDK.
+/**
+ * Returns a new Map<filePath, content> where TS/JS files with transitive SDK
+ * reach have a single comment line appended that mentions each reachable SDK
+ * pattern. Returns the original Map unchanged when nothing has transitive reach.
+ *
+ * Non-TS/JS files are passed through untouched.
+ */
+function augmentForWrapperDetection(
+  files: Map<string, string>,
+  graph: ImportGraphResult,
+  logger: ScanLogger,
+): Map<string, string> {
+  // No transitive reach (seeds did not propagate beyond themselves, or there are
+  // no seeds at all) -> return the original map. Avoids a wasted clone on repos
+  // that do not use any flag SDK.
   if (graph.stats.inScopeFiles === 0) {
     return files
   }
@@ -509,7 +557,7 @@ function augmentForWrapperDetection(
     // Append at end-of-file with a leading newline so we never glue onto a
     // partial last line. Sorting the SDK list keeps the marker deterministic
     // across runs (useful when diffing logs). Use Python comment syntax for
-    // .py files; the substring-based import gate doesn't care which prefix
+    // .py files; the substring-based import gate does not care which prefix
     // wraps the SDK pattern, so language-appropriate markers stay parseable.
     const sdkList = [...sdks].sort().join(' ')
     const prefix = filePath.toLowerCase().endsWith('.py')
@@ -521,6 +569,79 @@ function augmentForWrapperDetection(
 
   logger.debug(`Wrapper-aware detection augmented ${augmentedCount} files`)
   return augmented
+}
+
+interface AnalyzeEvaluationSurfaceOptions {
+  files: Map<string, string>
+  wrapperGraph: WrapperGraph
+  registry: LanguageRegistry
+  root: string
+  /** The detectors' occurrence map, mutated in place with the flags this pass proves. */
+  totalFlags: Map<string, FeatureFlag[]>
+  logger: ScanLogger
+}
+
+/**
+ * Runs the wrapper-mediated evaluation pass and the detection-coverage metric,
+ * merging every flag it proves into the detectors' occurrence map.
+ *
+ * Local only: a pure function of the already-read file contents. No account, no
+ * token, no network.
+ */
+async function analyzeEvaluationSurface(
+  options: AnalyzeEvaluationSurfaceOptions,
+): Promise<EvaluationSurface> {
+  const { wrapperGraph, registry } = options
+  const analysis = await analyzeWrapperEvaluations({
+    files: options.files,
+    transitiveSdks: wrapperGraph.graph.transitiveSdks,
+    providers: collectTsJsProviders(registry),
+    aliases: wrapperGraph.aliases ?? undefined,
+    languageForFile: (filePath) => registry.getDetectorForFile(filePath)!.language(),
+  })
+
+  const detectedFlags: FeatureFlag[] = []
+  for (const occurrences of options.totalFlags.values()) detectedFlags.push(...occurrences)
+
+  const { surface, flags } = summarizeEvaluationSurface(analysis, {
+    root: options.root,
+    detectedFlags,
+  })
+
+  for (const flag of flags) {
+    const existing = options.totalFlags.get(flag.name) ?? []
+    existing.push(flag)
+    options.totalFlags.set(flag.name, existing)
+  }
+
+  options.logger.debug('Evaluation surface measured', {
+    filesInScope: surface.filesInScope,
+    sites: surface.sites,
+    accountedFor: surface.accountedFor,
+    delegated: surface.delegated,
+    unaccountedFor: surface.unaccountedFor,
+    wrappers: surface.wrappers.length,
+    wrapperFlags: flags.length,
+  })
+
+  return surface
+}
+
+/**
+ * Provider definitions of the detectors that own TS/JS files. The wrapper pass
+ * parses those files with the TypeScript grammar, so it needs exactly the
+ * provider list those detectors advertise.
+ */
+function collectTsJsProviders(registry: LanguageRegistry): FeatureFlagProvider[] {
+  const providers: FeatureFlagProvider[] = []
+  for (const lang of [Languages.TypeScript, Languages.JavaScript]) {
+    const detector = registry.getDetector(lang)
+    // Defensive skip: the default registry always populates TS/JS detectors.
+    /* v8 ignore next */
+    if (!detector) continue
+    providers.push(...detector.getProviders())
+  }
+  return providers
 }
 
 // -- Custom detector application (B3) -----------------------------------------

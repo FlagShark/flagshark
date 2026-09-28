@@ -40,6 +40,14 @@ registry and runs a local hosted-admission preflight (no account, no network)
 before saying a repository may qualify for a hosted draft PR; refusing gates
 are named with what would change the answer. Only the hosted planner decides.
 
+The scan also finds flags evaluated through a TypeScript/JavaScript wrapper (a
+feature-flag helper, a service method, a singleton) by locating the wrapper's
+callers, and reports detection coverage: how many call-shaped evaluation sites
+the parsed tree held, how many were accounted for, and a named reason for each
+one that was not. Wrapper-mediated flags are reported as a weaker detection.
+Full numbers, wrappers and refusals are in --format json under
+evaluationSurface.
+
 Scan options:
 
 Options:

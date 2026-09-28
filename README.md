@@ -21,6 +21,9 @@ Lock-in: 21 flag call sites · 3 provider SDKs
   Hosted draft PR preflight (local; no account, no network; the hosted planner decides): 2 gates refuse · 14 pass · 4 not checkable locally (analyzer-budget, transformation-blockers, dependency-closure, sandbox-validation)
     ✗ npm-pin      package.json declares packageManager "yarn@4.18.0"; the hosted planner admits only an exact npm pin and its sandbox runs npm 10.9.8. Set "packageManager": "npm@10.9.8", or remove it and commit a lockfileVersion 3 package-lock.json.
     ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
+  Detection coverage (local; call-shaped evaluation sites counted from the parsed tree): 19 of 23 sites accounted for · 2 forwarded by 2 wrappers · 2 not accounted for
+    → getLaunchDarklyFlag() forwards argument 2 to variation · src/utils/getLaunchDarklyFlag.ts:9 · 8 callers (7 named · 1 runtime-only · 0 forwarded on)
+    ✗ computed-key  2 sites (first at src/gates.ts:31) — the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source
   Next: npx flagshark assess   (private assessment; invite-only today)
 
 Found 23 feature flags · 7 stale · health 70/100 ⚠️
@@ -58,6 +61,40 @@ analyzer or sandbox can decide (`analyzer-budget`, `transformation-blockers`,
 locally*, never as passed. Every gate, including the unknown ones, is in the
 JSON output under `lockIn.hostedAdmission`.
 
+Most real repositories do not call the SDK directly. A survey of 15 public
+LaunchDarkly TypeScript repositories found **13 of 15** reach it through a
+wrapper — a `featureFlags.ts` helper, a Nest service, a static class, a
+singleton — called from up to 70 places, with the flag key at the *caller*. The
+scan identifies those wrappers and reports the callers' keys as flags:
+
+- A function or method that forwards one of its own parameters as the flag key of
+  a catalogued provider method, in a file that imports the SDK, is a **wrapper**.
+  Its callers are found by name plus a provable binding (the calling file imports
+  it, or its owning class/object, from the module that declares it — directly or
+  through a re-export barrel), and a method call has to name that binding in its
+  receiver or reach it through a `this.<prop>` annotated with the owner type.
+- Literal keys, same-file `const` keys, consts imported from another module and
+  `OBJECT.PROPERTY` on a const object literal are reported as flags. A wrapper
+  that forwards a parameter into another wrapper is itself a wrapper, up to three
+  rounds.
+- Wrapper-mediated flags are reported with `confidence: medium`, so the lock-in
+  summary classifies them as `needs review (weaker detection)` rather than as
+  something the hosted planner could take to a draft PR. Callers are matched
+  syntactically and the receiver is never proven locally — the hosted analyzer is
+  what proves it, which is also what the `sdk-api-surface` gate says about
+  itself.
+
+Alongside it the scan reports **detection coverage**: every call-shaped
+evaluation site in the parsed tree, counted independently of whether any flag key
+could be attributed to it, split into what was accounted for, what is forwarded
+by an identified wrapper, and what was refused — with a named reason per refusal
+(`computed-key`, `unprovable-key`, `unusable-literal-key`,
+`destructured-parameter`, `unnamed-wrapper`, `unproven-wrapper`,
+`wrapper-without-callers`). A scan that cannot see everything says so, and a zero
+with unaccounted-for sites behind it prints `⚠ This is not a confident zero.`
+rather than reading as certainty. The same numbers are in the JSON output under
+`evaluationSurface`, including the identified wrappers and their caller counts.
+
 Then request a private LaunchDarkly to OpenFeature migration assessment from a
 GitHub checkout without shipping the proprietary analysis engine in the public
 CLI:
@@ -89,6 +126,7 @@ do not need a FlagShark token.
 
 - **Zero install, zero config.** `npx flagshark scan` runs on any repo today. No `.flagshark.yml` required.
 - **Lock-in summary.** Flag call sites per provider SDK, classified against the hosted migration registry snapshot shipped with the CLI. Provable, not promised.
+- **Wrapper-aware.** Detects the `featureFlags.ts` helper / Nest service / singleton shape 13 of 15 surveyed public repositories use, and reports how much of the evaluation surface it could not account for.
 - **Polyglot.** 13 languages out of the box — including the awkward monorepo where half is TS and half is Go.
 - **Provider-aware.** Auto-detects 13 flag SDKs (LaunchDarkly, Unleash, Statsig, PostHog, Flagsmith, GrowthBook, ConfigCat, Split.io, Flipt, DevCycle, Eppo, Optimizely, plus generic patterns). No custom rules to maintain.
 - **AST-based detection** for TypeScript, JavaScript, Go, Python, Java, C#, PHP, and Rust via [tree-sitter](https://tree-sitter.github.io/). Flag names inside strings, comments, error messages, and unrelated calls aren't false positives.
@@ -637,6 +675,7 @@ The capture group `([A-Z]\w+)` is the flag name. Each match becomes a detected f
 
 FlagShark trades recall for precision by default — when it reports a flag, the flag is real. A few real-world patterns currently get **under**-counted:
 
+- **Wrapper shapes the pass refuses rather than guesses at.** A key built at runtime, a key read from a destructured parameter, a forwarding function with no bindable name, a wrapper chain longer than three hops, or a const more than one unexplored import hop away are all reported as named gaps in the detection-coverage block instead of being counted. Callers reached only dynamically (a registry of handlers, reflection, a non-TypeScript surface) are invisible; a wrapper with no callers found is reported as `wrapper-without-callers`.
 - **Runtime-loaded SDKs we don't yet have built-in coverage for.** PostHog has runtime-symbol patterns shipped; LaunchDarkly's `window.LDClient` snippet, Statsig's `window.statsig.client`, etc. don't have them yet. Workaround: drop a thin module that does `import 'launchdarkly-js-client-sdk'` (or equivalent) for its side effects; transitive wrapper detection covers the rest.
 - **TypeScript path aliases that don't follow `tsconfig.json` compilerOptions.paths.** Aliases declared via the standard `paths` config ARE resolved (as of B1). Aliases via Vite/webpack aliasing without a matching tsconfig entry, or `extends`-chained tsconfigs, may still under-count.
 - **Auto-discovery of config-struct flags.** The `custom_detectors` escape hatch above covers the explicit case. We deliberately don't auto-discover (every codebase invents its own struct shape; chasing all of them doesn't scale). See [docs/superpowers/specs/2026-05-24-static-config-flag-detection.md](docs/superpowers/specs/2026-05-24-static-config-flag-detection.md) for the design discussion.
