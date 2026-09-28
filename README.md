@@ -23,7 +23,7 @@ Lock-in: 21 flag call sites · 3 provider SDKs
     ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
   Detection coverage (local; call-shaped evaluation sites counted from the parsed tree): 19 of 23 sites named · 2 forwarded by 2 wrappers · 2 not named · 8 sites the hosted migration refuses to rewrite
     → getLaunchDarklyFlag() forwards argument 2 to variation · src/utils/getLaunchDarklyFlag.ts:9 · 8 callers (7 named · 1 runtime-only · 0 forwarded on)
-    ⛔ generic-variation  getLaunchDarklyFlag() at src/utils/getLaunchDarklyFlag.ts:9 — the body evaluates with variation(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to boolVariation, stringVariation or numberVariation first, or rewrite it by hand.
+    ⛔ generic-variation  8 sites (first at src/utils/getLaunchDarklyFlag.ts:9) — the body evaluates with variation(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to boolVariation, stringVariation, numberVariation first, or rewrite it by hand.
     ✗ computed-key  2 sites (first at src/gates.ts:31) — the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source
   Next: npx flagshark assess   (private assessment; invite-only today)
 
@@ -56,7 +56,7 @@ planner applies, re-derived from its rules and checked against the committed
 tree (git index) — no account, no token, no network. A refusing gate is printed
 by name with one line on what would change the answer (for example `npm-pin`,
 `lockfile`, `test-script`, `typecheck`, `launchdarkly-sdk`,
-`package-manager-markers`, `workspaces`, `tree-paths`). Gates only the hosted
+`package-manager-markers`, `workspaces`, `tree-paths`, `evaluation-method`). Gates only the hosted
 analyzer or sandbox can decide (`analyzer-budget`, `transformation-blockers`,
 `dependency-closure`, `sandbox-validation`) are reported as *not checkable
 locally*, never as passed. Every gate, including the unknown ones, is in the
@@ -85,20 +85,29 @@ scan identifies those wrappers and reports the callers' keys as flags:
   what proves it, which is also what the `sdk-api-surface` gate says about
   itself.
 
-**Detecting a wrapper is not the same as being able to migrate it, and the output
-says so.** A wrapper whose body evaluates with LaunchDarkly's generic
-`variation`, `variationDetail`, `jsonVariation` or `jsonVariationDetail` is
-refused for rewriting outright: LaunchDarkly does not type-check those, so they
-return whatever type the flag serves, while a typed OpenFeature accessor
-substitutes the default when the types differ. A flag serving `'variant-b'` read
-through `variation(key, ctx, false)` returns `'variant-b'` today and `false`
-after a rewrite. A wrapper's key set can never be closed — it includes every key
-its callers compute at run time and every key a caller outside the repository
-passes — so no flag inventory rescues it. The scan names that refusal per
-wrapper (`⛔ generic-variation`), counts the call sites behind it, and propagates
-it up a wrapper chain. Migrating the wrapper body to `boolVariation`,
-`stringVariation` or `numberVariation` is a small change a team can make first,
-and the message says so.
+**Detecting an evaluation is not the same as being able to migrate it, and the
+output says so.** LaunchDarkly's `variation`, `jsonVariation` and the
+`*VariationDetail` forms are not type-checked by LaunchDarkly: they return
+whatever type the flag serves, while every typed OpenFeature accessor substitutes
+the call's default when the types differ. A flag serving `'variant-b'` read
+through `variation(key, ctx, false)` returns `'variant-b'` today and `false` after
+a rewrite — and the rewrite type-checks, so a compiler cannot catch it. The scan
+reports that per call site as `⛔`, counts how many sites sit behind it
+(`refusedForRewrite`), and never lets the flag count read as a migration promise:
+
+- **Inside a wrapper** the key set can never be closed (it includes every key a
+  caller computes at run time and every key a caller outside the repository
+  passes), so nothing can prove it: `generic-variation`. The refusal propagates up
+  a wrapper chain, and a wrapper whose body forwards its key into more than one
+  evaluation is refused as `second-sdk-call`.
+- **At a static key** the key set *is* closed, so it is provable — but only from a
+  read of your LaunchDarkly project showing every variation of that flag carries
+  the default's type. That is not in the source, so the local preflight reports
+  `unproven-served-type` and the `evaluation-method` gate refuses the draft-PR
+  path. Migrating the call to `boolVariation`, `stringVariation` or
+  `numberVariation` removes the need for the proof, and the message says so.
+- **A `*VariationDetail` call** is `details-consumer`: OpenFeature's reason and
+  variant semantics are not the SDK's, so it is refused whatever else is proven.
 
 Alongside it the scan reports **detection coverage**: every call-shaped
 evaluation site in the parsed tree, counted independently of whether any flag key
@@ -697,7 +706,7 @@ The capture group `([A-Z]\w+)` is the flag name. Each match becomes a detected f
 FlagShark trades recall for precision by default — when it reports a flag, the flag is real. A few real-world patterns currently get **under**-counted:
 
 - **Wrapper shapes the pass refuses rather than guesses at.** A key built at runtime, a spread argument at or before the key position, a key read from a destructured parameter, a forwarding function with no bindable name, a wrapper chain longer than three hops, or a const more than one unexplored import hop away are all reported as named gaps in the detection-coverage block instead of being counted. Callers reached only dynamically (a registry of handlers, reflection, a non-TypeScript surface) are invisible; a wrapper with no callers found is reported as `wrapper-without-callers`.
-- **Rewritability is only claimed where it is known.** The scan names the one refusal it can derive locally (a wrapper over an untyped LaunchDarkly evaluation method). It does not model the hosted migrator's other rules — provider setup, the context shape, a second SDK call in the wrapper body, a generic `getFlag<T>` — so `rewriteBlocker: null` means "no claim", never "migratable".
+- **Rewritability is only claimed where it is known.** The scan names the refusals it can derive from the evaluation method and its position (`generic-variation`, `unproven-served-type`, `details-consumer`, `second-sdk-call`). It does not model the hosted migrator's other rules — provider setup, the context shape, a generic `getFlag<T>`, a wrapper used as a value — so no refusal means "no claim", never "migratable". The method table it decides from (`packages/core/src/detection/launchdarkly-node-methods.ts`) is a hand-maintained copy of the hosted mapping, not a generated snapshot; a drift-tested snapshot is a named follow-up.
 - **Runtime-loaded SDKs we don't yet have built-in coverage for.** PostHog has runtime-symbol patterns shipped; LaunchDarkly's `window.LDClient` snippet, Statsig's `window.statsig.client`, etc. don't have them yet. Workaround: drop a thin module that does `import 'launchdarkly-js-client-sdk'` (or equivalent) for its side effects; transitive wrapper detection covers the rest.
 - **TypeScript path aliases that don't follow `tsconfig.json` compilerOptions.paths.** Aliases declared via the standard `paths` config ARE resolved (as of B1). Aliases via Vite/webpack aliasing without a matching tsconfig entry, or `extends`-chained tsconfigs, may still under-count.
 - **Auto-discovery of config-struct flags.** The `custom_detectors` escape hatch above covers the explicit case. We deliberately don't auto-discover (every codebase invents its own struct shape; chasing all of them doesn't scale). See [docs/superpowers/specs/2026-05-24-static-config-flag-detection.md](docs/superpowers/specs/2026-05-24-static-config-flag-detection.md) for the design discussion.

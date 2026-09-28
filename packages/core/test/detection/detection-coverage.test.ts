@@ -18,6 +18,7 @@ function site(partial: Partial<EvaluationSite> & Pick<EvaluationSite, 'status'>)
     lineNumber: 1,
     callee: 'getFlag',
     via: 'wrapper',
+    rewriteRefusal: null,
     ...partial,
   }
 }
@@ -77,6 +78,7 @@ describe('summarizeDetectionCoverage', () => {
       delegated: 1,
       unnamed: 1,
       refusedForRewrite: 0,
+      rewriteRefusals: [],
       evaluationSurface: { callShaped: 3, accountedFor: 3 },
     })
     expect(coverage.flagsNamed + coverage.delegated + coverage.unnamed).toBe(coverage.sites)
@@ -220,6 +222,66 @@ describe('summarizeDetectionCoverage', () => {
     )
     expect(coverage.refusedForRewrite).toBe(70)
     expect(coverage.wrappers.map((entry) => entry.rewriteBlocker)).toEqual([blocker, null])
+    expect(coverage.rewriteRefusals).toEqual([
+      {
+        reason: 'generic-variation',
+        count: 70,
+        sample: 'src/flags.ts:4',
+        sdkMethod: 'variation',
+        detail: blocker.detail,
+      },
+    ])
+  })
+
+  it('aggregates a direct-call refusal alongside a wrapper one and counts each site once', () => {
+    const served = {
+      reason: 'unproven-served-type' as const,
+      sdkMethod: 'variation',
+      detail: 'a read of your LaunchDarkly project…',
+    }
+    const generic = {
+      reason: 'generic-variation' as const,
+      sdkMethod: 'jsonVariation',
+      detail: 'the body evaluates with jsonVariation()…',
+    }
+    const { coverage } = summarizeDetectionCoverage(
+      analysis({
+        wrappers: [wrapper({ resolvedCallers: 4, rewriteBlocker: generic })],
+        sites: [
+          site({ lineNumber: 9, via: 'sdk', rewriteRefusal: served, status: { kind: 'accounted', flagKey: 'a' } }),
+          site({ lineNumber: 10, via: 'sdk', rewriteRefusal: served, status: { kind: 'accounted', flagKey: 'b' } }),
+          // A wrapper caller defers to the wrapper's refusal, so it adds nothing here.
+          site({ lineNumber: 11, status: { kind: 'accounted', flagKey: 'c' } }),
+        ],
+      }),
+      { root: ROOT, detectedFlags: [] },
+    )
+    expect(coverage.refusedForRewrite).toBe(6)
+    expect(coverage.rewriteRefusals).toEqual([
+      { reason: 'generic-variation', count: 4, sample: 'src/flags.ts:4', sdkMethod: 'jsonVariation', detail: generic.detail },
+      { reason: 'unproven-served-type', count: 2, sample: 'src/app.ts:9', sdkMethod: 'variation', detail: served.detail },
+    ])
+  })
+
+  it('breaks a tie between two refusal reasons by name', () => {
+    const blocker = (reason: 'details-consumer' | 'second-sdk-call', sdkMethod: string) => ({
+      reason,
+      sdkMethod,
+      detail: `${reason} detail`,
+    })
+    const { coverage } = summarizeDetectionCoverage(
+      analysis({
+        wrappers: [
+          wrapper({ lineNumber: 4, name: 'later', resolvedCallers: 1, rewriteBlocker: blocker('second-sdk-call', 'a, b') }),
+          wrapper({ lineNumber: 8, name: 'earlier', resolvedCallers: 1, rewriteBlocker: blocker('details-consumer', 'variationDetail') }),
+        ],
+      }),
+      { root: ROOT, detectedFlags: [] },
+    )
+    expect(coverage.rewriteRefusals.map((entry) => `${entry.reason}:${entry.count}`)).toEqual([
+      'details-consumer:1',
+      'second-sdk-call:1',
+    ])
   })
 
   it('is empty for a repository with no evaluation sites at all', () => {
@@ -234,6 +296,7 @@ describe('summarizeDetectionCoverage', () => {
       gaps: [],
       wrappers: [],
       refusedForRewrite: 0,
+      rewriteRefusals: [],
       evaluationSurface: { callShaped: 0, accountedFor: 0 },
     })
     expect(flags).toEqual([])

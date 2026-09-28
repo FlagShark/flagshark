@@ -129,8 +129,10 @@ export function describeDetectionCoverage(
   // numbers mean every evaluation-shaped call was explained, which is the
   // expected state and is already implied by the split above.
   if (surface.accountedFor !== surface.callShaped) {
+    // Named as its own count: `callShaped` is FS-069's member-form denominator, not
+    // the `sites` split above, and the two are not comparable.
     parts.push(
-      `${surface.callShaped - surface.accountedFor} of ${plural(surface.callShaped, 'evaluation-shaped call')} unexplained`,
+      `FS-069 cross-check ${surface.callShaped - surface.accountedFor} of ${plural(surface.callShaped, 'member-form evaluation call')} unexplained`,
     )
   }
   if (coverage.refusedForRewrite > 0) {
@@ -148,11 +150,10 @@ export function describeDetectionCoverage(
       'more wrapper',
     ),
     refusals: truncate(
-      coverage.wrappers.filter((wrapper) => wrapper.rewriteBlocker !== null),
-      (wrapper) =>
-        `${wrapper.rewriteBlocker!.reason}  ${wrapper.label} at ${wrapper.declaredAt} — ` +
-        `${wrapper.rewriteBlocker!.detail}`,
-      'more refused wrapper',
+      coverage.rewriteRefusals,
+      (refusal) =>
+        `${refusal.reason}  ${plural(refusal.count, 'site')} (first at ${refusal.sample}) — ${refusal.detail}`,
+      'more refusal',
     ),
     gaps: truncate(
       coverage.gaps,

@@ -258,8 +258,9 @@ interface DetectionCoverage {
   unnamed: number        // sites with no flag name the scan will claim
   gaps: DetectionCoverageGap[]          // one entry per refusal reason, with a sample
   wrappers: DetectionCoverageWrapper[]  // wrappers, caller counts, rewrite refusals
-  refusedForRewrite: number             // call sites behind a wrapper the hosted migration refuses
-  evaluationSurface: EvaluationSurfaceCoverage  // { callShaped, accountedFor }
+  refusedForRewrite: number             // call sites the hosted migration would refuse
+  rewriteRefusals: DetectionCoverageRewriteRefusal[]  // those refusals by reason
+  evaluationSurface: EvaluationSurfaceCoverage        // { callShaped, accountedFor }
 }
 ```
 
@@ -274,12 +275,21 @@ the tree, **without consulting provenance**, and `accountedFor` counts those the
 scan then explained (a named flag, a delegation, or a named refusal). A shortfall
 means an evaluation-shaped call was neither named nor explained.
 
-`DetectionCoverageWrapper.rewriteBlocker` carries the one rewrite refusal the
-scanner can derive locally: a wrapper over an untyped LaunchDarkly evaluation
-method (`variation`, `variationDetail`, `jsonVariation`, `jsonVariationDetail`)
-cannot be rewritten to a typed OpenFeature accessor without changing observable
-values, and a wrapper's key set cannot be closed. `null` means the scanner makes
-no claim, never that the wrapper is migratable.
+`rewriteRefusals` carries the refusals the scanner can derive from the evaluation
+method and its position, via `rewriteRefusalFor(provider, method, position)`:
+`generic-variation` (a wrapper over a method LaunchDarkly does not type-check —
+its key set can never be closed), `unproven-served-type` (the same methods at a
+static key, provable only from a read of the LaunchDarkly project),
+`details-consumer` (any `*VariationDetail` form) and `second-sdk-call` (a wrapper
+body reached through more than one evaluation). The same fact sits on each wrapper
+as `rewriteBlocker`. Absent means the scanner makes **no claim**, never that the
+evaluation is migratable.
+
+All three of those decisions — the detector's provider catalogue, the coverage
+metric's denominator and the rewrite refusal — derive from one table,
+`launchdarkly-node-methods.ts`, whose `returnType === null` rows are the untyped
+set. It is a hand-maintained copy of the hosted mapping; a generated,
+drift-tested snapshot is a named follow-up.
 
 The pass is pure and local: no account, no token, no network.
 

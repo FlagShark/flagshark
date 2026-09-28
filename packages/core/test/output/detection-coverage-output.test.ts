@@ -31,6 +31,7 @@ function makeCoverage(overrides: Partial<DetectionCoverage> = {}): DetectionCove
     delegated: 2,
     unnamed: 2,
     refusedForRewrite: 0,
+    rewriteRefusals: [],
     evaluationSurface: { callShaped: 9, accountedFor: 9 },
     gaps: [
       {
@@ -71,6 +72,7 @@ const EMPTY_COVERAGE: DetectionCoverage = {
   gaps: [],
   wrappers: [],
   refusedForRewrite: 0,
+  rewriteRefusals: [],
   evaluationSurface: { callShaped: 0, accountedFor: 0 },
 }
 
@@ -165,14 +167,26 @@ describe('describeDetectionCoverage', () => {
         refusedForRewrite: 70,
         evaluationSurface: { callShaped: 9, accountedFor: 7 },
         wrappers: [{ ...makeCoverage().wrappers[0], rewriteBlocker: blocker }],
+        rewriteRefusals: [
+          {
+            reason: 'generic-variation',
+            count: 70,
+            sample: 'src/main/utils/getLaunchDarklyFlag.ts:9',
+            sdkMethod: 'variation',
+            detail: blocker.detail,
+          },
+        ],
       }),
     )!
+    // The cross-check clause names itself, so it cannot be mistaken for the `sites`
+    // split beside it — the two have different denominators on purpose.
     expect(described.headline).toBe(
       '7 of 11 sites named · 2 forwarded by 1 wrapper · 2 not named · ' +
-        '2 of 9 evaluation-shaped calls unexplained · 70 sites the hosted migration refuses to rewrite',
+        'FS-069 cross-check 2 of 9 member-form evaluation calls unexplained · ' +
+        '70 sites the hosted migration refuses to rewrite',
     )
     expect(described.refusals).toEqual([
-      'generic-variation  getLaunchDarklyFlag() at src/main/utils/getLaunchDarklyFlag.ts:9 — ' +
+      'generic-variation  70 sites (first at src/main/utils/getLaunchDarklyFlag.ts:9) — ' +
         'LaunchDarkly does not type-check variation()',
     ])
     expect(described.hasShortfall).toBe(true)
@@ -193,23 +207,17 @@ describe('describeDetectionCoverage', () => {
     expect(described.hasShortfall).toBe(true)
   })
 
-  it('truncates a long list of refused wrappers', () => {
-    const blocker = {
+  it('truncates a long list of refusals', () => {
+    const rewriteRefusals = Array.from({ length: MAX_DETECTION_COVERAGE_LINES + 3 }, (_unused, index) => ({
       reason: 'generic-variation' as const,
+      count: index + 1,
+      sample: `src/file${index}.ts:1`,
       sdkMethod: 'variation',
       detail: 'LaunchDarkly does not type-check variation()',
-    }
-    const wrappers: DetectionCoverageWrapper[] = Array.from(
-      { length: MAX_DETECTION_COVERAGE_LINES + 3 },
-      (_unused, index) => ({
-        ...makeCoverage().wrappers[0],
-        label: `wrapper${index}()`,
-        rewriteBlocker: blocker,
-      }),
-    )
-    const described = describeDetectionCoverage(makeCoverage({ wrappers, refusedForRewrite: 8 }))!
+    }))
+    const described = describeDetectionCoverage(makeCoverage({ rewriteRefusals, refusedForRewrite: 8 }))!
     expect(described.refusals).toHaveLength(MAX_DETECTION_COVERAGE_LINES + 1)
-    expect(described.refusals.at(-1)).toBe('… and 3 more refused wrappers (see --format json)')
+    expect(described.refusals.at(-1)).toBe('… and 3 more refusals (see --format json)')
   })
 
   it('returns null when the parsed trees held no evaluation-shaped call', () => {
@@ -272,19 +280,28 @@ describe('formatText — detection coverage', () => {
     const coverage = makeCoverage({
       refusedForRewrite: 70,
       wrappers: [{ ...makeCoverage().wrappers[0], rewriteBlocker: blocker }],
+      rewriteRefusals: [
+        {
+          reason: 'generic-variation',
+          count: 70,
+          sample: 'src/main/utils/getLaunchDarklyFlag.ts:9',
+          sdkMethod: 'variation',
+          detail: blocker.detail,
+        },
+      ],
     })
     const text = formatText(makeScanResult({ lockIn: makeLockIn(), detectionCoverage: coverage }), {
       verbose: false,
       maxDisplay: 10,
     })
     expect(text).toContain('70 sites the hosted migration refuses to rewrite')
-    expect(text).toContain('    ⛔ generic-variation  getLaunchDarklyFlag() at')
+    expect(text).toContain('    ⛔ generic-variation  70 sites (first at')
 
     const markdown = formatMarkdown(
       makeScanResult({ lockIn: makeLockIn(), detectionCoverage: coverage }),
       { scanMode: 'full' },
     )
-    expect(markdown).toContain('- Hosted migration refuses: generic-variation  getLaunchDarklyFlag() at')
+    expect(markdown).toContain('- Hosted migration refuses: generic-variation  70 sites (first at')
   })
 
   it('omits the coverage block when there is no surface, and when the surface is empty', () => {

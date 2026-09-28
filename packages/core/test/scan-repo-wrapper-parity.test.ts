@@ -224,7 +224,7 @@ export const direct = () => client.boolVariation('direct-literal', { key: 'anony
     expect(lockIn.hostedAdmission[0].preflight.admissible).toBe(false)
     expect(
       lockIn.hostedAdmission[0].preflight.gates.filter((gate) => gate.status === 'refuse').map((gate) => gate.id),
-    ).toEqual(['test-script'])
+    ).toEqual(['test-script', 'evaluation-method'])
     // `sdk-api-surface` is derived from the committed tree, not from the
     // detections: every member call in these SDK-importing files is catalogued,
     // so it passes — and still says out loud that the receiver proof is hosted.
@@ -232,6 +232,82 @@ export const direct = () => client.boolVariation('direct-literal', { key: 'anony
     const apiSurface = lockIn.hostedAdmission[0].preflight.gates.find((gate) => gate.id === 'sdk-api-surface')!
     expect(apiSurface.status).toBe('pass')
     expect(apiSurface.detail).toContain('the receiver proof itself still requires the hosted analyzer')
+  })
+})
+
+describe('scanRepo — a static-key call to an untyped evaluation', () => {
+  let repoDir: string
+  afterAll(() => rmSync(repoDir, { recursive: true, force: true }))
+
+  it('never reads as "may qualify" for a shape the hosted planner refuses', async () => {
+    // The mundane gates are all satisfied and there is no wrapper anywhere — just one
+    // direct static-key call to LaunchDarkly's generic `variation`. FS-075 refuses
+    // this `unproven-served-type` today (no hosted caller supplies a flag inventory)
+    // and still refuses it when the served type and the default disagree, which this
+    // shape — a boolean-serving flag read with a string default — is the fixture for.
+    repoDir = buildRepo({
+      'src/flags.ts': `
+import { init, type LDClient } from '${SDK}'
+const client: LDClient = init(process.env.LD_SDK_KEY!)
+export async function legacyToggle(): Promise<string> {
+  return client.variation('legacy-toggle', { key: 'u1' }, 'system')
+}
+`,
+    })
+
+    const result = await scanRepo({ cwd: repoDir, noConfig: true, noIgnoreFile: true })
+    const lockIn = result.lockIn!
+
+    expect(result.totalFlags).toBe(1)
+    expect(lockIn.totals['draft-pr']).toBe(0)
+    expect(lockIn.totals['draft-pr-refused']).toBe(1)
+    expect(lockIn.providers[0].classification).toBe('draft-pr-refused')
+
+    const preflight = lockIn.hostedAdmission[0].preflight
+    expect(preflight.admissible).toBe(false)
+    const refusing = preflight.gates.filter((gate) => gate.status === 'refuse')
+    expect(refusing.map((gate) => gate.id)).toEqual(['evaluation-method'])
+    // Phrased so it stays correct after a flag inventory is wired: the proof is a read
+    // of the customer's LaunchDarkly project, which is never in the source.
+    expect(refusing[0].detail).toContain('unproven-served-type')
+    expect(refusing[0].detail).toContain('read of your LaunchDarkly project')
+    expect(refusing[0].detail).toContain('boolVariation, stringVariation, numberVariation')
+
+    // `transformation-blockers` stays unknown, but now names served type among what
+    // only the hosted analyzer decides, instead of omitting it.
+    const unknownBlockers = preflight.gates.find((gate) => gate.id === 'transformation-blockers')!
+    expect(unknownBlockers.status).toBe('unknown')
+    expect(unknownBlockers.detail).toContain('served type')
+
+    // The coverage block names the same refusal at the call site itself.
+    expect(result.detectionCoverage!.rewriteRefusals).toEqual([
+      expect.objectContaining({ reason: 'unproven-served-type', count: 1, sdkMethod: 'variation' }),
+    ])
+    expect(result.detectionCoverage!.refusedForRewrite).toBe(1)
+  })
+
+  it('passes the gate once the call uses an evaluation LaunchDarkly type-checks', async () => {
+    const typedDir = buildRepo({
+      'src/flags.ts': `
+import { init, type LDClient } from '${SDK}'
+const client: LDClient = init(process.env.LD_SDK_KEY!)
+export async function legacyToggle(): Promise<boolean> {
+  return client.boolVariation('legacy-toggle', { key: 'u1' }, false)
+}
+`,
+    })
+    try {
+      const result = await scanRepo({ cwd: typedDir, noConfig: true, noIgnoreFile: true })
+      const lockIn = result.lockIn!
+      expect(lockIn.totals['draft-pr']).toBe(1)
+      expect(lockIn.hostedAdmission[0].preflight.admissible).toBe(true)
+      expect(
+        lockIn.hostedAdmission[0].preflight.gates.find((gate) => gate.id === 'evaluation-method')!.status,
+      ).toBe('pass')
+      expect(result.detectionCoverage!.rewriteRefusals).toEqual([])
+    } finally {
+      rmSync(typedDir, { recursive: true, force: true })
+    }
   })
 })
 

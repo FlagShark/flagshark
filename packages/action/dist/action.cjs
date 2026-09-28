@@ -37270,6 +37270,45 @@ function defaultJavaProviders() {
   ];
 }
 
+// ../core/dist/detection/launchdarkly-node-methods.js
+var LAUNCHDARKLY_NODE_EVALUATION_METHODS = Object.freeze([
+  { name: "boolVariation", returnType: "boolean", detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.boolVariation("flag-key", context, false)' },
+  { name: "stringVariation", returnType: "string", detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.stringVariation("flag-key", context, "default")' },
+  { name: "numberVariation", returnType: "number", detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.numberVariation("flag-key", context, 0)' },
+  { name: "jsonVariation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.jsonVariation("flag-key", context, {})' },
+  { name: "variation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: true, example: 'client.variation("flag-key", context, defaultValue)' },
+  { name: "boolVariationDetail", returnType: "boolean", detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.boolVariationDetail("flag-key", context, false)' },
+  { name: "stringVariationDetail", returnType: "string", detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.stringVariationDetail("flag-key", context, "default")' },
+  { name: "numberVariationDetail", returnType: "number", detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.numberVariationDetail("flag-key", context, 0)' },
+  { name: "jsonVariationDetail", returnType: null, detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.jsonVariationDetail("flag-key", context, {})' },
+  { name: "variationDetail", returnType: null, detail: true, flagKeyIndex: 0, onNodeClient: true, example: 'client.variationDetail("flag-key", context, defaultValue)' },
+  { name: "intVariation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: false, example: 'client.intVariation("flag-key", context, 0)' },
+  { name: "doubleVariation", returnType: null, detail: false, flagKeyIndex: 0, onNodeClient: false, example: 'client.doubleVariation("flag-key", context, 0.0)' }
+]);
+var LAUNCHDARKLY_NODE_LIFECYCLE_METHODS = Object.freeze([
+  "init",
+  "waitForInitialization",
+  "flush",
+  "close"
+]);
+var BY_NAME = new Map(LAUNCHDARKLY_NODE_EVALUATION_METHODS.map((method) => [method.name, method]));
+var LAUNCHDARKLY_NODE_PACKAGES = Object.freeze([
+  "@launchdarkly/node-server-sdk",
+  "launchdarkly-node-server-sdk"
+]);
+function isLaunchDarklyNodePackage(provider) {
+  return LAUNCHDARKLY_NODE_PACKAGES.includes(provider);
+}
+function launchDarklyNodeMethod(name2) {
+  return BY_NAME.get(name2);
+}
+var LAUNCHDARKLY_UNTYPED_METHOD_NAMES = Object.freeze(LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.returnType === null).map((method) => method.name));
+var LAUNCHDARKLY_DETAIL_METHOD_NAMES = Object.freeze(LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.detail).map((method) => method.name));
+var LAUNCHDARKLY_NODE_CLIENT_METHODS = Object.freeze([
+  ...LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.onNodeClient).map((method) => method.name),
+  ...LAUNCHDARKLY_NODE_LIFECYCLE_METHODS
+]);
+
 // ../core/dist/detection/detectors/typescript.js
 var TypeScriptDetector = class {
   providers;
@@ -37302,6 +37341,13 @@ var TypeScriptDetector = class {
     return this.providers;
   }
 };
+function launchDarklyNodeMethods() {
+  return LAUNCHDARKLY_NODE_EVALUATION_METHODS.map((method) => ({
+    name: method.name,
+    flagKeyIndex: method.flagKeyIndex,
+    examples: [method.example]
+  }));
+}
 function defaultTypeScriptProviders() {
   return [
     {
@@ -37327,43 +37373,14 @@ function defaultTypeScriptProviders() {
       importPattern: "@launchdarkly/node-server-sdk",
       description: "LaunchDarkly Node.js Server SDK",
       enabled: true,
-      methods: [
-        {
-          name: "variation",
-          flagKeyIndex: 0,
-          examples: ['client.variation("flag-key", context, defaultValue)']
-        },
-        {
-          name: "boolVariation",
-          flagKeyIndex: 0,
-          examples: ['client.boolVariation("flag-key", context, false)']
-        },
-        {
-          name: "stringVariation",
-          flagKeyIndex: 0,
-          examples: ['client.stringVariation("flag-key", context, "default")']
-        },
-        {
-          name: "intVariation",
-          flagKeyIndex: 0,
-          examples: ['client.intVariation("flag-key", context, 0)']
-        },
-        {
-          name: "doubleVariation",
-          flagKeyIndex: 0,
-          examples: ['client.doubleVariation("flag-key", context, 0.0)']
-        },
-        {
-          name: "jsonVariation",
-          flagKeyIndex: 0,
-          examples: ['client.jsonVariation("flag-key", context, {})']
-        },
-        {
-          name: "variationDetail",
-          flagKeyIndex: 0,
-          examples: ['client.variationDetail("flag-key", context, defaultValue)']
-        }
-      ]
+      // Derived from the one method table (launchdarkly-node-methods.ts), which
+      // mirrors the hosted product's `LD_TO_OPENFEATURE_TS`. Before that, this list
+      // was hand-maintained and had drifted: `numberVariation` and all four typed
+      // `*Detail` forms were missing, so a repository evaluating through any of them
+      // reported zero flags AND a balanced coverage metric — the denominator and the
+      // detector keyed off the same incomplete list, so a total miss could not
+      // surface as a shortfall.
+      methods: launchDarklyNodeMethods()
     },
     {
       name: "LaunchDarkly React SDK",
@@ -44581,6 +44598,42 @@ function isTsJsFile(filePath) {
 var import_node_path3 = require("node:path");
 
 // ../core/dist/detection/wrapper-evaluations.js
+var TYPED_VALUE_METHOD_LIST = LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.returnType !== null && !method.detail).map((method) => method.name).join(", ");
+function rewriteRefusalFor(provider, sdkMethod, position) {
+  if (!isLaunchDarklyNodePackage(provider))
+    return null;
+  const method = launchDarklyNodeMethod(sdkMethod);
+  if (method === void 0)
+    return null;
+  if (method.detail) {
+    return {
+      reason: "details-consumer",
+      sdkMethod,
+      detail: `${sdkMethod}() consumes the evaluation detail, and OpenFeature's reason and variant semantics are not LaunchDarkly's, so the hosted planner refuses a detail consumer whatever else is proven. Read the value instead of the detail.`
+    };
+  }
+  if (method.returnType !== null)
+    return null;
+  if (position === "wrapper") {
+    return {
+      reason: "generic-variation",
+      sdkMethod,
+      detail: `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to ${TYPED_VALUE_METHOD_LIST} first, or rewrite it by hand.`
+    };
+  }
+  return {
+    reason: "unproven-served-type",
+    sdkMethod,
+    detail: `${sdkMethod}() is an evaluation LaunchDarkly does not type-check, so it returns whatever type the flag serves while a typed OpenFeature accessor substitutes the default when the types differ. The key is static, so this is provable \u2014 but only from a read of your LaunchDarkly project showing every variation of the flag carries the default's type, which is not in the source and which no local scan can supply. Migrate the call to ${TYPED_VALUE_METHOD_LIST} and the proof is no longer needed.`
+  };
+}
+function secondSdkCallRefusal(targets) {
+  return {
+    reason: "second-sdk-call",
+    sdkMethod: targets.join(", "),
+    detail: `the body forwards its key into ${targets.length} evaluations (${targets.join(", ")}); a wrapper is rewritten only when its body's sole SDK call is the evaluation being migrated, so the hosted migration refuses it. Split the body into one wrapper per evaluation.`
+  };
+}
 var EVALUATION_GAP_DETAILS = {
   "computed-key": "the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source",
   "unprovable-key": "the flag key is an identifier the scan cannot prove: a local variable, a re-assigned binding, or a const in a module it did not read",
@@ -44591,13 +44644,6 @@ var EVALUATION_GAP_DETAILS = {
   "ambiguous-client-provenance": "a named function forwards the key, but the scan could not tie what it forwards into to a proven SDK client \u2014 the declaring file does not import the SDK itself, or the wrapper chain is longer than the scan follows (FS-069 uses this name for the same refusal)",
   "wrapper-without-callers": "a wrapper forwards the key to the SDK but the scan found no call site for it, so its flag keys are somewhere the scan cannot see"
 };
-var LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS = /* @__PURE__ */ new Set([
-  "variation",
-  "variationDetail",
-  "jsonVariation",
-  "jsonVariationDetail"
-]);
-var LAUNCHDARKLY_PACKAGE_MARKER = "launchdarkly";
 var DEFAULT_MAX_WRAPPER_DEPTH = 3;
 var MAX_RE_EXPORT_HOPS = 4;
 var FUNCTION_NODES = /* @__PURE__ */ new Set([
@@ -45242,17 +45288,6 @@ function ownerOfObject(object, file) {
     return null;
   return { name: name2.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name2.text) };
 }
-function rewriteBlockerFor(provider, sdkMethod) {
-  if (!provider.toLowerCase().includes(LAUNCHDARKLY_PACKAGE_MARKER))
-    return null;
-  if (!LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS.has(sdkMethod))
-    return null;
-  return {
-    reason: "generic-variation",
-    sdkMethod,
-    detail: `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to boolVariation, stringVariation or numberVariation first, or rewrite it by hand.`
-  };
-}
 function callerCount(wrapper) {
   return wrapper.resolvedCallers + wrapper.unresolvedCallers + wrapper.forwardingCallers;
 }
@@ -45311,16 +45346,23 @@ async function analyzeWrapperEvaluations(options) {
     parseFile(filePath);
   const inScopeFiles = inScopePaths.map((filePath) => parsed.get(filePath));
   const wrappers = [];
-  const seen = /* @__PURE__ */ new Set();
+  const byDeclaration = /* @__PURE__ */ new Map();
+  const targets = /* @__PURE__ */ new Map();
   for (let depth = 1; depth <= maxDepth; depth++) {
     let grew = false;
     for (const wrapper of identifyWrappers(analyzer, inScopeFiles, catalogue, wrappers, depth)) {
       const key = `${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`;
-      if (seen.has(key))
+      const existing = byDeclaration.get(key);
+      if (existing === void 0) {
+        byDeclaration.set(key, wrapper);
+        targets.set(key, [wrapper.forwardsTo]);
+        wrappers.push(wrapper);
+        grew = true;
         continue;
-      seen.add(key);
-      wrappers.push(wrapper);
-      grew = true;
+      }
+      const seenTargets = targets.get(key);
+      seenTargets.push(wrapper.forwardsTo);
+      existing.rewriteBlocker = secondSdkCallRefusal(seenTargets);
     }
     if (!grew)
       break;
@@ -45363,7 +45405,7 @@ function identifyWrappers(analyzer, inScopeFiles, catalogue, known, depth) {
         keyIndex = target.keyIndex;
         provider = target.provider;
         forwardsTo = call.callee;
-        rewriteBlocker = rewriteBlockerFor(provider, call.callee);
+        rewriteBlocker = rewriteRefusalFor(provider, call.callee, "wrapper");
       } else {
         const match = accepted.find((candidate) => matchesAccepted(call, candidate));
         if (!match)
@@ -45437,11 +45479,13 @@ function classifySites(analyzer, inScopeFiles, catalogue, wrappers) {
   const flags2 = [];
   const explainedIds = new Set(pending.map((entry) => entry.call.id));
   for (const entry of pending) {
+    const direct = entry.via === "sdk" && entry.resolution.kind !== "parameter";
     const base = {
       filePath: entry.file.filePath,
       lineNumber: entry.call.lineNumber,
       callee: entry.call.callee,
-      via: entry.via
+      via: entry.via,
+      rewriteRefusal: direct ? rewriteRefusalFor(entry.provider, entry.call.callee, "direct") : null
     };
     if (entry.resolution.kind === "key") {
       sites.push({ ...base, status: { kind: "accounted", flagKey: entry.resolution.flagKey } });
@@ -45506,9 +45550,32 @@ function summarizeDetectionCoverage(analysis, options) {
     detail: EVALUATION_GAP_DETAILS[reason]
   })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
   let refusedForRewrite = 0;
+  const refusalsByReason = /* @__PURE__ */ new Map();
+  const addRefusal = (blocker, sites, at) => {
+    refusedForRewrite += sites;
+    const existing = refusalsByReason.get(blocker.reason);
+    if (existing)
+      existing.count += sites;
+    else
+      refusalsByReason.set(blocker.reason, {
+        count: sites,
+        sample: at,
+        sdkMethod: blocker.sdkMethod,
+        detail: blocker.detail
+      });
+  };
+  for (const wrapper of analysis.wrappers) {
+    if (wrapper.rewriteBlocker !== null) {
+      addRefusal(wrapper.rewriteBlocker, callerCount(wrapper), location(wrapper.filePath, wrapper.lineNumber));
+    }
+  }
+  for (const site of analysis.sites) {
+    if (site.rewriteRefusal !== null) {
+      addRefusal(site.rewriteRefusal, 1, location(site.filePath, site.lineNumber));
+    }
+  }
+  const rewriteRefusals = [...refusalsByReason].map(([reason, rest]) => ({ reason, ...rest })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
   const wrappers = analysis.wrappers.map((wrapper) => {
-    if (wrapper.rewriteBlocker !== null)
-      refusedForRewrite += callerCount(wrapper);
     return {
       label: wrapperLabel(wrapper),
       declaredAt: location(wrapper.filePath, wrapper.lineNumber),
@@ -45547,6 +45614,7 @@ function summarizeDetectionCoverage(analysis, options) {
       gaps,
       wrappers,
       refusedForRewrite,
+      rewriteRefusals,
       evaluationSurface: analysis.evaluationSurface
     },
     flags: flags2
@@ -46647,6 +46715,7 @@ var import_node_fs6 = require("node:fs");
 var import_node_path7 = require("node:path");
 
 // ../core/dist/migration/hosted-admission.js
+var TYPED_VALUE_METHOD_LIST2 = LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter((method) => method.returnType !== null && !method.detail).map((method) => method.name).join(", ");
 var NODE_SERVER_CELL_ID = "adopt-openfeature/launchdarkly-node-server/ecmascript/server";
 var HOSTED_ADMISSION_LIMITS = Object.freeze({
   maxTreeEntries: 2e4,
@@ -46720,22 +46789,7 @@ var PACKAGE_MANAGER_MARKER = /(?:^|\/)(?:pnpm-workspace\.ya?ml|pnpm-lock\.yaml|\
 var NPM_LOCKFILE = /(?:^|\/)(?:package-lock\.json|npm-shrinkwrap\.json)$/u;
 var EXACT_NPM_PIN = /^npm@(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 var EXACT_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
-var CATALOGUED_CLIENT_METHODS = /* @__PURE__ */ new Set([
-  "variation",
-  "variationDetail",
-  "boolVariation",
-  "stringVariation",
-  "numberVariation",
-  "jsonVariation",
-  "boolVariationDetail",
-  "stringVariationDetail",
-  "numberVariationDetail",
-  "jsonVariationDetail",
-  "init",
-  "waitForInitialization",
-  "flush",
-  "close"
-]);
+var CATALOGUED_CLIENT_METHODS = new Set(LAUNCHDARKLY_NODE_CLIENT_METHODS);
 function basename(path2) {
   return path2.slice(path2.lastIndexOf("/") + 1);
 }
@@ -47223,8 +47277,11 @@ function nodeRuntimeGate(tree, selected) {
   ].filter((part) => part !== void 0);
   return gate("node-runtime", "pass", `${declared.length > 0 ? declared.join(", ") : "no .nvmrc or engines.node"} accepted; the hosted sandbox runs Node ${HOSTED_SANDBOX_RUNTIME.node} regardless (a limitation, not a gate)`);
 }
+function launchDarklySourceFiles(tree) {
+  return [...tree.files].filter(([path2, content]) => ECMASCRIPT_EXTENSIONS.has(extension(path2)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)));
+}
 function sdkApiSurfaceGate(tree) {
-  const sdkFiles = [...tree.files].filter(([path2, content]) => ECMASCRIPT_EXTENSIONS.has(extension(path2)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)));
+  const sdkFiles = launchDarklySourceFiles(tree);
   if (sdkFiles.length === 0) {
     return gate("sdk-api-surface", "unknown", "no source file importing the LaunchDarkly Node SDK was read locally");
   }
@@ -47245,6 +47302,32 @@ function sdkApiSurfaceGate(tree) {
     return gate("sdk-api-surface", "unknown", `${plural(names.length, "method")} outside the catalogued client surface called in the ${plural(sdkFiles.length, "file")} importing the SDK (${sample(names.map((m) => `${m}()`), 6)}); any of them on the LaunchDarkly client is an unmapped-api refusal, and only the hosted analyzer can prove the receiver`);
   }
   return gate("sdk-api-surface", "pass", `only catalogued client methods (${[...catalogued].sort().map((m) => `${m}()`).join(", ") || "none"}) are called in the ${plural(sdkFiles.length, "file")} importing the SDK; the receiver proof itself still requires the hosted analyzer`);
+}
+function evaluationMethodGate(tree) {
+  const sdkFiles = launchDarklySourceFiles(tree);
+  if (sdkFiles.length === 0) {
+    return gate("evaluation-method", "unknown", "no source file importing the LaunchDarkly Node SDK was read locally");
+  }
+  const found = (names) => {
+    const hits = [];
+    for (const [path2, content] of sdkFiles) {
+      for (const name2 of names) {
+        if (new RegExp(`\\.${name2}\\s*\\(`, "u").test(content))
+          hits.push({ method: name2, path: path2 });
+      }
+    }
+    return hits;
+  };
+  const details = found(LAUNCHDARKLY_DETAIL_METHOD_NAMES);
+  if (details.length > 0) {
+    return gate("evaluation-method", "refuse", `${sample(details.map((hit) => `${hit.method}() in ${hit.path}`), 3)} consumes the evaluation detail; OpenFeature's reason and variant semantics are not LaunchDarkly's, so the hosted planner refuses a detail consumer (details-consumer) whatever else is proven. Read the value instead \u2014 ${plural(LAUNCHDARKLY_DETAIL_METHOD_NAMES.length, "detail method")} are affected.`);
+  }
+  const untypedValueMethods = LAUNCHDARKLY_UNTYPED_METHOD_NAMES.filter((name2) => !LAUNCHDARKLY_DETAIL_METHOD_NAMES.includes(name2));
+  const untyped = found(untypedValueMethods);
+  if (untyped.length > 0) {
+    return gate("evaluation-method", "refuse", `${sample(untyped.map((hit) => `${hit.method}() in ${hit.path}`), 3)} is an evaluation LaunchDarkly does not type-check, so it returns whatever type the flag serves while a typed OpenFeature accessor substitutes the default when the types differ. The hosted planner refuses it (unproven-served-type) unless it can prove every variation of that flag carries the default's type, which is a read of your LaunchDarkly project and is never provable from source. Migrate the call to ${TYPED_VALUE_METHOD_LIST2}, whose type LaunchDarkly itself checks, and this gate passes on the source alone.`);
+  }
+  return gate("evaluation-method", "pass", `only evaluations LaunchDarkly type-checks are called in the ${plural(sdkFiles.length, "file")} importing the SDK; the receiver proof itself still requires the hosted analyzer`);
 }
 var NOT_CHECKED = "not checked: requires exactly one readable package.json";
 function dedupePaths(entries) {
@@ -47282,9 +47365,9 @@ function preflightNodeServerAdmission(tree) {
     const npmPin = npmPinGate(tree, filePaths, selected);
     gates.push(workspacesGate(selected.manifest), lockfileGate(filePaths, selected), npmPin.gate, devEnginesGate(selected.manifest, npmPin.npmVersion), dependenciesGate(selected.manifest), launchDarklySdkGate(selected.manifest), typecheckGate(tree, regularPaths, selected), testScriptGate(selected.manifest), nodeRuntimeGate(tree, selected));
   }
-  gates.push(sdkApiSurfaceGate(tree));
+  gates.push(sdkApiSurfaceGate(tree), evaluationMethodGate(tree));
   const analyzerInputs = paths.filter((p) => regularPaths.has(p) && isAnalyzerInput(p)).length;
-  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, unmapped client APIs, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
+  gates.push(gate("analyzer-budget", "unknown", `${plural(analyzerInputs, "analyzer-input file")} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`), gate("transformation-blockers", "unknown", "provider setup, client escape, unmapped client APIs, default-value types, wrapper-forwarded (dynamic) flag keys and the served type of a flag read through an untyped evaluation are proven only by the hosted analyzer \u2014 the last one needs a read of your LaunchDarkly project, which no local check can substitute for"), gate("dependency-closure", "unknown", "the certified dependency closure is verified only inside the hosted sandbox"), gate("sandbox-validation", "unknown", "npm ci, the type check and the test suite run only inside the hosted sandbox"));
   return { admissible: !gates.some((g) => g.status === "refuse"), gates };
 }
 var HOSTED_ADMISSION_PREFLIGHTS = Object.freeze({
@@ -48605,7 +48688,7 @@ function describeDetectionCoverage(coverage) {
   parts2.push(`${coverage.unnamed} not named`);
   const surface = coverage.evaluationSurface;
   if (surface.accountedFor !== surface.callShaped) {
-    parts2.push(`${surface.callShaped - surface.accountedFor} of ${plural2(surface.callShaped, "evaluation-shaped call")} unexplained`);
+    parts2.push(`FS-069 cross-check ${surface.callShaped - surface.accountedFor} of ${plural2(surface.callShaped, "member-form evaluation call")} unexplained`);
   }
   if (coverage.refusedForRewrite > 0) {
     parts2.push(`${plural2(coverage.refusedForRewrite, "site")} the hosted migration refuses to rewrite`);
@@ -48613,7 +48696,7 @@ function describeDetectionCoverage(coverage) {
   return {
     headline: parts2.join(" \xB7 "),
     wrappers: truncate(coverage.wrappers, (wrapper) => `${wrapper.label} forwards argument ${wrapper.keyParameterIndex + 1} to ${wrapper.forwardsTo} \xB7 ${wrapper.declaredAt} \xB7 ${plural2(wrapper.callers, "caller")} (${wrapper.resolvedCallers} named \xB7 ${wrapper.unresolvedCallers} runtime-only \xB7 ${wrapper.forwardingCallers} forwarded on)`, "more wrapper"),
-    refusals: truncate(coverage.wrappers.filter((wrapper) => wrapper.rewriteBlocker !== null), (wrapper) => `${wrapper.rewriteBlocker.reason}  ${wrapper.label} at ${wrapper.declaredAt} \u2014 ${wrapper.rewriteBlocker.detail}`, "more refused wrapper"),
+    refusals: truncate(coverage.rewriteRefusals, (refusal) => `${refusal.reason}  ${plural2(refusal.count, "site")} (first at ${refusal.sample}) \u2014 ${refusal.detail}`, "more refusal"),
     gaps: truncate(coverage.gaps, (gap) => `${gap.reason}  ${plural2(gap.count, "site")} (first at ${gap.sample}) \u2014 ${gap.detail}`, "more refusal reason"),
     hasShortfall: coverage.unnamed > 0 || surface.accountedFor !== surface.callShaped
   };

@@ -23,7 +23,7 @@ Lock-in: 21 flag call sites · 3 provider SDKs
     ✗ test-script  package.json has no `test` script; a preview whose test suite never ran cannot count as passing, so it is never published. Add a "test" script that runs your suite.
   Detection coverage (local; call-shaped evaluation sites counted from the parsed tree): 19 of 23 sites named · 2 forwarded by 2 wrappers · 2 not named · 8 sites the hosted migration refuses to rewrite
     → getLaunchDarklyFlag() forwards argument 2 to variation · src/utils/getLaunchDarklyFlag.ts:9 · 8 callers (7 named · 1 runtime-only · 0 forwarded on)
-    ⛔ generic-variation  getLaunchDarklyFlag() at src/utils/getLaunchDarklyFlag.ts:9 — the body evaluates with variation(), which LaunchDarkly does not type-check … Migrate the body to boolVariation, stringVariation or numberVariation first, or rewrite it by hand.
+    ⛔ generic-variation  8 sites (first at src/utils/getLaunchDarklyFlag.ts:9) — the body evaluates with variation(), which LaunchDarkly does not type-check … Migrate the body to boolVariation, stringVariation, numberVariation first, or rewrite it by hand.
     ✗ computed-key  2 sites (first at src/gates.ts:31) — the flag key is built at runtime (a template substitution, a concatenation, a call or an index), so no key exists in the source
   Next: npx flagshark assess   (private assessment; invite-only today)
 
@@ -66,14 +66,16 @@ by name plus a provable import binding, and reports their literal and
 proven-const keys as flags (`confidence: medium`, so the lock-in summary calls
 them `needs review (weaker detection)`).
 
-Detecting a wrapper is not the same as being able to migrate it. A wrapper whose
-body evaluates with LaunchDarkly's generic `variation`, `variationDetail`,
-`jsonVariation` or `jsonVariationDetail` is refused for rewriting: LaunchDarkly
-does not type-check those, so they return whatever type the flag serves while a
-typed OpenFeature accessor substitutes the default, and a wrapper's key set cannot
-be closed. The scan prints that refusal per wrapper (`⛔ generic-variation`) and
-counts the call sites behind it, so a flag count never reads as a migration
-promise.
+Detecting an evaluation is not the same as being able to migrate it. LaunchDarkly
+does not type-check `variation`, `jsonVariation` or the `*VariationDetail` forms,
+so they return whatever type the flag serves while a typed OpenFeature accessor
+substitutes the call's default. Inside a wrapper that can never be proven
+(`generic-variation`); at a static key it needs a read of your LaunchDarkly
+project (`unproven-served-type`, which also refuses the `evaluation-method`
+admission gate so the repository does not read as "may qualify"); a detail
+consumer is refused outright (`details-consumer`). The scan prints each refusal
+with the number of call sites behind it (`⛔`), so a flag count never reads as a
+migration promise.
 
 The `Detection coverage:` line is the honesty check on all of it: every call-shaped
 evaluation site in the parsed tree, counted independently of whether a flag key

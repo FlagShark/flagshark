@@ -264,28 +264,54 @@ export class Consumer {
     expect(names(result)).toEqual(['annotated-handle-flag'])
   })
 
-  it('records a wrapper once when it forwards into the SDK and into another wrapper', async () => {
+  it('refuses a wrapper whose body forwards the key into more than one evaluation', async () => {
+    // FS-069 rewrites a wrapper only when its body's sole SDK call is the evaluation
+    // being migrated. Before this, the declaration was claimed by whichever path was
+    // seen first and the second path — including its refusal — was dropped.
     const result = await analyze({
       'src/flags.ts': `
 import { init } from '${SDK}'
 const client = init('sdk-key')
-export function inner(key: string) {
-  return client.boolVariation(key, { key: 'anonymous' }, false)
+const client2 = init('sdk-key-2')
+export function generic(key: string) {
+  return client.variation(key, { key: 'anonymous' }, false)
 }
-export function outer(key: string) {
-  return client.boolVariation(key, { key: 'anonymous' }, false) || inner(key)
+export function outer(key: string, useGeneric: boolean) {
+  return useGeneric ? generic(key) : client2.boolVariation(key, { key: 'anonymous' }, false)
 }
 `,
       'src/app.ts': `
 import { outer } from './flags'
-export const run = () => outer('deduped-flag')
+export const run = () => outer('dual-path-flag', true)
 `,
     })
     expect(result.wrappers.map((wrapper) => `${wrapper.name}@${wrapper.depth}`)).toEqual([
-      'inner@1',
+      'generic@1',
       'outer@1',
     ])
-    expect(names(result)).toEqual(['deduped-flag'])
+    expect(names(result)).toEqual(['dual-path-flag'])
+    const outer = result.wrappers.find((wrapper) => wrapper.name === 'outer')!
+    expect(outer.rewriteBlocker).toMatchObject({ reason: 'second-sdk-call' })
+    expect(outer.rewriteBlocker!.detail).toContain('boolVariation')
+    expect(outer.rewriteBlocker!.detail).toContain('generic()')
+  })
+
+  it('refuses a wrapper whose body calls the same evaluation twice', async () => {
+    const result = await analyze({
+      'src/flags.ts': `
+import { init } from '${SDK}'
+const client = init('sdk-key')
+export function twice(key: string, other: unknown) {
+  if (other) return client.boolVariation(key, { key: 'a' }, false)
+  return client.boolVariation(key, { key: 'b' }, true)
+}
+`,
+      'src/app.ts': `
+import { twice } from './flags'
+export const run = () => twice('twice-flag', null)
+`,
+    })
+    expect(result.wrappers[0].rewriteBlocker).toMatchObject({ reason: 'second-sdk-call' })
   })
 
   it('sorts two wrappers declared on the same line by name', async () => {
@@ -511,7 +537,7 @@ import { getFlag } from './flags'
 export const run = () => getFlag('some-gate', false)
 `
 
-  it.each(['variation', 'variationDetail', 'jsonVariation'])(
+  it.each(['variation', 'jsonVariation'])(
     'refuses a wrapper over the untyped %s() for rewriting while still naming its flags',
     async (method) => {
       const result = await analyze({ 'src/flags.ts': body(method), 'src/app.ts': caller })
@@ -524,13 +550,67 @@ export const run = () => getFlag('some-gate', false)
     },
   )
 
-  it.each(['boolVariation', 'stringVariation'])(
+  it.each(['variationDetail', 'jsonVariationDetail', 'boolVariationDetail', 'numberVariationDetail'])(
+    'refuses a wrapper over the detail consumer %s(), typed or not',
+    async (method) => {
+      // FS-075's precedence: `details-consumer` fires before the served-type check,
+      // so a detail form is named for what it is whether or not it is type-checked.
+      const result = await analyze({ 'src/flags.ts': body(method), 'src/app.ts': caller })
+      expect(names(result)).toEqual(['some-gate'])
+      expect(result.wrappers[0].rewriteBlocker).toMatchObject({
+        reason: 'details-consumer',
+        sdkMethod: method,
+      })
+    },
+  )
+
+  it.each(['boolVariation', 'stringVariation', 'numberVariation'])(
     'makes no rewrite claim about a wrapper over the typed %s()',
     async (method) => {
       const result = await analyze({ 'src/flags.ts': body(method), 'src/app.ts': caller })
       expect(result.wrappers[0].rewriteBlocker).toBeNull()
     },
   )
+
+  it.each(['intVariation', 'doubleVariation'])(
+    'refuses a wrapper over %s(), which is not on the Node client and is absent from the hosted mapping',
+    async (method) => {
+      const result = await analyze({ 'src/flags.ts': body(method), 'src/app.ts': caller })
+      expect(result.wrappers[0].rewriteBlocker).toMatchObject({
+        reason: 'generic-variation',
+        sdkMethod: method,
+      })
+    },
+  )
+
+  it('refuses a direct static-key call to an untyped method with FS-075 unproven-served-type', async () => {
+    const result = await analyze({
+      'src/flags.ts': `
+import { init } from '${SDK}'
+const client = init('sdk-key')
+export const legacyToggle = () => client.variation('legacy-toggle', { key: 'u1' }, 'system')
+export const typed = () => client.boolVariation('typed-toggle', { key: 'u1' }, false)
+`,
+    })
+    expect(names(result)).toEqual(['legacy-toggle', 'typed-toggle'])
+    expect(result.sites.map((entry) => entry.rewriteRefusal?.reason ?? null)).toEqual([
+      'unproven-served-type',
+      null,
+    ])
+    expect(result.sites[0].rewriteRefusal!.detail).toContain('read of your LaunchDarkly project')
+  })
+
+  it('makes no rewrite claim for a LaunchDarkly package outside the Node server cell', async () => {
+    const result = await analyze({
+      'src/flags.ts': `
+import { initialize } from '@launchdarkly/js-client-sdk'
+const client = initialize('env-key', { key: 'u1' })
+export const run = () => client.variation('browser-gate', false)
+`,
+    })
+    expect(names(result)).toEqual(['browser-gate'])
+    expect(result.sites[0].rewriteRefusal).toBeNull()
+  })
 
   it('propagates the refusal up a wrapper chain', async () => {
     const result = await analyze({
@@ -605,22 +685,23 @@ export const unrelated = () => list.variation()
     expect(result.sites).toHaveLength(1)
   })
 
-  it('does not count a bare wrapper call, which is not a member expression', async () => {
+  it('does not count a destructured evaluation method, which is not a member expression', async () => {
+    // FS-069 states this limit explicitly: a destructured or aliased evaluation
+    // method is not a property access, so the cross-check does not see it. The
+    // classifier still names the flag, so this is a denominator the metric under-
+    // counts — which is why the guard has to be load-bearing on a *catalogued* name,
+    // not on a wrapper name the callee filter would have rejected anyway.
     const result = await analyze({
       'src/flags.ts': `
 import { init } from '${SDK}'
 const client = init('sdk-key')
-export const getFlag = (key: string) => client.boolVariation(key, { key: 'a' }, false)
-`,
-      'src/app.ts': `
-import { getFlag } from './flags'
-export const run = () => getFlag('bare-gate')
+const { boolVariation } = client
+export const run = () => boolVariation('destructured-gate', { key: 'a' }, false)
 `,
     })
-    // The wrapper body is the only member-form evaluation call; the caller is a bare
-    // call, so the scanner classifies two sites while the cross-check sees one.
-    expect(result.evaluationSurface).toEqual({ callShaped: 1, accountedFor: 1 })
-    expect(result.sites).toHaveLength(2)
+    expect(names(result)).toEqual(['destructured-gate'])
+    expect(result.sites).toHaveLength(1)
+    expect(result.evaluationSurface).toEqual({ callShaped: 0, accountedFor: 0 })
   })
 })
 

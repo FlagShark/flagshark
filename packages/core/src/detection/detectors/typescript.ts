@@ -4,11 +4,18 @@
  */
 
 import { detectFlagsWithRegex } from '../helpers.js'
+import { LAUNCHDARKLY_NODE_EVALUATION_METHODS } from '../launchdarkly-node-methods.js'
 import { Languages } from '../interface.js'
 import { detectFlagsWithTreeSitter } from '../tree-sitter/engine.js'
 
 import type { FeatureFlag } from '../feature-flag.js'
-import type { DetectorEngine, FeatureFlagProvider, Language, LanguageDetector } from '../interface.js'
+import type {
+  DetectorEngine,
+  FeatureFlagProvider,
+  Language,
+  LanguageDetector,
+  MethodConfig,
+} from '../interface.js'
 
 export type { DetectorEngine }
 
@@ -54,6 +61,15 @@ export class TypeScriptDetector implements LanguageDetector {
   }
 }
 
+/** The Node server SDK's evaluation methods, as detector method configs. */
+function launchDarklyNodeMethods(): MethodConfig[] {
+  return LAUNCHDARKLY_NODE_EVALUATION_METHODS.map((method) => ({
+    name: method.name,
+    flagKeyIndex: method.flagKeyIndex,
+    examples: [method.example],
+  }))
+}
+
 export function defaultTypeScriptProviders(): FeatureFlagProvider[] {
   return [
     {
@@ -79,43 +95,14 @@ export function defaultTypeScriptProviders(): FeatureFlagProvider[] {
       importPattern: '@launchdarkly/node-server-sdk',
       description: 'LaunchDarkly Node.js Server SDK',
       enabled: true,
-      methods: [
-        {
-          name: 'variation',
-          flagKeyIndex: 0,
-          examples: ['client.variation("flag-key", context, defaultValue)'],
-        },
-        {
-          name: 'boolVariation',
-          flagKeyIndex: 0,
-          examples: ['client.boolVariation("flag-key", context, false)'],
-        },
-        {
-          name: 'stringVariation',
-          flagKeyIndex: 0,
-          examples: ['client.stringVariation("flag-key", context, "default")'],
-        },
-        {
-          name: 'intVariation',
-          flagKeyIndex: 0,
-          examples: ['client.intVariation("flag-key", context, 0)'],
-        },
-        {
-          name: 'doubleVariation',
-          flagKeyIndex: 0,
-          examples: ['client.doubleVariation("flag-key", context, 0.0)'],
-        },
-        {
-          name: 'jsonVariation',
-          flagKeyIndex: 0,
-          examples: ['client.jsonVariation("flag-key", context, {})'],
-        },
-        {
-          name: 'variationDetail',
-          flagKeyIndex: 0,
-          examples: ['client.variationDetail("flag-key", context, defaultValue)'],
-        },
-      ],
+      // Derived from the one method table (launchdarkly-node-methods.ts), which
+      // mirrors the hosted product's `LD_TO_OPENFEATURE_TS`. Before that, this list
+      // was hand-maintained and had drifted: `numberVariation` and all four typed
+      // `*Detail` forms were missing, so a repository evaluating through any of them
+      // reported zero flags AND a balanced coverage metric — the denominator and the
+      // detector keyed off the same incomplete list, so a total miss could not
+      // surface as a shortfall.
+      methods: launchDarklyNodeMethods(),
     },
     {
       name: 'LaunchDarkly React SDK',

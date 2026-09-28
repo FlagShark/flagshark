@@ -11,7 +11,7 @@
  * Invariants (pinned by `test/migration/hosted-admission.test.ts`):
  *   - Pure. A function over an in-memory tree view: no account, no token, no
  *     network, no filesystem, no subprocess. The only runtime import is the
- *     registry snapshot's cell id.
+ *     registry snapshot's cell id and the LaunchDarkly method table.
  *   - Honest. A gate that cannot be checked locally is `unknown`, never
  *     `pass`. `admissible` means "no locally checkable gate refuses" — it is
  *     not a promise; only the hosted planner decides.
@@ -21,6 +21,20 @@
  *     drift, the worst case here is a withheld "may qualify", never a false
  *     one.
  */
+
+import {
+  LAUNCHDARKLY_DETAIL_METHOD_NAMES,
+  LAUNCHDARKLY_NODE_CLIENT_METHODS,
+  LAUNCHDARKLY_NODE_EVALUATION_METHODS,
+  LAUNCHDARKLY_UNTYPED_METHOD_NAMES,
+} from '../detection/launchdarkly-node-methods.js'
+
+/** The typed value methods a refusal tells the user to migrate to, derived from the table. */
+const TYPED_VALUE_METHOD_LIST = LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter(
+  (method) => method.returnType !== null && !method.detail,
+)
+  .map((method) => method.name)
+  .join(', ')
 
 export type AdmissionGateStatus = 'pass' | 'refuse' | 'unknown'
 
@@ -41,6 +55,7 @@ export type AdmissionGateId =
   | 'test-script'
   | 'node-runtime'
   | 'sdk-api-surface'
+  | 'evaluation-method'
   | 'analyzer-budget'
   | 'transformation-blockers'
   | 'dependency-closure'
@@ -149,22 +164,9 @@ const EXACT_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u
  * `unmapped-api` blocker (`initialized`, `allFlagsState`, `migrationVariation`,
  * `trackMigration`, `on`, `track`, `identify`, `addListener`, …).
  */
-const CATALOGUED_CLIENT_METHODS = new Set([
-  'variation',
-  'variationDetail',
-  'boolVariation',
-  'stringVariation',
-  'numberVariation',
-  'jsonVariation',
-  'boolVariationDetail',
-  'stringVariationDetail',
-  'numberVariationDetail',
-  'jsonVariationDetail',
-  'init',
-  'waitForInitialization',
-  'flush',
-  'close',
-])
+// Derived from the one method table so this gate, the detector catalogue and the
+// rewrite decision cannot disagree about what is on the client.
+const CATALOGUED_CLIENT_METHODS = new Set(LAUNCHDARKLY_NODE_CLIENT_METHODS)
 
 type Manifest = Record<string, unknown>
 
@@ -830,9 +832,16 @@ function nodeRuntimeGate(tree: AdmissionTreeView, selected: SelectedManifest): A
 
 // ── Source gates ─────────────────────────────────────────────────
 
+/** The ECMAScript sources that mention a LaunchDarkly Node SDK package. */
+function launchDarklySourceFiles(tree: AdmissionTreeView): Array<[string, string]> {
+  return [...tree.files].filter(
+    ([path, content]) =>
+      ECMASCRIPT_EXTENSIONS.has(extension(path)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)),
+  )
+}
+
 function sdkApiSurfaceGate(tree: AdmissionTreeView): AdmissionGate {
-  const sdkFiles = [...tree.files]
-    .filter(([path, content]) => ECMASCRIPT_EXTENSIONS.has(extension(path)) && (content.includes(MODERN_SDK) || content.includes(LEGACY_SDK)))
+  const sdkFiles = launchDarklySourceFiles(tree)
   if (sdkFiles.length === 0) {
     return gate('sdk-api-surface', 'unknown', 'no source file importing the LaunchDarkly Node SDK was read locally')
   }
@@ -865,6 +874,72 @@ function sdkApiSurfaceGate(tree: AdmissionTreeView): AdmissionGate {
     'sdk-api-surface',
     'pass',
     `only catalogued client methods (${[...catalogued].sort().map((m) => `${m}()`).join(', ') || 'none'}) are called in the ${plural(sdkFiles.length, 'file')} importing the SDK; the receiver proof itself still requires the hosted analyzer`,
+  )
+}
+
+/**
+ * Whether the hosted planner can rewrite the evaluation methods this repository
+ * calls (FS-069 for wrappers, FS-075 for static keys). Two shapes it refuses for
+ * reasons that are visible in the source:
+ *
+ *   - **An untyped method** (`variation`, `jsonVariation`, and their `*Detail`
+ *     forms). LaunchDarkly resolves these as served with no type checker, while
+ *     every typed OpenFeature accessor substitutes the call's default when the
+ *     served type differs — so the rewrite type-checks and silently changes the
+ *     value. Proving it safe needs **every variation of that flag** to carry the
+ *     default's type, which cannot be read from source at all: it requires a read
+ *     of the LaunchDarkly project. So the local preflight can never pass this, and
+ *     saying so is correct both today (no hosted caller supplies an inventory yet,
+ *     so every such call is refused by name) and after one is wired (the proof
+ *     still is not local, and still fails when the types differ).
+ *   - **A detail consumer** (`*VariationDetail`, typed or not). OpenFeature's
+ *     `reason` and `variant` semantics are not the SDK's, so the hosted planner
+ *     refuses these outright, inventory or not.
+ *
+ * Like `allFlagsState` above, this is a name match inside a file that imports the
+ * LaunchDarkly Node SDK: the receiver is not proven locally, so an unrelated
+ * `list.variation()` in such a file would also refuse. That over-approximation is
+ * deliberate and in the same direction as every other gate here — a withheld "may
+ * qualify", never a false one.
+ */
+function evaluationMethodGate(tree: AdmissionTreeView): AdmissionGate {
+  const sdkFiles = launchDarklySourceFiles(tree)
+  if (sdkFiles.length === 0) {
+    return gate('evaluation-method', 'unknown', 'no source file importing the LaunchDarkly Node SDK was read locally')
+  }
+  const found = (names: readonly string[]): Array<{ method: string; path: string }> => {
+    const hits: Array<{ method: string; path: string }> = []
+    for (const [path, content] of sdkFiles) {
+      for (const name of names) {
+        if (new RegExp(`\\.${name}\\s*\\(`, 'u').test(content)) hits.push({ method: name, path })
+      }
+    }
+    return hits
+  }
+  const details = found(LAUNCHDARKLY_DETAIL_METHOD_NAMES)
+  if (details.length > 0) {
+    return gate(
+      'evaluation-method',
+      'refuse',
+      `${sample(details.map((hit) => `${hit.method}() in ${hit.path}`), 3)} consumes the evaluation detail; OpenFeature's reason and variant semantics are not LaunchDarkly's, so the hosted planner refuses a detail consumer (details-consumer) whatever else is proven. Read the value instead — ${plural(LAUNCHDARKLY_DETAIL_METHOD_NAMES.length, 'detail method')} are affected.`,
+    )
+  }
+  // Untyped value methods, minus the detail forms already handled above.
+  const untypedValueMethods = LAUNCHDARKLY_UNTYPED_METHOD_NAMES.filter(
+    (name) => !LAUNCHDARKLY_DETAIL_METHOD_NAMES.includes(name),
+  )
+  const untyped = found(untypedValueMethods)
+  if (untyped.length > 0) {
+    return gate(
+      'evaluation-method',
+      'refuse',
+      `${sample(untyped.map((hit) => `${hit.method}() in ${hit.path}`), 3)} is an evaluation LaunchDarkly does not type-check, so it returns whatever type the flag serves while a typed OpenFeature accessor substitutes the default when the types differ. The hosted planner refuses it (unproven-served-type) unless it can prove every variation of that flag carries the default's type, which is a read of your LaunchDarkly project and is never provable from source. Migrate the call to ${TYPED_VALUE_METHOD_LIST}, whose type LaunchDarkly itself checks, and this gate passes on the source alone.`,
+    )
+  }
+  return gate(
+    'evaluation-method',
+    'pass',
+    `only evaluations LaunchDarkly type-checks are called in the ${plural(sdkFiles.length, 'file')} importing the SDK; the receiver proof itself still requires the hosted analyzer`,
   )
 }
 
@@ -931,12 +1006,12 @@ export function preflightNodeServerAdmission(tree: AdmissionTreeView): HostedAdm
     )
   }
 
-  gates.push(sdkApiSurfaceGate(tree))
+  gates.push(sdkApiSurfaceGate(tree), evaluationMethodGate(tree))
 
   const analyzerInputs = paths.filter((p) => regularPaths.has(p) && isAnalyzerInput(p)).length
   gates.push(
     gate('analyzer-budget', 'unknown', `${plural(analyzerInputs, 'analyzer-input file')} locally (ECMAScript sources, manifests, tsconfig*); the token and work budgets are measured only by the hosted analyzer`),
-    gate('transformation-blockers', 'unknown', 'provider setup, client escape, unmapped client APIs, default-value types and wrapper-forwarded (dynamic) flag keys are proven only by the hosted analyzer'),
+    gate('transformation-blockers', 'unknown', 'provider setup, client escape, unmapped client APIs, default-value types, wrapper-forwarded (dynamic) flag keys and the served type of a flag read through an untyped evaluation are proven only by the hosted analyzer — the last one needs a read of your LaunchDarkly project, which no local check can substitute for'),
     gate('dependency-closure', 'unknown', 'the certified dependency closure is verified only inside the hosted sandbox'),
     gate('sandbox-validation', 'unknown', 'npm ci, the type check and the test suite run only inside the hosted sandbox'),
   )

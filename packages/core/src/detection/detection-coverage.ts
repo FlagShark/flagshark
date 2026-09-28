@@ -39,6 +39,7 @@ import type {
   WrapperEvaluationResult,
   WrapperKind,
   WrapperRewriteBlocker,
+  WrapperRewriteBlockerReason,
 } from './wrapper-evaluations.js'
 
 /** One refusal reason, with how often it occurred and where to look first. */
@@ -83,6 +84,23 @@ export interface DetectionCoverageWrapper {
 }
 
 /**
+ * One hosted-migration refusal, with how many call sites sit behind it. Aggregated
+ * across wrappers and direct calls alike, because a user needs to know how much of
+ * what the scan just reported the hosted product would decline to rewrite.
+ */
+export interface DetectionCoverageRewriteRefusal {
+  reason: WrapperRewriteBlockerReason
+  /** Call sites this refusal covers. */
+  count: number
+  /** `path:line` of the first site, or the wrapper's declaration. */
+  sample: string
+  /** The SDK method, or methods, the refusal is about. */
+  sdkMethod: string
+  /** One line on what cannot be proven, and what would change the answer. */
+  detail: string
+}
+
+/**
  * Detection coverage over the TypeScript/JavaScript evaluation surface. `sites`
  * always equals `flagsNamed + delegated + unnamed`.
  */
@@ -103,11 +121,13 @@ export interface DetectionCoverage {
   /** Wrappers identified, in declaration order. */
   wrappers: DetectionCoverageWrapper[]
   /**
-   * Wrapper-mediated call sites sitting behind a wrapper the hosted migration
-   * refuses to rewrite (FS-069). Detection is not migratability; this number is
-   * how much of the reported surface the hosted product would refuse.
+   * Call sites the hosted migration would refuse to rewrite — wrapper-mediated
+   * (FS-069) and direct static-key (FS-075) alike. Detection is not migratability;
+   * this number is how much of the reported surface the hosted product declines.
    */
   refusedForRewrite: number
+  /** Those refusals by reason, most call sites first. */
+  rewriteRefusals: DetectionCoverageRewriteRefusal[]
   /**
    * FS-069's cross-check, its semantics, its name: evaluation-shaped calls counted
    * without provenance versus how many the scan explained.
@@ -161,9 +181,41 @@ export function summarizeDetectionCoverage(
     }))
     .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason))
 
+  // Refusals are aggregated over wrappers (whose callers are the sites behind them)
+  // and over direct calls, which carry their own. A wrapper body and a wrapper
+  // caller never both contribute, so no site is counted twice.
   let refusedForRewrite = 0
+  const refusalsByReason = new Map<
+    WrapperRewriteBlockerReason,
+    { count: number; sample: string; sdkMethod: string; detail: string }
+  >()
+  const addRefusal = (blocker: WrapperRewriteBlocker, sites: number, at: string): void => {
+    refusedForRewrite += sites
+    const existing = refusalsByReason.get(blocker.reason)
+    if (existing) existing.count += sites
+    else
+      refusalsByReason.set(blocker.reason, {
+        count: sites,
+        sample: at,
+        sdkMethod: blocker.sdkMethod,
+        detail: blocker.detail,
+      })
+  }
+  for (const wrapper of analysis.wrappers) {
+    if (wrapper.rewriteBlocker !== null) {
+      addRefusal(wrapper.rewriteBlocker, callerCount(wrapper), location(wrapper.filePath, wrapper.lineNumber))
+    }
+  }
+  for (const site of analysis.sites) {
+    if (site.rewriteRefusal !== null) {
+      addRefusal(site.rewriteRefusal, 1, location(site.filePath, site.lineNumber))
+    }
+  }
+  const rewriteRefusals: DetectionCoverageRewriteRefusal[] = [...refusalsByReason]
+    .map(([reason, rest]) => ({ reason, ...rest }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason))
+
   const wrappers: DetectionCoverageWrapper[] = analysis.wrappers.map((wrapper) => {
-    if (wrapper.rewriteBlocker !== null) refusedForRewrite += callerCount(wrapper)
     return {
       label: wrapperLabel(wrapper),
       declaredAt: location(wrapper.filePath, wrapper.lineNumber),
@@ -203,6 +255,7 @@ export function summarizeDetectionCoverage(
       gaps,
       wrappers,
       refusedForRewrite,
+      rewriteRefusals,
       evaluationSurface: analysis.evaluationSurface,
     },
     flags,

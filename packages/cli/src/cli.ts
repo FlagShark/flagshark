@@ -44,11 +44,15 @@ The scan also finds flags evaluated through a TypeScript/JavaScript wrapper (a
 feature-flag helper, a service method, a singleton) by locating the wrapper's
 callers, and reports detection coverage: how many call-shaped evaluation sites
 the parsed tree held, how many it named a flag for, and a named reason for each
-one it would not. Wrapper-mediated flags are reported as a weaker detection, and
-a wrapper the hosted migration refuses to rewrite (an untyped LaunchDarkly
-evaluation method) is named as refused so a detection never reads as a promise.
-Full numbers, wrappers and refusals are in --format json under
-detectionCoverage.
+one it would not. Wrapper-mediated flags are reported as a weaker detection.
+
+An evaluation the hosted migration would refuse to rewrite is named as refused so
+a detection never reads as a promise: LaunchDarkly does not type-check variation,
+jsonVariation or the *VariationDetail forms, so inside a wrapper they cannot be
+proven at all and at a static key they need a read of your LaunchDarkly project.
+The evaluation-method admission gate refuses on the same grounds, so such a
+repository does not read as "may qualify". Full numbers, wrappers and refusals are
+in --format json under detectionCoverage.
 
 Scan options:
 

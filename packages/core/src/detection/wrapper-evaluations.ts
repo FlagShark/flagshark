@@ -49,6 +49,11 @@
  */
 
 import { isValidFlagKey } from './helpers.js'
+import {
+  isLaunchDarklyNodePackage,
+  launchDarklyNodeMethod,
+  LAUNCHDARKLY_NODE_EVALUATION_METHODS,
+} from './launchdarkly-node-methods.js'
 import { getImportPattern } from './interface.js'
 import { isTsJsFile, resolveImportPath, type PathAliases } from './import-graph.js'
 import { getParser } from './tree-sitter/parser-cache.js'
@@ -99,19 +104,118 @@ export interface WrapperDeclaration {
 }
 
 /**
- * Why the hosted migration refuses to rewrite a wrapper, independently of whether
- * the scan could name its flags. Detection and rewritability are different axes:
- * the scanner may legitimately detect more than the migrator can rewrite, and it
- * must not present the two as the same thing.
+ * Why the hosted migration refuses to rewrite an evaluation, independently of
+ * whether the scan could name its flag. Detection and rewritability are different
+ * axes: the scanner may legitimately detect more than the migrator can rewrite,
+ * and it must not present the two as the same thing.
+ *
+ * Every reason here is a refusal the owning ticket names, restricted to what is
+ * visible from source alone:
+ *
+ *   - `generic-variation` — FS-069 B1. A **wrapper** over a method LaunchDarkly
+ *     does not type-check. Its key set can never be closed, so no flag inventory
+ *     rescues it.
+ *   - `unproven-served-type` — FS-075. A **static-key** call to the same untyped
+ *     methods. The key set *is* closed here, so a read of the customer's
+ *     LaunchDarkly project can prove it — but that read is not source, so a local
+ *     scan can never prove it, and the hosted planner refuses by name until it has
+ *     one.
+ *   - `details-consumer` — any `*VariationDetail` form, typed or not. OpenFeature's
+ *     reason and variant semantics are not the SDK's.
+ *   - `second-sdk-call` — FS-069. A wrapper body reached through more than one
+ *     evaluation; a wrapper is rewritten only when its body's sole SDK call is the
+ *     evaluation being migrated.
  */
-export type WrapperRewriteBlockerReason = 'generic-variation'
+export type WrapperRewriteBlockerReason =
+  | 'generic-variation'
+  | 'unproven-served-type'
+  | 'details-consumer'
+  | 'second-sdk-call'
 
 export interface WrapperRewriteBlocker {
   reason: WrapperRewriteBlockerReason
-  /** The SDK method the wrapper body evaluates with. */
+  /** The SDK method the evaluation goes through. */
   sdkMethod: string
   /** One line: what cannot be proven, and what would change the answer. */
   detail: string
+}
+
+/** Where an evaluation sits, which decides which ticket's refusal applies. */
+export type EvaluationPosition = 'wrapper' | 'direct'
+
+/**
+ * The typed value methods a user can migrate to, named in every refusal message.
+ * Derived from the table so the advice cannot drift from what the scanner detects —
+ * the first version's message recommended `numberVariation`, which the detector did
+ * not catalogue, so following the advice made the scanner stop seeing the flag.
+ */
+const TYPED_VALUE_METHOD_LIST = LAUNCHDARKLY_NODE_EVALUATION_METHODS.filter(
+  (method) => method.returnType !== null && !method.detail,
+)
+  .map((method) => method.name)
+  .join(', ')
+
+/**
+ * The hosted migration's refusal for one evaluation, from the method it calls and
+ * where it sits. Returns null only when the scan makes **no claim** — never as a
+ * statement that the evaluation is migratable.
+ *
+ * Scoped to the two packages the registry's Node server cell covers, because that
+ * is the only cell whose stage reads as "may qualify for a hosted draft PR" and the
+ * only one FS-069 and FS-075 decide. Any other provider gets no claim.
+ */
+export function rewriteRefusalFor(
+  provider: string,
+  sdkMethod: string,
+  position: EvaluationPosition,
+): WrapperRewriteBlocker | null {
+  if (!isLaunchDarklyNodePackage(provider)) return null
+  const method = launchDarklyNodeMethod(sdkMethod)
+  if (method === undefined) return null
+  if (method.detail) {
+    return {
+      reason: 'details-consumer',
+      sdkMethod,
+      detail:
+        `${sdkMethod}() consumes the evaluation detail, and OpenFeature's reason and variant semantics are not ` +
+        `LaunchDarkly's, so the hosted planner refuses a detail consumer whatever else is proven. Read the value ` +
+        `instead of the detail.`,
+    }
+  }
+  if (method.returnType !== null) return null
+  if (position === 'wrapper') {
+    return {
+      reason: 'generic-variation',
+      sdkMethod,
+      detail:
+        `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type ` +
+        `the flag serves, while a typed OpenFeature accessor substitutes the default when the types differ. A ` +
+        `wrapper's key set cannot be closed, so no flag inventory can prove the values equal and the hosted ` +
+        `migration refuses the wrapper. Migrate the body to ${TYPED_VALUE_METHOD_LIST} first, or rewrite it by hand.`,
+    }
+  }
+  return {
+    reason: 'unproven-served-type',
+    sdkMethod,
+    detail:
+      `${sdkMethod}() is an evaluation LaunchDarkly does not type-check, so it returns whatever type the flag ` +
+      `serves while a typed OpenFeature accessor substitutes the default when the types differ. The key is static, ` +
+      `so this is provable — but only from a read of your LaunchDarkly project showing every variation of the flag ` +
+      `carries the default's type, which is not in the source and which no local scan can supply. Migrate the call ` +
+      `to ${TYPED_VALUE_METHOD_LIST} and the proof is no longer needed.`,
+  }
+}
+
+/** The `second-sdk-call` refusal, for a wrapper body reached through more than one evaluation. */
+function secondSdkCallRefusal(targets: readonly string[]): WrapperRewriteBlocker {
+  return {
+    reason: 'second-sdk-call',
+    sdkMethod: targets.join(', '),
+    detail:
+      `the body forwards its key into ${targets.length} evaluations (${targets.join(', ')}); a wrapper is rewritten ` +
+      `only when its body's sole SDK call is the evaluation being migrated, so the hosted migration refuses it. ` +
+      `Split the body into one wrapper per evaluation.`,
+  }
 }
 
 /**
@@ -171,6 +275,12 @@ export interface EvaluationSite {
   /** How the site reaches a provider: the SDK directly, or through a wrapper. */
   via: 'sdk' | 'wrapper'
   status: EvaluationSiteStatus
+  /**
+   * The hosted migration's refusal for this evaluation, when one applies and is not
+   * already carried by a wrapper. Set on a direct SDK call; null at a wrapper body
+   * or a wrapper caller, where the wrapper's own `rewriteBlocker` is the fact.
+   */
+  rewriteRefusal: WrapperRewriteBlocker | null
 }
 
 /**
@@ -235,34 +345,6 @@ export interface WrapperEvaluationOptions {
   /** Rounds of wrapper-forwards-into-wrapper chaining. Default 3. */
   maxWrapperDepth?: number
 }
-
-/**
- * FS-069 B1 — the LaunchDarkly evaluation methods LaunchDarkly itself does **not**
- * type-check. `LDClientImpl.variation` (and `jsonVariation`, and the `…Detail`
- * forms) resolve `detail.value` raw, while the typed methods go through
- * `LDClientImpl._typedEval` with a type checker. The OpenFeature provider's typed
- * resolvers return `wrongTypeResult(defaultValue)` on a mismatch, so a flag
- * serving `'variant-b'` read through `variation(key, ctx, false)` returns
- * `'variant-b'` today and `false` after a rewrite to `getBooleanValue`.
- *
- * For a *wrapper* this cannot be rescued by a flag inventory, because that needs
- * the wrapper's key set to be closed and a wrapper's key set includes every key
- * its callers compute at run time and every key a caller outside the repository
- * passes. FS-069 therefore refuses such a wrapper by name, and three of its four
- * surveyed real-repository shapes refuse for exactly this reason.
- *
- * A *direct* call with a literal key is not affected: its key set is closed, so
- * the rule is deliberately scoped to wrappers.
- */
-const LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS: ReadonlySet<string> = new Set([
-  'variation',
-  'variationDetail',
-  'jsonVariation',
-  'jsonVariationDetail',
-])
-
-/** Substring that marks a provider package as a LaunchDarkly SDK. */
-const LAUNCHDARKLY_PACKAGE_MARKER = 'launchdarkly'
 
 const DEFAULT_MAX_WRAPPER_DEPTH = 3
 
@@ -1066,25 +1148,6 @@ function ownerOfObject(object: Node, file: ParsedFile): { name: string; exported
   return { name: name.text, exported: isExportedDeclaration(declaration) || file.exportListNames.has(name.text) }
 }
 
-/**
- * FS-069's rewrite refusal for a wrapper, from the evaluation method its body
- * calls. Only the methods FS-069 names are claimed about; anything else yields
- * null, which means "no claim", not "migratable".
- */
-function rewriteBlockerFor(provider: string, sdkMethod: string): WrapperRewriteBlocker | null {
-  if (!provider.toLowerCase().includes(LAUNCHDARKLY_PACKAGE_MARKER)) return null
-  if (!LAUNCHDARKLY_UNTYPED_EVALUATION_METHODS.has(sdkMethod)) return null
-  return {
-    reason: 'generic-variation',
-    sdkMethod,
-    detail:
-      `the body evaluates with ${sdkMethod}(), which LaunchDarkly does not type-check: it returns whatever type the flag serves, ` +
-      `while a typed OpenFeature accessor substitutes the default when the types differ. A wrapper's key set cannot be closed, so ` +
-      `no flag inventory can prove the values equal and the hosted migration refuses the wrapper. Migrate the body to ` +
-      `boolVariation, stringVariation or numberVariation first, or rewrite it by hand.`,
-  }
-}
-
 /** Every call site found for a wrapper, however its key resolved. */
 export function callerCount(wrapper: WrapperDeclaration): number {
   return wrapper.resolvedCallers + wrapper.unresolvedCallers + wrapper.forwardingCallers
@@ -1163,15 +1226,30 @@ export async function analyzeWrapperEvaluations(
   // Round 1 identifies wrappers that call the SDK; each later round identifies
   // wrappers that forward a parameter into a wrapper already found.
   const wrappers: WrapperDeclaration[] = []
-  const seen = new Set<string>()
+  const byDeclaration = new Map<string, WrapperDeclaration>()
+  // Every evaluation each declaration was reached through, so a body with more than
+  // one is refused rather than silently keeping whichever path was seen first. The
+  // first version deduplicated by declaration key and dropped the second path — a
+  // wrapper whose body called both a typed method and an untyped one was claimed by
+  // the typed call at depth 1 and never revisited, losing the refusal entirely.
+  const targets = new Map<string, string[]>()
   for (let depth = 1; depth <= maxDepth; depth++) {
     let grew = false
     for (const wrapper of identifyWrappers(analyzer, inScopeFiles, catalogue, wrappers, depth)) {
       const key = `${wrapper.filePath}:${wrapper.lineNumber}:${wrapper.name}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      wrappers.push(wrapper)
-      grew = true
+      const existing = byDeclaration.get(key)
+      if (existing === undefined) {
+        byDeclaration.set(key, wrapper)
+        targets.set(key, [wrapper.forwardsTo])
+        wrappers.push(wrapper)
+        grew = true
+        continue
+      }
+      const seenTargets = targets.get(key)!
+      seenTargets.push(wrapper.forwardsTo)
+      // FS-069 refuses a wrapper whose body holds a second SDK call whatever the
+      // methods are, so this supersedes any single-path refusal already recorded.
+      existing.rewriteBlocker = secondSdkCallRefusal(seenTargets)
     }
     if (!grew) break
   }
@@ -1237,7 +1315,7 @@ function identifyWrappers(
         keyIndex = target.keyIndex
         provider = target.provider
         forwardsTo = call.callee
-        rewriteBlocker = rewriteBlockerFor(provider, call.callee)
+        rewriteBlocker = rewriteRefusalFor(provider, call.callee, 'wrapper')
       } else {
         const match = accepted.find((candidate) => matchesAccepted(call, candidate))
         if (!match) continue
@@ -1330,11 +1408,15 @@ function classifySites(
   const flags: FeatureFlag[] = []
   const explainedIds = new Set<number>(pending.map((entry) => entry.call.id))
   for (const entry of pending) {
+    // A direct SDK call carries its own refusal; a wrapper body or a wrapper caller
+    // defers to the wrapper's, so the same refusal is never counted twice.
+    const direct = entry.via === 'sdk' && entry.resolution.kind !== 'parameter'
     const base = {
       filePath: entry.file.filePath,
       lineNumber: entry.call.lineNumber,
       callee: entry.call.callee,
       via: entry.via,
+      rewriteRefusal: direct ? rewriteRefusalFor(entry.provider, entry.call.callee, 'direct') : null,
     }
     if (entry.resolution.kind === 'key') {
       sites.push({ ...base, status: { kind: 'accounted', flagKey: entry.resolution.flagKey } })
